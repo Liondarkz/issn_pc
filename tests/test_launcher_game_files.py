@@ -81,7 +81,7 @@ class LauncherGameFilesTests(unittest.TestCase):
         self.assertEqual((self.source / 'pic1.png').read_bytes(), b'replacement artwork')
         self.assertIn('sce_module/libc.prx', self.app.messagebox.showerror.call_args.args[1])
         self.assertEqual(self.app.current_page, 'game')
-        self.assertFalse(self.app.play_button.instate(['disabled']))
+        self.assertNotEqual(self.app.play_button['state'], 'disabled')
 
     def test_slow_copy_blocks_reentry_and_failure_allows_retry(self):
         entered, release = threading.Event(), threading.Event()
@@ -103,7 +103,7 @@ class LauncherGameFilesTests(unittest.TestCase):
                 self.app.game_changed()
                 self.app.play_button.invoke()
                 self.app.play()
-                self.assertTrue(self.app.play_button.instate(['disabled']))
+                self.assertEqual(self.app.play_button['state'], 'disabled')
                 self.assertIn('Copying', self.app.status.cget('text'))
                 copy.assert_called_once()
             finally:
@@ -111,7 +111,7 @@ class LauncherGameFilesTests(unittest.TestCase):
                 self.wait_for_copy()
             start.assert_not_called()
         self.assertIn('test access denied', self.app.messagebox.showerror.call_args.args[1])
-        self.assertFalse(self.app.play_button.instate(['disabled']))
+        self.assertNotEqual(self.app.play_button['state'], 'disabled')
         with mock.patch.object(launcher.subprocess, 'Popen') as start:
             self.app.play_button.invoke()
             self.wait_for_copy()

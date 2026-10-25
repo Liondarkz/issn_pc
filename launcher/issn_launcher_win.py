@@ -1001,7 +1001,7 @@ class PlayButton:
                                          cursor='hand2')
         self.command, self.text, self.state, self.hover = command, '', 'normal', False
         self.width, self.height = width, height
-        self.canvas.bind('<Button-1>', lambda _e: self.state == 'normal' and self.command())
+        self.canvas.bind('<Button-1>', lambda _e: self.invoke())
         self.canvas.bind('<Enter>', lambda _e: self.set_hover(True))
         self.canvas.bind('<Leave>', lambda _e: self.set_hover(False))
         self.draw()
@@ -1016,6 +1016,13 @@ class PlayButton:
         if state is not None:
             self.state = str(state)
         self.draw()
+
+    def invoke(self):
+        if self.state == 'normal':
+            self.command()
+
+    def __getitem__(self, key):  # button['text'] / button['state'], as on a ttk button
+        return getattr(self, key)
 
     def pack(self, **options):
         self.canvas.pack(**options)
