@@ -70,7 +70,8 @@ UPDATES = bool(RELEASES_API)
 # SUPPORT_LINKS: donation pages; the 'Support the project' row shows only when one is set.
 AUTHOR = 'Liondarkz'
 AUTHOR_LINKS = [('GitHub', 'https://github.com/Liondarkz')]
-SUPPORT_LINKS = [('Ko-fi', 'https://ko-fi.com/liondarkz')]  # card or PayPal, any country
+SUPPORT_LINKS = [('Ko-fi', 'https://ko-fi.com/liondarkz'),  # card or PayPal, any country
+                 ('GitHub Sponsors', 'https://github.com/sponsors/Liondarkz')]
 # Pix (Brazil): his random key; the QR code in launcher/pix_qr.png holds pix_payload() (static BR
 # Code; the bank shows the key holder's own name from the key, whatever the payload's name says).
 PIX_KEY = '5db07608-b610-4512-a416-2c8ddd6668e5'
