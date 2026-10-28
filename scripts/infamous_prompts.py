@@ -24,13 +24,14 @@ from pathlib import Path
 
 import infamous_glyphs as glyphs
 
-VERSION = 3  # of the drawing: a change redraws the cached copies
+VERSION = 4  # of the drawing: a change redraws the cached copies
 PACKAGE = 'core_common.sprig.xpps'
 BC3, THIN_1D, TEX_2D = 37, 13, 9
 
 # The touchpad drawn under every touchpad prompt (a fingerprint to hold, two for both thumbs, an
 # arrow to swipe): its key goes in its corner (G; the View button on an Xbox pad).
-TOUCHPAD = bytes.fromhex('59666b0a8697b628')
+TOUCHPAD = bytes.fromhex('59666b0a8697b628')  # swipes (wreckage, the door, the Command Center's core)
+TOUCHPAD_HOLD = bytes.fromhex('26566e881b66276a')  # holds (the drains, the car on Reggie)
 TOUCHPAD_PROMPT = ('touchpad', (512, 512), 10, 'touchpad')
 # package -> {texture hash -> (button, (width, height), mip levels, kind)}
 PROMPTS = {
@@ -41,6 +42,7 @@ PROMPTS = {
         bytes.fromhex('749cd5aff5fcfe6a'): ('dpad', (256, 256), 9, 'dpad'),      # Left red / Right blue
         bytes.fromhex('99aa4ba93936c7a5'): ('down', (64, 64), 7, 'small'),       # Down lit, blue
         bytes.fromhex('b46e68a14157a536'): ('down', (64, 64), 7, 'small'),       # Down lit, red
+        TOUCHPAD_HOLD: TOUCHPAD_PROMPT,
     },
     'core_seaport.sprig.xpps': {
         bytes.fromhex('c49ce6e8ab97b628'): ('r2', (128, 256), 9, 'spray'),       # spray here (orange)
