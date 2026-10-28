@@ -65,6 +65,14 @@ RELEASES_REPO = 'Liondarkz/issn_pc'  # releases moved here with 0.3.0 (the repo 
 RELEASES_API = f'https://api.github.com/repos/{RELEASES_REPO}/releases/latest'
 RELEASES_PAGE = f'https://github.com/{RELEASES_REPO}/releases'
 UPDATES = bool(RELEASES_API)
+# issn: who makes the port and where to follow it (Advanced > About, and the Home page's corner).
+# AUTHOR_LINKS: (label, url); the social networks are added as the author gives them.
+# SUPPORT_LINKS: donation pages; the 'Support the project' row shows only when one is set.
+AUTHOR = 'Liondarkz'
+AUTHOR_LINKS = [('GitHub', 'https://github.com/Liondarkz')]
+SUPPORT_LINKS = []
+CREDITS = ('axylpup (inFAMOUS Second Son shadPS4 build), HayatoG (iss_pc), AYOUB1080p (shadPS4 '
+           'performance build), the shadPS4 team, and every tester who sent a log')
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'issn-update'
 # Never copied over an installation by an update (the package does not hold them either).
 USER_FILES = ('user', 'out', 'mods', 'issn.ini', 'mods.json', 'mods_presets.json', 'patches.json', 'last_run.log')
@@ -1453,6 +1461,12 @@ class Launcher:
             c.create_text(x + self.px(4), self.px(34), text=_('Choose your game folder to play.'), anchor='nw',
                           fill=TEXT, font=(UI_FONT, 12))
             c.create_window(x + self.px(4), self.px(66), window=self.banner_button, anchor='nw')
+        # issn: the author, bottom right; a click opens his GitHub.
+        credit = c.create_text(w - self.px(24), h - self.px(18), text=_('Made by {}').format(AUTHOR), anchor='se',
+                               fill=MUTED, font=(UI_FONT, 10, 'bold'), activefill=NEON)
+        c.tag_bind(credit, '<Button-1>', lambda _e: open_url(AUTHOR_LINKS[0][1]))
+        c.tag_bind(credit, '<Enter>', lambda _e: c.configure(cursor='hand2'))
+        c.tag_bind(credit, '<Leave>', lambda _e: c.configure(cursor=''))
 
     def build_graphics(self):
         """Window, anti-aliasing (the game's own, FSR 4 or DLSS) and the overlay."""
@@ -1819,6 +1833,26 @@ class Launcher:
             if not tools[name]:
                 box.configure(state='disabled')
 
+    def build_about(self, f):
+        """Advanced > About: the author, his links, the support links when there are any, credits."""
+        ttk = self.ttk
+        self.section(f, _('About'))
+        self.note(f, _('Made by {}').format(AUTHOR), top=2)
+        holder = ttk.Frame(f)
+        holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(6, 0))
+        for label, url in AUTHOR_LINKS:
+            ttk.Button(holder, text=label, command=lambda u=url: open_url(u)).pack(side='left', padx=(0, 6))
+        if SUPPORT_LINKS:
+            self.row(f, _('Support the project'), self.link_buttons(f, SUPPORT_LINKS),
+                     _('The port is free. If it made your day, a donation helps keep it going.'))
+        self.note(f, _('Thanks to {}.').format(CREDITS), top=8)
+
+    def link_buttons(self, parent, links):
+        holder = self.ttk.Frame(parent)
+        for label, url in links:
+            self.ttk.Button(holder, text=label, command=lambda u=url: open_url(u)).pack(side='left', padx=(0, 6))
+        return holder
+
     def build_advanced(self):
         tk, ttk = self.tk, self.ttk
         f = self.scrolled_page('advanced', _('Advanced', 'Дополнительно'),
@@ -1841,6 +1875,7 @@ class Launcher:
         ttk.Label(holder, text=f'v{VERSION}', style='Muted.TLabel').pack(side='left', padx=10)
         if not WINDOWS:
             self.build_linux_options(f)
+        self.build_about(f)
         self.section(f, _('Files'))
         holder = ttk.Frame(f)
         holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(6, 0))
