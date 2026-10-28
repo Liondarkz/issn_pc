@@ -230,6 +230,17 @@ static void play_click(PadData *d) {
         d->touches[d->touch_count]=(PadTouch){.x=click.side ? 1440 : 480,.y=471,.id=d->touch_count};
         ++d->touch_count;
     }
+    /* issn: both sources held (keyboard R + G): a finger on each half, the click held while either
+     * is (axylpup 2026-10-18: the Reggie car scene of Second Son, "Press and Hold the Touch Pad
+     * Button with both thumbs", needs both halves). */
+    static int both_was;
+    const int both=(sources & CLICK_LEFT) && (sources & CLICK_RIGHT);
+    if (both && d->touch_count<2) {
+        d->touches[d->touch_count]=(PadTouch){.x=click.side ? 480 : 1440,.y=471,.id=d->touch_count};
+        ++d->touch_count;
+    }
+    if (both!=both_was) printf("Runtime: pad: %s\n",both ? "both touchpad halves held (two thumbs)" : "two thumbs lifted");
+    both_was=both;
     if (now>=down && now<up) d->buttons|=BTN_TOUCHPAD;
 }
 
@@ -240,6 +251,7 @@ static void play_click(PadData *d) {
  * source is held. Stick first, then Select: a swipe with no click at all. R1 with it: two
  * fingers (play_two_fingers). */
 enum { SWIPE_US=250000, SWIPE_TAIL_US=50000 };
+static int key_touch_held; /* issn: the keyboard's right touchpad key (G) is down this read */
 static struct { int active, used; float dx, dy; uint64_t start, held; uint8_t id; } swipe;
 static float swipe_stick(uint8_t v) { return ((float)v-128.0f)/127.0f; }
 /* issn: two fingers (Second Son: both thumbs on the touchpad to lift a tree). R1 with the right
@@ -678,6 +690,7 @@ static void sample_host(PadData *d) {
     d->timestamp=now_us();
     SDL_Gamepad *g=current_gamepad();
     sample_motion(d,g);
+    key_touch_held=0;
     if (issngpu_overlay_captures_input()) return; /* settings menu open: neutral input */
     const bool *k=SDL_WasInit(SDL_INIT_VIDEO) ? SDL_GetKeyboardState(NULL) : NULL;
     {   /* issn: F10 asks for a snapshot of the guest threads (see runtime_snapshot_request). */
@@ -724,6 +737,20 @@ static void sample_host(PadData *d) {
     key_axis(&d->left_y,k[SDL_SCANCODE_W],k[SDL_SCANCODE_S]);
     key_axis(&d->right_x,k[SDL_SCANCODE_J],k[SDL_SCANCODE_L]);
     key_axis(&d->right_y,k[SDL_SCANCODE_I],k[SDL_SCANCODE_K]);
+    /* issn: swipes on the keyboard: the right touchpad key (G) held and an arrow pressed is a swipe
+     * that way (play_swipe; an arrow kept down holds the finger at the end: "swipe up and hold");
+     * the arrows then leave the d-pad alone. Second Son: the door, the prisoners, the Mobile
+     * Command Center's core. */
+    for (size_t i=0;i<key_map.count;++i)
+        if (key_map.entries[i].ps==CLICK_RIGHT && k[key_map.entries[i].source]) key_touch_held=1;
+    if (key_touch_held) {
+        const bool up=k[SDL_SCANCODE_UP], down=k[SDL_SCANCODE_DOWN], left=k[SDL_SCANCODE_LEFT], right=k[SDL_SCANCODE_RIGHT];
+        if (up || down || left || right) {
+            d->buttons&=~(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT);
+            key_axis(&d->right_x,left,right);
+            key_axis(&d->right_y,up,down);
+        }
+    }
     sample_mouse(d);
 }
 
@@ -888,7 +915,7 @@ static void sample(PadData *d) {
         was_tilted=tilt;
     }
     mouse_dx=mouse_dy=0.0f;
-    if (pad_emulation()) play_swipe(d);
+    if (pad_emulation() || key_touch_held) play_swipe(d); /* the keyboard has no touch surface either */
     play_click(d);
     if (hold_after_capture) {
         if (d->buttons) d->buttons=0;

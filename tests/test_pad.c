@@ -108,6 +108,24 @@ int main(void) {
     data=read_pad();
     assert(data.buttons==0 && data.touch_count==0);
 
+    /* issn: both click sources held (keyboard R + G): a finger on each half and the click, as
+     * Second Son's "both thumbs" (the Reggie car) needs; one released: its finger goes. */
+    inject(path,"touchpad_left touchpad_right");
+    data=read_pad();
+    assert(data.touch_count==2 && data.touches[0].x==480 && data.touches[1].x==1440 &&
+           data.touches[0].id!=data.touches[1].id && !(data.buttons & BTN_TOUCHPAD));
+    usleep(60000);
+    data=read_pad();
+    assert(data.touch_count==2 && (data.buttons & BTN_TOUCHPAD));
+    inject(path,"touchpad_left");
+    data=read_pad();
+    assert((data.buttons & BTN_TOUCHPAD) && touch_at(&data,480));
+    inject(path,"");
+    data=read_pad();
+    usleep(220000);
+    data=read_pad();
+    assert(data.buttons==0 && data.touch_count==0);
+
     /* L1 + the right click is a left click (photo mode on a pad without a touchpad). The side
      * is chosen when the click starts and kept until it ends. */
     inject(path,"l1 touchpad_right");

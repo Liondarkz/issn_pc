@@ -1,4 +1,4 @@
-inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.4
+inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.5
 ======================================================
 
 A test build: the game plays from the start, at about 90-105 FPS standing in the open city on a
@@ -13,6 +13,30 @@ from its bin\x64 folder (not development) into bin\dlss next to issn-probe.exe (
 Graphics > Open the DLSS folder): sl.interposer.dll, sl.common.dll, sl.dlss.dll, sl.pcl.dll,
 nvngx_dlss.dll. Then choose DLSS in Graphics > Anti-aliasing. Untested by us (no NVIDIA card):
 please report how it goes. Without the files the game keeps its own anti-aliasing.
+
+What's new in 0.3.5
+- Native resolutions (launcher: Graphics > Resolution, from 800x600-class 1064x600 up to 4K): the
+  game draws at the chosen size itself, with the memory it needs above 1080p (no more black screen
+  at 1440p / 4K). FSR 4 / DLSS quality is now its own setting next to it.
+- Button icons for the keyboard and mouse or an Xbox controller (launcher: Game > Button
+  icons; idea of u/humonculus87 on Reddit): the game's hints show the keys and mouse buttons (they
+  follow your key changes) or the Xbox letters, and so do the prompts in the world: subdue and
+  execute (F / C, or Y / X in the karma colours), the d-pad of missions and karma choices (the
+  arrow keys, the lit one in its colour), the spray can's big R2. The first start with them makes
+  a ~300 MB copy of one game package in the port's out folder; the game files are not changed.
+- Keyboard: R + G together are both thumbs on the touchpad (the car on Reggie, "both thumbs"
+  drains); G with an arrow key is a swipe (doors, the Mobile Command Center's core; keep the arrow
+  down to hold the finger). The game's touchpad hints name these keys in English and Portuguese.
+- Fixed: the game closing after the intro on some Intel + NVIDIA PCs (crash at 0x1cfaaf /
+  0x1cf8f9); freezes when absorbing a power and on rooftops (1.07); Alt+Tab in fullscreen closing
+  the game; FSR 4 Quality crashing at start; fixes from HayatoG's iss_pc (freezes, a memory error
+  on start, error 1450).
+- A game version other than 01.07 now stops at start with what to do, instead of a crash later
+  (a 01.07 eboot with an older param.sfo is accepted).
+- Spray can on the right stick: calmer (30 degrees a second at full push, gentle near the
+  centre); Game > Spray can stick speed.
+- Launcher: "Made by Liondarkz" and Advanced > About with the credits; Advanced > Support the
+  project (Pix, Ko-fi) for whoever wants to help: the port stays free.
 
 What's new in 0.3.4
 - Intel processors: the game no longer closes right after the Sucker Punch logo. It uses AMD's
@@ -120,7 +144,9 @@ Controller
   - Space Cross, Left Shift Circle, C Square, F Triangle (numpad 2/6/4/8 too), Q L1, E R1,
     U L3, O R3, Enter Options, arrows d-pad.
   - Left click R2 (shoot), right click L2 (aim) while the mouse aims; 1 / 3 also work.
-  - R / G: left / right side of the touchpad click (G + IJKL: swipe).
+  - R / G: left / right side of the touchpad click. R + G together: both thumbs (the car on
+    Reggie). G + an arrow key: a swipe that way (doors, the Mobile Command Center core); keep the
+    arrow down to hold the finger there.
   - Spray can: hold Z to tilt the pad, tap Z or hold X to rattle it, move the mouse to aim
     (- / = change its speed while the pad is tilted).
   - F12 screenshot, Insert the port's menu.

@@ -25,7 +25,7 @@ from pathlib import Path
 import shutil
 import struct
 
-VERSION = 2  # of the drawing: a change redraws the cached copies
+VERSION = 3  # of the drawing: a change redraws the cached copies
 PACKAGES = 'art/cache'
 FONT_FILE = Path(__file__).resolve().parent.parent / 'launcher' / 'issn_font.ttf'
 
@@ -53,6 +53,60 @@ SHORT_NAMES = {'left shift': 'SHIFT', 'right shift': 'SHIFT', 'left ctrl': 'CTRL
                'left alt': 'ALT', 'right alt': 'ALT', 'return': 'ENTER', 'enter': 'ENTER', 'space': 'SPACE',
                'backspace': 'BKSP', 'escape': 'ESC', 'tab': 'TAB', 'caps lock': 'CAPS', 'up': 'arrow:up',
                'down': 'arrow:down', 'left': 'arrow:left', 'right': 'arrow:right'}
+
+
+# issn: the keyboard's words for the touchpad prompts that show no icon (written in place, never
+# longer than the game's text: the rest of the string becomes spaces, so no offset moves). R and G
+# are the left and right touchpad keys; both held are both thumbs, G with an arrow a swipe
+# (src/runtime_pad.c). Language of the package (lang_<name>_text.xpps) -> texts.
+KEY_TEXTS = {
+    'en': ({'u_trainer_smi_push_car': 'Hold {left} + {touch} together (both thumbs)',
+            'u_trainer_smi_push_car_alt': 'Hold {left} + {touch} to move the car',
+            'u_hint_vor_door': '{touch} + an arrow key opens the door'},
+           (('the Touch Pad Button with both thumbs', '{left} + {touch}'), ('the Touch Pad Button', '{touch}'),
+            ('Touch Pad Button', '{touch}'))),
+    'pt': ({'u_trainer_smi_push_car': 'Segure {left} + {touch} juntos (os dois polegares)',
+            'u_trainer_smi_push_car_alt': 'Segure {left} + {touch} para mover o carro',
+            'u_hint_vor_door': 'Segure {touch} e aperte uma seta para abrir a porta'},
+           (('o botão do touch pad com ambos os polegares', '{left} + {touch}'), ('o botão do touch pad', '{touch}'))),
+}
+LANGUAGES = {'english': 'en', 'british': 'en', 'brazilian': 'pt', 'portuguese': 'pt'}
+
+
+def _rewrite(out, start, end, text):
+    """The string at out[start:end] becomes `text`, padded with spaces; False if it does not fit."""
+    raw = text.encode()
+    if len(raw) > end - start:
+        return False
+    out[start:end] = raw + b' ' * (end - start - len(raw))
+    return True
+
+
+def retext(data, language, labels):
+    """A copy of the package bytes with the touchpad prompts worded for the keyboard."""
+    texts = KEY_TEXTS.get(LANGUAGES.get(language, ''))
+    out = bytearray(data)
+    if not texts:
+        return bytes(out)
+    words = {'left': 'R', 'touch': labels.get('touchpad', 'G')}
+    keyed, phrases = texts
+    for key, text in keyed.items():
+        at = out.find(b'\0' + key.encode() + b'\0')
+        if at >= 0:
+            start = at + len(key) + 2
+            end = out.find(b'\0', start)
+            if end > start:
+                _rewrite(out, start, end, text.format(**words))
+    for phrase, word in phrases:
+        needle = phrase.encode()
+        at = out.find(needle)
+        while at >= 0:
+            start = out.rfind(b'\0', 0, at) + 1
+            end = out.find(b'\0', at)
+            old = out[start:end].decode('utf-8', 'replace').rstrip(' ')
+            _rewrite(out, start, end, old.replace(phrase, word.format(**words)))
+            at = out.find(needle, start + 1)
+    return bytes(out)
 
 
 class PackageError(ValueError):
@@ -280,9 +334,13 @@ def build(game, out, style, key_map=''):
         copy = target / source.name
         if stamps.get(source.name) != key or not copy.is_file():
             try:
-                copy.write_bytes(redraw(source.read_bytes(), style, key_map))
+                data = redraw(source.read_bytes(), style, key_map)
             except PackageError:
                 continue
+            if style == 'keyboard':
+                language = source.name[len('lang_'):-len('_text.xpps')]
+                data = retext(data, language, key_labels(key_map))
+            copy.write_bytes(data)
         new_stamps[source.name] = key
         mounts[f'/app0/{PACKAGES}/{source.name}'] = str(copy)
     stamp_file.write_text(json.dumps(new_stamps))

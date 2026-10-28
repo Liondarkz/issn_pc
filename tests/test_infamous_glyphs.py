@@ -83,6 +83,18 @@ class InfamousGlyphTests(unittest.TestCase):
         self.assertEqual(labels['r2'], 'mouse:left')  # R2 stays the left mouse button
         self.assertEqual(g.key_labels('')['square'], 'C')
 
+    def test_keyboard_words_for_the_touchpad(self):
+        strings = (b'\0u_trainer_smi_push_car\0Press and Hold the Touch Pad Button with both thumbs\0\0\0'
+                   b'u_hint_vor_door\0Swipe the Touch Pad to open the door\0'
+                   b'u_x\0Press the Touch Pad Button to drain Smoke Sources\0')
+        out = g.retext(strings, 'english', g.key_labels(''))
+        self.assertEqual(len(out), len(strings))
+        self.assertIn(b'\0Hold R + G together (both thumbs)   ', out)
+        self.assertIn(b'\0G + an arrow key opens the door     \0', out)
+        self.assertIn(b'\0Press G to drain Smoke Sources', out)
+        self.assertEqual(out.count(b'\0'), strings.count(b'\0'))  # every string where it was
+        self.assertEqual(g.retext(strings, 'french', g.key_labels('')), strings)
+
     def test_build_mounts_copies(self):
         data, _ = package({0xF080: (0, 0, 16, 16)})
         with tempfile.TemporaryDirectory() as tmp:

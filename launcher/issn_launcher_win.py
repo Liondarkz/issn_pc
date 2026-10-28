@@ -57,7 +57,7 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 NEW_GROUP = {} if WINDOWS else {'start_new_session': True}
 UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 # This build; GitHub release tags are windows-v<VERSION>.
-VERSION = '0.3.4'
+VERSION = '0.3.5'
 # This port's own test builds (never the God of War III port's: they must not be installed over
 # it). The source repository is private; the builds are published in a public repository that
 # holds only releases (tag windows-v<VERSION>, the zip from packaging/windows/package.sh).
@@ -1771,7 +1771,9 @@ class Launcher:
                        'mouse aims (1:1, as in axylpup\'s build); Y or F7 lets the mouse go and takes it back, '
                        '- / = change its speed. Left click R2 (shoot), right click L2 (aim). Spray can: hold Z '
                        'to tilt the pad, tap Z or hold X to rattle it, move the mouse to aim. R / G: left / right '
-                       'touchpad (G + IJKL: swipe). Arrows: d-pad. F12: screenshot. Insert: the port\'s menu.'), top=8)
+                       'touchpad; R + G together: both thumbs (the car on Reggie); G + an arrow: a swipe (doors, '
+                       'the Mobile Command Center core; keep the arrow down to hold). Arrows: d-pad. F12: '
+                       'screenshot. Insert: the port\'s menu.'), top=8)
         table = ttk.Frame(f)
         table.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(16, 0))
         for column, span, title in ((0, 2, _('GAME BUTTON')), (2, 1, _('KEYBOARD')), (3, 2, _('GAMEPAD'))):
