@@ -32,7 +32,7 @@ def package(digest=TRIANGLE, size=128, levels=8):
     doff, t, base = 0x200, 0x100, 0x400
     _, total = p.mip_layout(size, size, levels)
     texture = io.BytesIO(bytes(total))
-    p.write_texture(texture, 0, size, levels, Image.new('RGBA', (size, size), (1, 2, 3, 0)), disc(size))
+    p.write_texture(texture, 0, size, size, levels, Image.new('RGBA', (size, size), (1, 2, 3, 0)), disc(size))
     data = bytearray(base) + texture.getvalue() + bytes(0x100)
     struct.pack_into('<4I', data, t + 0x28, base, p.BC3 << 20, (size - 1) | ((size - 1) << 14),
                      (p.TEX_2D << 28) | ((levels - 1) << 16) | (p.THIN_1D << 20))
@@ -104,6 +104,18 @@ class InfamousPromptTests(unittest.TestCase):
             stamp = copy.stat().st_mtime_ns
             self.assertEqual(p.build(game, target, 'keyboard'), mounts)  # reused
             self.assertEqual(copy.stat().st_mtime_ns, stamp)
+
+    def test_spray_r2_becomes_the_mouse(self):
+        image = Image.new('RGBA', (128, 256), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((20, 60, 108, 200), fill=(245, 170, 10, 255))   # the paint
+        draw.rectangle((44, 110, 92, 160), fill=(240, 240, 232, 255))  # the stencil
+        out = p.redraw(image, 'r2', 'spray', 'keyboard', {'r2': 'mouse:left'})
+        self.assertEqual(out.size, image.size)
+        self.assertEqual(out.getpixel((30, 70)), image.getpixel((30, 70)))  # paint away from it kept
+        self.assertGreater(out.getpixel((68, 144))[0] - out.getpixel((68, 144))[2], 100)  # the mouse body: paint
+        self.assertGreater(min(out.getpixel((62, 120))[:3]), 220)  # its left button: white
+        self.assertIsNone(p.redraw(Image.new('RGBA', (128, 256)), 'r2', 'spray', 'keyboard', {}))
 
     def test_other_packages_are_left_alone(self):
         data, _, _ = package(b'NOTOURS!')

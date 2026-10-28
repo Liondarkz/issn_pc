@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """inFAMOUS Second Son's in-world button prompts, redrawn for the keyboard and mouse or an Xbox pad.
 
-The prompts drawn in the world (not text) are BC3 textures of art/cache/core_common.sprig.xpps:
+The prompts drawn in the world (not text) are BC3 textures: in art/cache/core_common.sprig.xpps
 the subdue and execute discs (Triangle, Square), the d-pad discs of the karma choices and of
-"start mission" (one direction lit), and the small karma discs with the d-pad's Down lit. build()
-writes a copy of that package with them redrawn (the key's cap, the arrow keys, the Xbox letter)
-and returns it for run.py to mount over the original; the game folder is never written.
+"start mission" (one direction lit), and the small karma discs with the d-pad's Down lit; in
+core_seaport.sprig.xpps the spray can's painted R2 (orange, grey). build() writes copies of those
+packages with them redrawn (the key's cap, the arrow keys, the mouse, the Xbox letter) and returns
+them for run.py to mount over the originals; the game folder is never written.
 
 Textures are found by the 8-byte hash at +0x48 of their 0x60-byte object (the T# at +0x28: word0
 data offset, format 37 = BC3, tiling 13 = 1D thin), checked against their size and mip count, so
@@ -23,19 +24,27 @@ from pathlib import Path
 
 import infamous_glyphs as glyphs
 
-VERSION = 1  # of the drawing: a change redraws the cached copy
+VERSION = 2  # of the drawing: a change redraws the cached copies
 PACKAGE = 'core_common.sprig.xpps'
 BC3, THIN_1D, TEX_2D = 37, 13, 9
 
-# texture hash -> (button, size, mip levels, kind)
+# package -> {texture hash -> (button, (width, height), mip levels, kind)}
 PROMPTS = {
-    bytes.fromhex('0e56e2aa9a59c237'): ('triangle', 128, 8, 'disc'),   # subdue (blue)
-    bytes.fromhex('a54687fd3c3f0041'): ('square', 128, 8, 'disc'),     # execute (red)
-    bytes.fromhex('8d2f945eed7bd661'): ('dpad', 256, 9, 'dpad'),       # Up lit (start a mission)
-    bytes.fromhex('749cd5aff5fcfe6a'): ('dpad', 256, 9, 'dpad'),       # Left red / Right blue (karma)
-    bytes.fromhex('99aa4ba93936c7a5'): ('down', 64, 7, 'small'),       # Down lit, blue
-    bytes.fromhex('b46e68a14157a536'): ('down', 64, 7, 'small'),       # Down lit, red
+    'core_common.sprig.xpps': {
+        bytes.fromhex('0e56e2aa9a59c237'): ('triangle', (128, 128), 8, 'disc'),  # subdue (blue)
+        bytes.fromhex('a54687fd3c3f0041'): ('square', (128, 128), 8, 'disc'),    # execute (red)
+        bytes.fromhex('8d2f945eed7bd661'): ('dpad', (256, 256), 9, 'dpad'),      # Up lit (start a mission)
+        bytes.fromhex('749cd5aff5fcfe6a'): ('dpad', (256, 256), 9, 'dpad'),      # Left red / Right blue
+        bytes.fromhex('99aa4ba93936c7a5'): ('down', (64, 64), 7, 'small'),       # Down lit, blue
+        bytes.fromhex('b46e68a14157a536'): ('down', (64, 64), 7, 'small'),       # Down lit, red
+    },
+    'core_seaport.sprig.xpps': {
+        bytes.fromhex('c49ce6e8ab97b628'): ('r2', (128, 256), 9, 'spray'),       # spray here (orange)
+        bytes.fromhex('7a324f4b1343fcba'): ('r2', (128, 256), 9, 'spray'),       # (grey)
+        bytes.fromhex('f837ecc1a2681118'): ('r2', (128, 256), 9, 'spray'),       # (orange, smaller)
+    },
 }
+ALL_PROMPTS = {digest: prompt for prompts in PROMPTS.values() for digest, prompt in prompts.items()}
 XBOX_LETTERS = {'triangle': 'Y', 'square': 'X', 'cross': 'A', 'circle': 'B'}
 
 
@@ -122,9 +131,9 @@ def encode_bc3(pixels):
 
 
 def find(data, doff, dsize):
-    """[(texture data start, button, size, levels, kind)] of the prompts in this package."""
+    """[(texture data start, button, (width, height), levels, kind)] of the prompts in this package."""
     found = []
-    for digest, (button, size, levels, kind) in PROMPTS.items():
+    for digest, (button, size, levels, kind) in ALL_PROMPTS.items():
         pos = data.find(digest)
         while pos >= 0:
             item = pos - 0x48 - doff
@@ -132,8 +141,8 @@ def find(data, doff, dsize):
                 base, w1, w2, w3 = struct.unpack_from('<4I', data, doff + item + 0x28)
                 width, height = (w2 & 0x3FFF) + 1, ((w2 >> 14) & 0x3FFF) + 1
                 if ((w1 >> 20) & 0x3F, (w3 >> 20) & 0x1F, w3 >> 28, ((w3 >> 16) & 0xF) + 1, width, height) == \
-                        (BC3, THIN_1D, TEX_2D, levels, size, size) and \
-                        base + mip_layout(size, size, levels)[1] <= dsize:
+                        (BC3, THIN_1D, TEX_2D, levels) + size and \
+                        base + mip_layout(*size, levels)[1] <= dsize:
                     found.append((doff + base, button, size, levels, kind))
                     break
             pos = data.find(digest, pos + 1)
@@ -257,8 +266,54 @@ def _small(image):
     return out
 
 
+def _spray(image, label, style):
+    """The painted R2 of the spray can: the white stencil painted over with the paint around it,
+    then the mouse with its left button (or RT) stencilled in its place."""
+    from PIL import Image, ImageDraw
+    w, h = image.size
+    px = image.load()
+    white = [(x, y) for y in range(h) for x in range(w) if px[x, y][3] > 100 and min(px[x, y][:3]) > 185]
+    if len(white) < 50:
+        return None
+    x0, y0 = min(p[0] for p in white), min(p[1] for p in white)
+    x1, y1 = max(p[0] for p in white) + 1, max(p[1] for p in white) + 1
+    paint = _average(image, lambda x, y, p: p[3] > 200 and min(p[:3]) < 160 and max(p[:3]) > 90,
+                     (max(0, x0 - 12), max(0, y0 - 12), min(w, x1 + 12), min(h, y1 + 12)), brightest=0.6)
+    if not paint:
+        return None
+    # the stencil and its soft edge (whiter than the paint, 2 pixels around) take the paint
+    from PIL import ImageFilter
+    lum = sum(paint) / 3
+    mask = Image.new('L', image.size, 0)
+    mpx = mask.load()
+    for y in range(max(0, y0 - 2), min(h, y1 + 2)):
+        for x in range(max(0, x0 - 2), min(w, x1 + 2)):
+            p = px[x, y]
+            if p[3] > 60 and (min(p[:3]) > 150 or sum(p[:3]) / 3 > lum + 12):
+                mpx[x, y] = 255
+    mask = mask.filter(ImageFilter.MaxFilter(5))
+    painted = image.copy()
+    painted.paste(Image.new('RGB', image.size, paint), mask=mask)
+    painted.putalpha(image.getchannel('A'))
+    out = painted
+    side = max(x1 - x0, y1 - y0) + 6
+    ink = (238, 236, 228)
+    if style == 'xbox':
+        big = Image.new('RGBA', (side * 4, side * 4), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(big)
+        font, (a0, b0, a1, b1) = glyphs._text_fit(draw, 'RT', side * 4 * 0.9, side * 4 * 0.62)
+        draw.text(((side * 4 - (a1 - a0)) / 2 - a0, (side * 4 - (b1 - b0)) / 2 - b0), 'RT', font=font, fill=ink + (255,))
+        symbol = big.resize((side, side), Image.LANCZOS)
+    else:
+        symbol = _tint(glyphs.draw_cell('r2', label, 'keyboard', side, side), ink)
+    out.alpha_composite(symbol, (int(round((x0 + x1 - side) / 2)), int(round((y0 + y1 - side) / 2))))
+    return out
+
+
 def redraw(image, button, kind, style, labels):
     """The level-0 image of one prompt redrawn for `style`, or None when it stays the game's."""
+    if kind == 'spray':
+        return _spray(image, labels.get(button, 'mouse:left') if style == 'keyboard' else 'RT', style)
     if kind == 'disc':
         return _disc(image, button, labels.get(button, '?') if style == 'keyboard' else XBOX_LETTERS[button], style)
     if style != 'keyboard':  # an Xbox pad has a d-pad too
@@ -266,19 +321,19 @@ def redraw(image, button, kind, style, labels):
     return _dpad(image) if kind == 'dpad' else _small(image)
 
 
-def write_texture(out, start, size, levels, original, edited):
+def write_texture(out, start, width, height, levels, original, edited):
     """Writes the levels of `edited` (level 0, upright) into the file `out` at `start`: the blocks
     that differ from `original` (level 0 as the game has it), each level resized from level 0."""
     from PIL import Image
-    layout, _ = mip_layout(size, size, levels)
+    layout, _ = mip_layout(width, height, levels)
     written = 0
     for level, (offset, bw, bh, pitch) in enumerate(layout):
-        side = size >> level
-        if side < 4:  # the 2x2 and 1x1 levels stay the game's
+        size = (width >> level, height >> level)
+        if min(size) < 4:  # levels under 4 pixels stay the game's
             break
         if level:
-            new = edited.resize((side, side), Image.LANCZOS)
-            old = original.resize((side, side), Image.LANCZOS)
+            new = edited.resize(size, Image.LANCZOS)
+            old = original.resize(size, Image.LANCZOS)
         else:
             new, old = edited, original
         new = new.transpose(Image.FLIP_TOP_BOTTOM)  # stored bottom-up
@@ -305,9 +360,9 @@ def patch(source, dest, style, key_map=''):
         doff, dsize = struct.unpack_from('<II', data, 0x28)
         jobs = []
         for start, button, size, levels, kind in find(data, doff, dsize):
-            layout, _ = mip_layout(size, size, levels)
+            layout, _ = mip_layout(*size, levels)
             _, bw, bh, pitch = layout[0]
-            original = read_level(data, start, size, size, bw, bh, pitch)
+            original = read_level(data, start, *size, bw, bh, pitch)
             edited = redraw(original, button, kind, style, labels)
             if edited is not None:
                 jobs.append((start, size, levels, original, edited))
@@ -318,7 +373,7 @@ def patch(source, dest, style, key_map=''):
         try:
             with open(partial, 'r+b') as out:
                 for start, size, levels, original, edited in jobs:
-                    write_texture(out, start, size, levels, original, edited)
+                    write_texture(out, start, *size, levels, original, edited)
             partial.replace(dest)
         except BaseException:
             partial.unlink(missing_ok=True)
@@ -327,25 +382,33 @@ def patch(source, dest, style, key_map=''):
 
 
 def build(game, target, style, key_map=''):
-    """{guest path: host copy} of the redrawn prompt package in `target` (reused while nothing
-    changed), or {} when the game folder has no such package or nothing to redraw."""
-    source = Path(game) / glyphs.PACKAGES / PACKAGE
-    copy = Path(target) / PACKAGE
+    """{guest path: host copy} of the redrawn prompt packages in `target` (each reused while
+    nothing changed); none for a package the game folder lacks or with nothing to redraw."""
     stamp_file = Path(target) / 'prompts.json'
-    if not source.is_file():
-        copy.unlink(missing_ok=True)
-        return {}
-    stat = source.stat()
-    labels = glyphs.key_labels(key_map) if style == 'keyboard' else {}
-    key = hashlib.sha256(f'{VERSION}|{style}|{labels.get("triangle")}|{labels.get("square")}|'
-                         f'{stat.st_size}|{stat.st_mtime_ns}'.encode()).hexdigest()
     try:
-        stamp = json.loads(stamp_file.read_text())
+        stamps = json.loads(stamp_file.read_text())
+        stamps = stamps if isinstance(stamps, dict) and 'key' not in stamps else {}
     except (OSError, ValueError):
-        stamp = {}
-    if stamp.get('key') != key or not (copy.is_file() or stamp.get('count') == 0):
-        count = patch(source, copy, style, key_map)
-        if not count:
+        stamps = {}
+    labels = glyphs.key_labels(key_map) if style == 'keyboard' else {}
+    mounts, new_stamps = {}, {}
+    for name in PROMPTS:
+        source = Path(game) / glyphs.PACKAGES / name
+        copy = Path(target) / name
+        if not source.is_file():
             copy.unlink(missing_ok=True)
-        stamp_file.write_text(json.dumps({'key': key, 'count': count}))
-    return {f'/app0/{glyphs.PACKAGES}/{PACKAGE}': str(copy)} if copy.is_file() else {}
+            continue
+        stat = source.stat()
+        key = hashlib.sha256(f'{VERSION}|{style}|{labels.get("triangle")}|{labels.get("square")}|'
+                             f'{stat.st_size}|{stat.st_mtime_ns}'.encode()).hexdigest()
+        stamp = stamps.get(name, {})
+        if stamp.get('key') != key or not (copy.is_file() or stamp.get('count') == 0):
+            count = patch(source, copy, style, key_map)
+            if not count:
+                copy.unlink(missing_ok=True)
+            stamp = {'key': key, 'count': count}
+        new_stamps[name] = stamp
+        if copy.is_file():
+            mounts[f'/app0/{glyphs.PACKAGES}/{name}'] = str(copy)
+    stamp_file.write_text(json.dumps(new_stamps))
+    return mounts

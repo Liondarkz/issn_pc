@@ -22,8 +22,9 @@ What's new in 0.3.5
   icons; idea of u/humonculus87 on Reddit): the game's hints show the keys and mouse buttons (they
   follow your key changes) or the Xbox letters, and so do the prompts in the world: subdue and
   execute (F / C, or Y / X in the karma colours), the d-pad of missions and karma choices (the
-  arrow keys, the lit one in its colour), the spray can's big R2. The first start with them makes
-  a ~300 MB copy of one game package in the port's out folder; the game files are not changed.
+  arrow keys, the lit one in its colour), the spray can's painted R2 (the left mouse button, or
+  RT). The first start with them makes copies of two game packages (~420 MB) in the port's out
+  folder; the game files are not changed.
 - Keyboard: R + G together are both thumbs on the touchpad (the car on Reggie, "both thumbs"
   drains); G with an arrow key is a swipe (doors, the Mobile Command Center's core; keep the arrow
   down to hold the finger). The game's touchpad hints name these keys in English and Portuguese.
