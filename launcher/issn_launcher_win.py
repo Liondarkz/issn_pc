@@ -378,8 +378,10 @@ PAD_STYLES = {
 }
 
 
-GLYPH_STYLES = [('off', ('Original (default)',)), ('auto', ('Match my controller',)), ('xbox', ('Xbox',)),
-                ('nintendo', ('Nintendo',))]
+# issn: the button icons of the game's prompts (scripts/infamous_glyphs.py; idea of u/humonculus87).
+GLYPH_STYLES = [('off', ('PlayStation, the game\'s own (default)',)),
+                ('auto', ('Automatic: keyboard and mouse, or the connected controller',)),
+                ('keyboard', ('Keyboard and mouse',)), ('xbox', ('Xbox',))]
 
 
 def control_changes(values, kind):
@@ -928,7 +930,7 @@ def game_environment(s):
             env[name] = value
     glyph_style = s.get('glyph_style')
     env.pop('ISSN_GLYPH_STYLE', None)
-    if glyph_style in ('auto', 'xbox', 'nintendo'):
+    if glyph_style in ('auto', 'keyboard', 'xbox', 'nintendo'):
         env['ISSN_GLYPH_STYLE'] = glyph_style
     env['PYTHONUNBUFFERED'] = '1'
     env['PYTHONIOENCODING'] = 'utf-8'
@@ -1711,6 +1713,11 @@ class Launcher:
                    'Select/Back (with L1: the left side). Swipe: hold Select/Back and push the right stick. '
                    'Two fingers: hold Select/Back + RB. Spray can: L3 + R3 together tilts the pad, LB '
                    'rattles it, the right stick aims. Automatic turns it off on a DualShock 4 or DualSense.'),
+                 restart=True)
+        self.row(f, _('Button icons'), self.choice(f, 'glyph_style', 'app', GLYPH_STYLES, width=44),
+                 _('The buttons the game shows in its hints and menus. Keyboard and mouse shows the keys '
+                   '(they follow your key changes above) and the mouse buttons; Automatic picks the keyboard '
+                   'when no controller is connected at start, Xbox letters for Xbox and other pads.'),
                  restart=True)
         self.row(f, _('Spray can stick speed'), self.choice(f, 'spray_stick', 'app', SPRAY_STICK),
                  _('How fast the right stick turns the spray can while the pad is tilted (L3 + R3). A light '

@@ -133,6 +133,10 @@ def glyph_mounts(env, probe, game, out):
     auto, xbox or nintendo nothing is asked, drawn or mounted, and old copies are removed. The
     game folder is never written."""
     choice = env.get('ISSN_GLYPH_STYLE', 'off')
+    import game_profiles
+    import patches as game_patches
+    if game_patches.game_title_id(game) in game_profiles.INFAMOUS_SECOND_SON:
+        return infamous_glyph_mounts(env, probe, game, out, choice)
     if choice not in ('auto', 'xbox', 'nintendo'):
         shutil.rmtree(Path(out) / 'glyphs', ignore_errors=True)
         return [], None
@@ -153,6 +157,43 @@ def glyph_mounts(env, probe, game, out):
         return [], None
     print(f'Glyphs: {style}{f" ({name})" if name else ""}, on copies in {Path(out) / "glyphs"}; game files untouched',
           flush=True)
+    return [part for guest, path in mounts.items() for part in ('--mount', f'{guest}={path}')], style
+
+
+def infamous_glyph_mounts(env, probe, game, out, choice):
+    """inFAMOUS Second Son's button icons (scripts/infamous_glyphs.py): keyboard and mouse keys or
+    Xbox letters drawn into copies of the language packages' icon atlas. auto: the connected pad's
+    style (a PlayStation pad keeps the game's own), the keyboard without one. The tester idea of
+    u/humonculus87 (Reddit)."""
+    import infamous_glyphs
+    style = choice if choice in ('keyboard', 'xbox') else None
+    name = ''
+    if choice == 'auto':
+        try:
+            import glyphs
+            pad = subprocess.run([str(probe), '--gamepad'], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                 text=True, timeout=15, creationflags=no_console()).stdout
+            found = glyphs.parse_gamepad(pad)
+        except Exception:  # noqa: BLE001  (icons only)
+            found = None
+        style = 'keyboard' if not found else None if found[0] == 'playstation' else 'xbox'
+        name = found[2] if found else ''
+    if not style:
+        infamous_glyphs.build(game, out, 'off')
+        if choice == 'auto':
+            print(f'Button icons: the game\'s own (PlayStation controller{f" {name}" if name else ""})', flush=True)
+        return [], None
+    try:
+        mounts = infamous_glyphs.build(game, out, style, env.get('ISSN_KEY_MAP', ''))
+    except Exception as error:  # noqa: BLE001  (icons only: whatever fails, the game still starts)
+        print(f'Button icons: {error}; the game keeps its own', flush=True)
+        return [], None
+    if not mounts:
+        print('Button icons: no language package with the icon font in this game folder', flush=True)
+        return [], None
+    label = {'keyboard': 'keyboard and mouse', 'xbox': 'Xbox'}[style]
+    print(f'Button icons: {label}{f" ({name})" if name else ""}, {len(mounts)} language packages redrawn '
+          f'in {Path(out) / "glyphs"}; game files untouched', flush=True)
     return [part for guest, path in mounts.items() for part in ('--mount', f'{guest}={path}')], style
 
 
