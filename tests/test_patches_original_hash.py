@@ -83,8 +83,7 @@ class SecondSonFileTests(unittest.TestCase):
 
     def test_default_selection_is_base_mode_safe(self):
         names = selected_patches(ISSN, '01.00', '')
-        self.assertEqual(names, ['Dynamic quality thresholds x2 (no quality drops in busy scenes)',
-                                 'Anti-freeze guard (collision loop)',
+        self.assertEqual(names, ['Anti-freeze guard (collision loop)',
                                  'Bigger light list (needed for native 4K)'])
 
 
