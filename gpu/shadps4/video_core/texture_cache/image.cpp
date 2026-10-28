@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <atomic>
 #include "video_core/renderer_vulkan/vk_gpu_batch_timer.h"
 #include <algorithm>
 #include <ranges>
@@ -191,9 +192,14 @@ Image::Image(const Vulkan::Instance& instance_, Vulkan::Scheduler& scheduler_,
     const auto image_format_properties =
         instance->GetPhysicalDevice().getImageFormatProperties2(format_info);
     if (image_format_properties.result == vk::Result::eErrorFormatNotSupported) {
-        LOG_ERROR(Render_Vulkan, "image format {} type {} is not supported (flags {}, usage {})",
-                  vk::to_string(supported_format), vk::to_string(format_info.type),
-                  vk::to_string(format_info.flags), vk::to_string(format_info.usage));
+        // issn: the same few formats on every texture (~700 lines a session): first 8 only.
+        static std::atomic<u32> logged{0};
+        if (logged.fetch_add(1, std::memory_order_relaxed) < 8) {
+            LOG_ERROR(Render_Vulkan,
+                      "image format {} type {} is not supported (flags {}, usage {}) (logged 8 times)",
+                      vk::to_string(supported_format), vk::to_string(format_info.type),
+                      vk::to_string(format_info.flags), vk::to_string(format_info.usage));
+        }
     }
     supported_samples = image_format_properties.result == vk::Result::eSuccess
                             ? image_format_properties.value.imageFormatProperties.sampleCounts
@@ -705,9 +711,14 @@ static std::pair<u32, u32> SanitizeCopyLayers(const ImageInfo& src_info, const I
     // If the image type is equal, layer count must match. Take the minimum of both.
     if (vk_src_type == vk_dst_type) {
         if (src_layers != dst_layers) {
-            LOG_WARNING(Render_Vulkan,
-                        "Coercing copy source layers {} and destination layers {} to minimum.",
-                        src_layers, dst_layers);
+            // issn: hundreds per minute in tester logs; the first few are enough.
+            static std::atomic<u32> logged{0};
+            if (logged.fetch_add(1, std::memory_order_relaxed) < 3) {
+                LOG_WARNING(Render_Vulkan,
+                            "Coercing copy source layers {} and destination layers {} to minimum "
+                            "(logged 3 times)",
+                            src_layers, dst_layers);
+            }
             src_layers = dst_layers = std::min(src_layers, dst_layers);
         }
     } else {

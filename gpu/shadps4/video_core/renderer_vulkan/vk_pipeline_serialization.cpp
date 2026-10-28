@@ -46,6 +46,9 @@ static constexpr u32 PrecompiledMetaBit = 0x80000000u;
 
 namespace Vulkan {
 
+// issn: permutations skipped at the preload because their index changed (one line per warm-up).
+static std::atomic<u64> g_permutation_conflicts{0};
+
 namespace {
 // SHADPS4_CACHE_REBUILD WarmUp time split (warmup_times).
 using WarmClock = std::chrono::steady_clock;
@@ -790,10 +793,13 @@ bool PipelineCache::LoadPipelineStage(Serialization::Archive& ar, size_t stage) 
             // left to compile at runtime.
             const auto idx = std::distance(it_pgm.value()->modules.begin(), it);
             if (perm_idx != idx) {
-                LOG_WARNING(Render_Vulkan,
-                            "Cached permutation {} of {}_{:x} conflicts with index {}, skipping "
-                            "preload",
-                            perm_idx, program->info.stage, program->info.pgm_hash, idx);
+                // issn: harmless and frequent (~440 lines in every tester log, burying what
+                // matters): counted, one line at the end of the warm-up.
+                g_permutation_conflicts.fetch_add(1, std::memory_order_relaxed);
+                LOG_DEBUG(Render_Vulkan,
+                          "Cached permutation {} of {}_{:x} conflicts with index {}, skipping "
+                          "preload",
+                          perm_idx, program->info.stage, program->info.pgm_hash, idx);
                 return false;
             }
             module = it->module;
@@ -1534,6 +1540,11 @@ void PipelineCache::WarmUp() {
             }
             LOG_INFO(Render, "CacheRebuild: vs-formats.bin written, {} entries", count);
         }
+    }
+    if (const u64 conflicts = g_permutation_conflicts.exchange(0); conflicts) {
+        LOG_INFO(Render, "{} cached permutations from another cache generation are compiled when "
+                         "first used (not preloaded)",
+                 conflicts);
     }
     if (num_total_pipelines > num_pipelines) {
         LOG_WARNING(Render, "{} stale pipelines were found. Consider re-generating the cache",

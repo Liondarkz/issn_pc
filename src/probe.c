@@ -491,6 +491,15 @@ static int mapped(Segment *segments, uint64_t count, uint64_t address, uint64_t 
             address - segments[i].address <= segments[i].size - bytes) return 1;
     return 0;
 }
+/* issn: as mapped(), up to each segment's page end: the zeros after a segment are mapped with
+ * it (protect() rounds to the page), and patches may keep code or counters there. */
+static int mapped_pages(Segment *segments, uint64_t count, uint64_t address, uint64_t bytes) {
+    for (uint64_t i = 0; i < count; ++i) {
+        const uint64_t end = segments[i].address + round_page(segments[i].size);
+        if (address >= segments[i].address && address <= end && bytes <= end - address) return 1;
+    }
+    return 0;
+}
 extern ABI float issn_orbs_gain(void *player, float requested);
 extern void issn_orbs_status(int supported);
 extern uintptr_t issn_cheat_flag(unsigned id);
@@ -759,7 +768,7 @@ static void apply_patches(const char *path, Segment *segments, uint64_t ns, cons
     unsigned char data[4096];
     for (uint64_t i=0;i<count;++i) {
         uint64_t offset=read64(f), length=read64(f);
-        if (!length || length>sizeof(data) || !mapped(segments,ns,offset,length) || fread(data,1,length,f)!=length)
+        if (!length || length>sizeof(data) || !mapped_pages(segments,ns,offset,length) || fread(data,1,length,f)!=length)
             fail("bad patch entry");
         uint64_t slots[sizeof(data)/8]; size_t nslots=0;
         for (uint64_t r=0;r<nr;++r) {

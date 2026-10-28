@@ -8,6 +8,7 @@ The in-game "Apply and restart" runs this script again through ISSN_RESTART_COMM
 `--after PID` waits for the previous game process to end first (its GPU device and memory).
 """
 import os
+import re
 from pathlib import Path
 import shlex
 import shutil
@@ -225,9 +226,12 @@ def main():
     # 10-24) - say so here instead. ISSN_ALLOW_OLD_VERSION=1 tries anyway.
     import game_profiles
     import patches as game_patches
+    # Decided by the eboot.bin: some dumps carry the 01.07 eboot.bin under the base game's
+    # param.sfo (APP_VER 01.00; tester log 10-25 played that way).
     title, version = game_patches.game_title_id(game), game_patches.game_app_version(game)
     if (title in game_profiles.INFAMOUS_SECOND_SON and version and version != '01.07'
-            and env.get('ISSN_ALLOW_OLD_VERSION') != '1'):
+            and env.get('ISSN_ALLOW_OLD_VERSION') != '1'
+            and game_patches.eboot_sha256(game) not in game_profiles.INFAMOUS_107_EBOOTS):
         fail(f'{title} version {version}: this port needs the game\'s 01.07 update. In the launcher, '
              'set "Update folder" to the 01.07 update (the folder with its eboot.bin and sce_sys), or '
              'lay the update over the game folder, then press PLAY again.')
@@ -289,6 +293,13 @@ def main():
             if profile[3] == 'God of War III':
                 names = graphics_options.patch_names(names, graphics)
             names = graphics_options.restrict_to_available(names, patches.available_patches(profile[1], profile[2]))
+            # issn: Internal resolution (the shim's render size) replaces the old fixed-size
+            # resolution patches; both would rewrite the same immediates.
+            if profile[3] == 'inFAMOUS Second Son' and (env.get('ISSN_RENDER_HEIGHT') or env.get('ISSN_RENDER_SCALE')):
+                dropped = [n for n in names if n.startswith('Native ') and '(render and output)' in n]
+                if dropped:
+                    print(f'Patches: {", ".join(dropped)} left out: Internal resolution sets the size', flush=True)
+                names = [n for n in names if n not in dropped]
             env['ISSN_PATCHES'] = ';'.join(names)
             env['ISSN_PATCHES_ONLY'] = '1'
         (out / 'patch_status.json').unlink(missing_ok=True)
@@ -301,6 +312,8 @@ def main():
             applied = (patch_status(out) or {}).get('applied', [])
             engine_fps = graphics_options.applied_engine_fps(applied)
             dmem, vblank = patch_requirements(profile[1], applied, profile[2])
+            if profile[3] == 'inFAMOUS Second Son':
+                dmem = max(dmem or 0, infamous_dmem_mb(env, applied)) or None
             for key, value in (('ISSN_DMEM_MB', dmem), ('ISSN_VBLANK_HZ', vblank)):
                 if value and key not in env:
                     env[key] = str(value)
@@ -384,6 +397,35 @@ def main():
             shutil.rmtree(mod_view, ignore_errors=True)
         if update_view:
             game_update.remove_view(update_view)
+
+
+def infamous_render_lines(env, applied):
+    """The lines inFAMOUS Second Son renders: Internal resolution (ISSN_RENDER_HEIGHT /
+    ISSN_RENDER_SCALE, the shim's render size) or an old "Native WxH" patch, else 1080."""
+    try:
+        if env.get('ISSN_RENDER_HEIGHT'):
+            return max(360, min(2160, int(env['ISSN_RENDER_HEIGHT'])))
+        if env.get('ISSN_RENDER_SCALE'):
+            return max(360, min(2160, round(1080 * float(env['ISSN_RENDER_SCALE']) / 100)))
+    except ValueError:
+        pass
+    for name in applied:
+        if m := re.match(r'Native (\d+)x(\d+) \(render and output\)', name):
+            return int(m.group(2))
+    return 1080
+
+
+def infamous_dmem_mb(env, applied):
+    """Direct memory for inFAMOUS Second Son above 1080 lines (0 at or below). The game gives its
+    GPU heap all the direct memory left at boot (3.3 GiB of the retail 5056 MiB); its render
+    targets at 4K need about four times their 1080p room, and with the retail pool the picture
+    stayed black after the opening poster (RX 7900 XT tester, native 4K patch, 10-24). 4 GiB more
+    at 4K (as the shadPS4 notes ask for God of War III's), in proportion to the pixels below."""
+    lines = infamous_render_lines(env, applied)
+    if lines <= 1080:
+        return 0
+    extra = 4096 * ((lines / 1080) ** 2 - 1) / 3
+    return 5056 + int(-(-extra // 256) * 256)
 
 
 # Windows exit codes of a process that ended without its own report.

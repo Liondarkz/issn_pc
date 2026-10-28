@@ -23,13 +23,20 @@ def game_app_version(game):
     return game_sfo(game).get('APP_VER')
 
 
+# issn: a segment's mapping ends at the next 4 KiB page (the loader protects round_page(memsz));
+# the zeros between its end and the page end are mapped with it. inFAMOUS Second Son's
+# "Anti-freeze guard" keeps its code (0x10c5680) and counter there: 1.07's code segment ends at
+# 0xcc55b8, so the cave at 0xcc5680 was refused as outside the eboot.
+PAGE=0x1000
+
+
 def eboot_segments(elf):
     phoff,=struct.unpack_from('<Q',elf,0x20)
     phentsize,phnum=struct.unpack_from('<HH',elf,0x36)
     segments=[]
     for i in range(phnum):
         kind,_,_,vaddr,_,_,memsz,_=struct.unpack_from('<IIQQQQQQ',elf,phoff+i*phentsize)
-        if kind==1: segments.append((vaddr,vaddr+memsz))
+        if kind==1: segments.append((vaddr,(vaddr+memsz+PAGE-1)&~(PAGE-1)))
     return segments
 
 
@@ -38,9 +45,12 @@ def eboot_image(elf):
     phoff,=struct.unpack_from('<Q',elf,0x20)
     phentsize,phnum=struct.unpack_from('<HH',elf,0x36)
     loads=[struct.unpack_from('<IIQQQQQQ',elf,phoff+i*phentsize) for i in range(phnum)]
-    loads=[(vaddr,offset,filesz) for kind,_,offset,vaddr,_,filesz,_,_ in loads if kind==1]
-    image=bytearray(max(vaddr+filesz for vaddr,_,filesz in loads))
-    for vaddr,offset,filesz in loads: image[vaddr:vaddr+filesz]=elf[offset:offset+filesz]
+    loads=[(vaddr,offset,filesz,memsz) for kind,_,offset,vaddr,_,filesz,memsz,_ in loads if kind==1]
+    # issn: up to each segment's page end, zeros past its file bytes (as mapped).
+    image=bytearray(max((vaddr+max(filesz,memsz)+PAGE-1)&~(PAGE-1) for vaddr,_,filesz,memsz in loads))
+    for vaddr,offset,filesz,_ in loads:
+        data=elf[offset:offset+filesz]
+        image[vaddr:vaddr+len(data)]=data
     return bytes(image)
 
 

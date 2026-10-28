@@ -468,7 +468,11 @@ PERF_MODES = [('', ('Off: full quality (default)',)), ('low', ('Balanced: about 
 # preset for that ratio (67% = Quality, 58% = Balanced, 50% = Performance).
 RENDER_SCALES = [('', ('100%: 1920x1080, the game\'s own (default)',)), ('83', ('83%: 1592x896',)),
                  ('67', ('67%: 1280x720 (FSR 4 Quality)',)), ('58', ('58%: 1112x624 (FSR 4 Balanced)',)),
-                 ('50', ('50%: 968x544 (FSR 4 Performance)',))]
+                 ('50', ('50%: 968x544 (FSR 4 Performance)',)),
+                 # issn: above the game's own 1080 lines (sharper, slower; ISSN_RENDER_HEIGHT): the
+                 # port's own native 1440p / 1800p / 4K, in place of the old "Native ..." patches.
+                 ('h1440', ('1440p: 2560x1440 (native 2K)',)), ('h1800', ('1800p: 3200x1800',)),
+                 ('h2160', ('2160p: 3840x2160 (native 4K)',))]
 # ISSN_ASPECT (gpu/shim/issn_game_patches.cpp, axylpup's 1.1 screen shapes): '' = the game window's
 # shape (fullscreen: the monitor's), off = the game's 16:9, or a fixed shape.
 SCREEN_SHAPES = [('', ('Automatic: the shape of the window / monitor (default)',)), ('off', ('16:9, the game\'s own',)),
@@ -879,7 +883,10 @@ def game_environment(s):
     for name in ('ISSN_RENDER_SCALE', 'ISSN_RENDER_HEIGHT'):
         env.pop(name, None)
     if s.get('render_scale') in {value for value, _text in RENDER_SCALES if value}:
-        env['ISSN_RENDER_SCALE'] = s['render_scale']
+        if s['render_scale'].startswith('h'):
+            env['ISSN_RENDER_HEIGHT'] = s['render_scale'][1:]
+        else:
+            env['ISSN_RENDER_SCALE'] = s['render_scale']
     if s.get('perf_mode') in {value for value, _text in PERF_MODES if value}:
         env['ISSN_PERF_MODE'] = s['perf_mode']
     env.pop('ISSN_ASPECT', None)
@@ -1502,7 +1509,8 @@ class Launcher:
         self.row(f, _('Internal resolution'), self.choice(f, 'render_scale', 'app', RENDER_SCALES),
                  _('The size the game draws at. Below 100% is faster; with FSR 4 (Graphics > Anti-aliasing) '
                    'the picture is rebuilt at the window size, otherwise it is only scaled up and looks soft. '
-                   'The HUD keeps its layout.'), restart=True)
+                   '1440p, 1800p and 4K draw natively at that size (sharper, heavier). The HUD keeps its layout.'),
+                 restart=True)
         self.row(f, _('Performance mode'), self.choice(f, 'perf_mode', 'app', PERF_MODES),
                  _('The game\'s own lower settings, from axylpup\'s 1.1: shorter detail distance, one shadow '
                    'level less, lighter particles and fewer high-resolution textures nearby. Figures are '

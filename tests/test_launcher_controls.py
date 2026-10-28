@@ -103,9 +103,12 @@ class ControlMapTest(unittest.TestCase):
         self.assertEqual(launcher.game_environment({**base, 'render_scale': '67'})['ISSN_RENDER_SCALE'], '67')
         self.assertNotIn('ISSN_RENDER_SCALE', launcher.game_environment({**base, 'render_scale': '33'}))
         # The labels show the size the game patch makes (multiples of 8, issn_game_patches.cpp).
+        env = launcher.game_environment({**base, 'render_scale': 'h2160'})
+        self.assertEqual(env['ISSN_RENDER_HEIGHT'], '2160')
+        self.assertNotIn('ISSN_RENDER_SCALE', env)
         for value, (text,) in launcher.RENDER_SCALES:
             if value:
-                h = round(1080 * int(value) / 100 / 8) * 8
+                h = int(value[1:]) if value.startswith('h') else round(1080 * int(value) / 100 / 8) * 8
                 self.assertIn(f'{round(h * 16 / 9 / 8) * 8}x{h}', text)
 
     def test_changed_buttons_in_table_order(self):

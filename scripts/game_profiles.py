@@ -10,6 +10,9 @@ from pathlib import Path
 # (AYOUB1080p, github.com/weshayoub92/shadPS4-perf): compute workgroups wider than a host subgroup
 # need barriers where the game relies on GCN waves of 64 running in lockstep.
 INFAMOUS_SECOND_SON = ('CUSA00004', 'CUSA00223')
+# issn: sha256 of the 01.07 eboot.bin (the same for CUSA00004 and CUSA00223), whatever APP_VER
+# the folder's param.sfo says.
+INFAMOUS_107_EBOOTS = frozenset({'2d1ca79630d7bbe6fa29575f59aa7996d43071d74ac8e4f7d40137967d9039ab'})
 
 # issn-axy: the GPU core of axylpup's inFAMOUS Second Son build (github.com/axylpup/shadPS4,
 # second-son 2212a345 = release v1.0.2), with the switches of its release (shadps4-flags.txt).
