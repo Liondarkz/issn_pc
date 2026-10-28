@@ -115,7 +115,8 @@ private:
     void FindPresentMode();
 
     /// Sets the surface properties according to device capabilities
-    void SetSurfaceProperties();
+    /// false when the surface cannot be queried (lost while the window is away).
+    bool SetSurfaceProperties();
 
     /// Destroys current swapchain resources
     void Destroy();

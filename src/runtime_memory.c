@@ -272,9 +272,11 @@ static int host_protect(uintptr_t address, uint64_t size, int prot) {
 static void host_discard(uint64_t phys, uint64_t size) { memset(backing_base+phys,0,size); }
 /* Direct memory occupies [0,POOL_SIZE) of the section, flexible memory [POOL_SIZE,+FLEX_SPAN). */
 /* issn: a system-managed page file grows only after a commit fails, so a refused commit is tried
- * again for a few seconds, and the pool is created at boot (runtime_memory_create_pool), before
- * the GPU driver and the shader warm-up raise the process's commit (HayatoG's iss_pc fadd416:
- * error 1450 on a 16 GB PC with a small page file). Native 2K / 4K make the pool larger. */
+ * again for a few seconds (HayatoG's iss_pc fadd416: error 1450 on a 16 GB PC with a small page
+ * file). Native 2K / 4K make the pool larger. The pool stays created on the game's first
+ * allocation: created at boot (as in his port), its view took the low window the hook stubs need
+ * within rel32 of the image, and mouse aim, draw distance and the red-zone guard were refused
+ * (tester log 10-27). */
 static int pool(void) {
     static int failed;
     if (backing_base) return 0;

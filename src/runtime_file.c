@@ -231,6 +231,11 @@ static void apply_alias(char *path,size_t size) {
         entry=*end ? end+1 : end;
     }
 }
+static int contains_nocase(const char *text,const char *part) {
+    const size_t n=strlen(part);
+    for (; *text; ++text) if (!strncasecmp(text,part,n)) return 1;
+    return 0;
+}
 static int64_t do_open(const char *guest,int flags,int mode) {
     if (game_path(guest) && (flags & (3|0x8|0x200|0x400|0x800))) return -EROFS;
     char path[1024];
@@ -270,6 +275,12 @@ static int64_t do_open(const char *guest,int flags,int mode) {
     Listing *dir=NULL;
     if (!fstat(host,&s) && S_ISDIR(s.st_mode)) dir=list_directory(path);
 #endif
+    /* issn: the game's language packages (the button icons mount copies over them) are logged
+     * with where they were opened from: the icons did not change on a tester's PC (10-27). */
+    if (contains_nocase(guest,"_text") && contains_nocase(guest,".xpps")) {
+        static unsigned logged;
+        if (__atomic_fetch_add(&logged,1,__ATOMIC_RELAXED)<16) printf("Runtime: open %s -> %s\n",guest,path);
+    }
     pthread_mutex_lock(&lock);
     int fd=-1;
     for (int i=3;i<MAX_FILES;++i) if (!files[i].used) { fd=i; break; }

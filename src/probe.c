@@ -1126,16 +1126,6 @@ int main(int argc, char **argv) {
         if (procparam) memcpy(&sdk,image+procparam+16,8); /* procparam: size, magic, count, sdk_version */
         IssnGpuConfig gpu={title,serial,user_dir ? user_dir : "user",(uint32_t)sdk,attributes,1920,1080,(uint64_t)(uintptr_t)image,
                            app0,app_ver};
-#ifdef _WIN32
-        /* issn: the guest pool is committed before the GPU driver and the shader warm-up raise the
-         * process's commit (HayatoG's iss_pc fadd416); a failure stops with what to do. */
-        if (runtime_memory_create_pool()) {
-            printf("ERROR: the game's memory could not be reserved (see the Runtime line above): make the Windows "
-                   "page file larger or choose a lower Resolution.\n");
-            fflush(NULL);
-            _exit(22);
-        }
-#endif
         gpu_enabled=1; /* page tracking starts while the rasterizer registers guest memory */
         if (issngpu_init(&gpu)) fail("GPU initialization failed");
         printf("GPU: window and Vulkan presenter ready; SDK 0x%08x, %u HLE symbols\n",(unsigned)sdk,issngpu_symbol_count());

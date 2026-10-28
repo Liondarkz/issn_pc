@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <chrono>
+#include <thread>
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -98,7 +100,14 @@ void Swapchain::Create(u32 width_, u32 height_) {
 
     Destroy();
 
-    SetSurfaceProperties();
+    // issn: a minimized fullscreen window (Alt+Tab) has a 0x0 surface and a lost surface cannot be
+    // queried: no swapchain until the window is back; acquire and present skip frames meanwhile.
+    // Both asserted before and closed the game on Alt+Tab in fullscreen (tester 10-27).
+    if (!SetSurfaceProperties() || extent.width == 0 || extent.height == 0) {
+        needs_recreation = true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(16)); // no busy loop while away
+        return;
+    }
 
     const std::array queue_family_indices = {
         instance.GetGraphicsQueueFamilyIndex(),
@@ -130,8 +139,12 @@ void Swapchain::Create(u32 width_, u32 height_) {
     };
 
     auto [swapchain_result, chain] = instance.GetDevice().createSwapchainKHR(swapchain_info);
-    ASSERT_MSG(swapchain_result == vk::Result::eSuccess, "Failed to create swapchain: {}",
-               vk::to_string(swapchain_result));
+    if (swapchain_result != vk::Result::eSuccess) {
+        LOG_WARNING(Render_Vulkan, "Swapchain not created ({}): frames are skipped until it is",
+                    vk::to_string(swapchain_result));
+        needs_recreation = true;
+        return;
+    }
     swapchain = chain;
 
     SetupImages();
@@ -161,7 +174,14 @@ void Swapchain::SetHDR(bool hdr) {
                                                  : surface_format.format);
 }
 
+// VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT (Windows only in the headers).
+constexpr auto FullscreenExclusiveLost = static_cast<vk::Result>(-1000255000);
+
 bool Swapchain::AcquireNextImage() {
+    if (!swapchain) {
+        needs_recreation = true;
+        return false;
+    }
     vk::Device device = instance.GetDevice();
     vk::Result result =
         device.acquireNextImageKHR(swapchain, std::numeric_limits<u64>::max(),
@@ -173,6 +193,9 @@ bool Swapchain::AcquireNextImage() {
     case vk::Result::eSuboptimalKHR:
     case vk::Result::eErrorSurfaceLostKHR:
     case vk::Result::eErrorOutOfDateKHR:
+    case FullscreenExclusiveLost:
+    case vk::Result::eTimeout:
+    case vk::Result::eNotReady:
     case vk::Result::eErrorUnknown:
         needs_recreation = true;
         break;
@@ -187,6 +210,10 @@ bool Swapchain::AcquireNextImage() {
 }
 
 bool Swapchain::Present() {
+    if (!swapchain) {
+        needs_recreation = true;
+        return false;
+    }
 
     const vk::PresentInfoKHR present_info = {
         .waitSemaphoreCount = 1,
@@ -206,8 +233,11 @@ bool Swapchain::Present() {
     } else {
         result = instance.GetPresentQueue().presentKHR(present_info);
     }
-    if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR) {
-        needs_recreation = true;
+    if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR ||
+        result == vk::Result::eErrorSurfaceLostKHR ||
+        result == FullscreenExclusiveLost ||
+        result == vk::Result::eErrorUnknown) {
+        needs_recreation = true; // issn: Alt+Tab in fullscreen; the window comes back
     } else {
         ASSERT_MSG(result == vk::Result::eSuccess, "Swapchain presentation failed: {}",
                    vk::to_string(result));
@@ -321,11 +351,14 @@ void Swapchain::FindPresentMode() {
     LOG_INFO(Render_Vulkan, "Present mode: {}", vk::to_string(present_mode));
 }
 
-void Swapchain::SetSurfaceProperties() {
+bool Swapchain::SetSurfaceProperties() {
     const auto [capabilities_result, capabilities] =
         instance.GetPhysicalDevice().getSurfaceCapabilitiesKHR(surface);
-    ASSERT_MSG(capabilities_result == vk::Result::eSuccess,
-               "Failed to query surface capabilities: {}", vk::to_string(capabilities_result));
+    if (capabilities_result != vk::Result::eSuccess) {
+        LOG_WARNING(Render_Vulkan, "Surface capabilities unavailable ({}): the window is gone for now",
+                    vk::to_string(capabilities_result));
+        return false;
+    }
 
     extent = capabilities.currentExtent;
     if (capabilities.currentExtent.width == std::numeric_limits<u32>::max()) {
@@ -359,6 +392,7 @@ void Swapchain::SetSurfaceProperties() {
     if (!(capabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::eOpaque)) {
         composite_alpha = vk::CompositeAlphaFlagBitsKHR::eInherit;
     }
+    return true;
 }
 
 void Swapchain::Destroy() {
@@ -376,6 +410,7 @@ void Swapchain::Destroy() {
 
     if (swapchain) {
         device.destroySwapchainKHR(swapchain);
+        swapchain = nullptr;
     }
 
     for (const auto& sem : image_acquired) {
