@@ -19,6 +19,7 @@
 #include "common/logging/log.h"
 #include "common/memory_patcher.h"
 #include "common/types.h"
+#include "video_core/renderer_vulkan/vk_dlss.h"
 
 namespace VideoCore {
 void PS4_SYSV_ABI ParticleArenaDiscardHook(); // buffer_cache.cpp
@@ -417,6 +418,11 @@ static void ApplyRenderSize() {
         std::memcpy(reinterpret_cast<void*>(g_eboot_address + 0x581d10 + 4), &disp, 4);
     }
     IssnShape::g_aspect = aspect;
+    // issn: the upscaler learns the game's size from its first resolve; told now, FSR 4 / DLSS
+    // start at the right size and are not created twice. Made again after the first frame,
+    // FSR 4 crashed inside the AMD driver (Lucas 10-27: 67% in a 1920x1078 window).
+    Vulkan::Dlss::g_game_width.store(width, std::memory_order_relaxed);
+    Vulkan::Dlss::g_game_height.store(height, std::memory_order_relaxed);
     if (shaped) {
         ApplyMovieFit(sw, sh);
     }

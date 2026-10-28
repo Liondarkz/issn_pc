@@ -519,8 +519,14 @@ struct Upscaler::Impl {
             color.height != render_height) {
             if (context_ok || backend_ok) {
                 // A size change (rare: the game renders 1920x1080) - the old context's frames
-                // must be done first.
+                // must be done first. issn: the whole device, not only this scheduler (the
+                // presenter's queue may still read FSR's images; AMD driver fault, 10-27).
                 scheduler.Finish();
+                (void)instance.GetDevice().waitIdle();
+                while (!in_flight.empty()) {
+                    ffxFsr4VkRetireFrame(&backend, in_flight.front().first);
+                    in_flight.pop_front();
+                }
                 if (context_ok) {
                     ffxFsr4V07DestroyContext(&context, nullptr);
                     context_ok = false;
