@@ -6,7 +6,8 @@ the menus' U+F08E / U+F08F become Cross / Circle at run time) and draws them fro
 in each language package, art/cache/lang_<language>_text.xpps. build() writes copies of those
 packages whose icon atlas has the cells of those characters redrawn (a keycap with the key's
 name, a mouse with the button pressed, or the Xbox letters), and returns the guest paths run.py
-mounts them on. The game folder is never written, and the copies stay on the player's PC.
+mounts them on, with the in-world prompts of core_common.sprig.xpps (scripts/infamous_prompts.py).
+The game folder is never written, and the copies stay on the player's PC.
 
 KCAP package (little-endian; offsets relative to the data start `doff` at file +0x28):
     +0x18 u32 table offset; table: 6 x u64 {0, nsec, 0, nitem, 0, extra}, nsec x 0x28 sections,
@@ -24,7 +25,7 @@ from pathlib import Path
 import shutil
 import struct
 
-VERSION = 1  # of the drawing: a change redraws the cached copies
+VERSION = 2  # of the drawing: a change redraws the cached copies
 PACKAGES = 'art/cache'
 FONT_FILE = Path(__file__).resolve().parent.parent / 'launcher' / 'issn_font.ttf'
 
@@ -35,6 +36,8 @@ ICON_BUTTONS = {
     0xF084: 'l1', 0xF085: 'l2', 0xF086: 'r1', 0xF087: 'r2', 0xF088: 'options', 0xF089: 'options',
     0xF08A: 'lstick', 0xF08B: 'l3', 0xF08C: 'rstick', 0xF08D: 'r3',
     0xF090: 'dpad', 0xF091: 'right', 0xF092: 'up', 0xF093: 'left', 0xF094: 'down', 0xF098: 'touchpad',
+    # the big ones (the spray can's R2, the tutorials): L1 L2 R1 R2 L3 R3 START
+    0xF0E0: 'l1', 0xF0E1: 'l2', 0xF0E2: 'r1', 0xF0E3: 'r2', 0xF0E4: 'l3', 0xF0E5: 'r3', 0xF0E6: 'options',
 }
 # The port's default keyboard (src/runtime_pad.c): button -> label. L2 / R2 are the mouse buttons.
 KEYBOARD = {'cross': 'SPACE', 'circle': 'SHIFT', 'square': 'C', 'triangle': 'F', 'l1': 'Q', 'r1': 'E',
@@ -260,6 +263,9 @@ def build(game, out, style, key_map=''):
         return {}
     folder = Path(game) / PACKAGES
     sources = sorted(p for p in folder.glob('lang_*_text.xpps')) if folder.is_dir() else []
+    for other in ('keyboard', 'xbox'):  # one style's copies at a time (the prompts' is 300 MB)
+        if other != style:
+            shutil.rmtree(Path(out) / 'glyphs' / other, ignore_errors=True)
     target = Path(out) / 'glyphs' / style
     target.mkdir(parents=True, exist_ok=True)
     stamp_file = target / 'stamp.json'
@@ -280,4 +286,10 @@ def build(game, out, style, key_map=''):
         new_stamps[source.name] = key
         mounts[f'/app0/{PACKAGES}/{source.name}'] = str(copy)
     stamp_file.write_text(json.dumps(new_stamps))
+    if mounts:  # the prompts drawn in the world; the text icons work without them
+        import infamous_prompts
+        try:
+            mounts.update(infamous_prompts.build(game, target, style, key_map))
+        except (OSError, PackageError) as error:
+            print(f'Button icons: in-world prompts left as they are ({error})', flush=True)
     return mounts

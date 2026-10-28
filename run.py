@@ -192,7 +192,9 @@ def infamous_glyph_mounts(env, probe, game, out, choice):
         print('Button icons: no language package with the icon font in this game folder', flush=True)
         return [], None
     label = {'keyboard': 'keyboard and mouse', 'xbox': 'Xbox'}[style]
-    print(f'Button icons: {label}{f" ({name})" if name else ""}, {len(mounts)} language packages redrawn '
+    languages = sum(1 for guest in mounts if '/lang_' in guest)
+    prompts = ', in-world prompts' if len(mounts) > languages else ''
+    print(f'Button icons: {label}{f" ({name})" if name else ""}, {languages} language packages{prompts} redrawn '
           f'in {Path(out) / "glyphs"}; game files untouched', flush=True)
     return [part for guest, path in mounts.items() for part in ('--mount', f'{guest}={path}')], style
 

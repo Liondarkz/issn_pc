@@ -882,7 +882,7 @@ int main(int argc, char **argv) {
     int cpu_only = 0, strict_imports = 0, check_imports = 0;
     unsigned timeout_seconds = 10;
     const char *content_profile=NULL, *app0=NULL, *user_dir=NULL, *patch_file=NULL, *isa_file=NULL;
-    const char *mounts[16]; int mount_count=0;
+    const char *mounts[40]; int mount_count=0;
     for (int i = 2; i < argc; ++i) {
         if (!strcmp(argv[i], "--cpu-only")) cpu_only = 1;
         else if (!strcmp(argv[i], "--strict-imports")) strict_imports = 1;
@@ -895,7 +895,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--mount") && i+1<argc) {
             /* guest=host; the guest part never has '=', so the first one splits */
             const char *spec=argv[++i], *eq=strchr(spec,'=');
-            if (mount_count==16 || !eq || eq==spec || !eq[1]) { fprintf(stderr, "Bad --mount (guest=host, at most 16): %s\n", spec); return 1; }
+            if (mount_count==40 || !eq || eq==spec || !eq[1]) { fprintf(stderr, "Bad --mount (guest=host, at most 40): %s\n", spec); return 1; }
             mounts[mount_count++]=spec;
         }
         else if (!strcmp(argv[i], "--timeout") && i+1<argc) timeout_seconds=(unsigned)strtoul(argv[++i],NULL,10);
