@@ -26,6 +26,7 @@ install -m644 launcher/issn_font.ttf launcher/OFL-BebasNeue.txt "$share/launcher
 icon=launcher/issn.png
 [[ -f packaging/linux/issn.png ]] && icon=packaging/linux/issn.png
 install -m644 "$icon" "$share/launcher/issn.png"
+install -m644 launcher/pix_qr.png "$share/launcher/pix_qr.png"
 
 # The launcher also runs run.py (--run) and the preparation scripts (--script) itself, as on
 # Windows: the standard modules those scripts import come along as hidden imports.

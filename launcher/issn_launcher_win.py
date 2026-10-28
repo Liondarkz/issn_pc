@@ -70,7 +70,12 @@ UPDATES = bool(RELEASES_API)
 # SUPPORT_LINKS: donation pages; the 'Support the project' row shows only when one is set.
 AUTHOR = 'Liondarkz'
 AUTHOR_LINKS = [('GitHub', 'https://github.com/Liondarkz')]
-SUPPORT_LINKS = []
+SUPPORT_LINKS = [('Ko-fi', 'https://ko-fi.com/liondarkz')]  # card or PayPal, any country
+# Pix (Brazil): his random key; the QR code in launcher/pix_qr.png holds pix_payload() (static BR
+# Code; the bank shows the key holder's own name from the key, whatever the payload's name says).
+PIX_KEY = '5db07608-b610-4512-a416-2c8ddd6668e5'
+PIX_NAME, PIX_CITY = 'LIONDARKZ', 'BRASIL'
+PIX_QR = PORT_DIR / 'launcher' / 'pix_qr.png'
 CREDITS = ('axylpup (inFAMOUS Second Son shadPS4 build), HayatoG (iss_pc), AYOUB1080p (shadPS4 '
            'performance build), the shadPS4 team, and every tester who sent a log')
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'issn-update'
@@ -228,6 +233,21 @@ def open_url(url):
     else:
         subprocess.Popen(['xdg-open', url], env=host_environment(), stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def pix_payload(key=None, name=None, city=None):
+    """The 'Pix copia e cola' text (static BR Code, EMV QRCPS) of a Pix key, any amount."""
+    def field(tag, value):
+        return f'{tag}{len(value):02d}{value}'
+    body = (field('00', '01') + field('26', field('00', 'br.gov.bcb.pix') + field('01', key or PIX_KEY)) +
+            field('52', '0000') + field('53', '986') + field('58', 'BR') + field('59', (name or PIX_NAME)[:25]) +
+            field('60', (city or PIX_CITY)[:15]) + field('62', field('05', '***')) + '6304')
+    crc = 0xFFFF  # CRC-16/CCITT-FALSE over everything up to and with '6304'
+    for byte in body.encode():
+        crc ^= byte << 8
+        for _bit in range(8):
+            crc = ((crc << 1) ^ 0x1021) & 0xFFFF if crc & 0x8000 else (crc << 1) & 0xFFFF
+    return body + f'{crc:04X}'
 
 
 def _(en, ru=None):
@@ -1316,6 +1336,11 @@ class Launcher:
         bar.pack(side='right', fill='y')
         canvas.pack(side='left', fill='both', expand=True)
         outer.scroll = lambda units: canvas.yview_scroll(units, 'units') if inner.winfo_height() > canvas.winfo_height() else None
+
+        def scroll_to(widget):  # brings a section of this page to the top
+            canvas.update_idletasks()
+            canvas.yview_moveto(max(0, widget.winfo_y() - self.px(8)) / max(1, inner.winfo_height()))
+        outer.scroll_to = scroll_to
         self.pages[name] = outer
         return inner
 
@@ -1465,8 +1490,13 @@ class Launcher:
         credit = c.create_text(w - self.px(24), h - self.px(18), text=_('Made by {}').format(AUTHOR), anchor='se',
                                fill=MUTED, font=(UI_FONT, 10, 'bold'), activefill=NEON)
         c.tag_bind(credit, '<Button-1>', lambda _e: open_url(AUTHOR_LINKS[0][1]))
-        c.tag_bind(credit, '<Enter>', lambda _e: c.configure(cursor='hand2'))
-        c.tag_bind(credit, '<Leave>', lambda _e: c.configure(cursor=''))
+        # issn: and, left of it, the way to the support section (Pix, Ko-fi).
+        support = c.create_text(c.bbox(credit)[0] - self.px(18), h - self.px(18), text='♥ ' + _('Support the project'),
+                                anchor='se', fill=NEON_PINK, font=(UI_FONT, 10, 'bold'), activefill=TEXT)
+        c.tag_bind(support, '<Button-1>', lambda _e: self.show_support())
+        for item in (credit, support):
+            c.tag_bind(item, '<Enter>', lambda _e: c.configure(cursor='hand2'))
+            c.tag_bind(item, '<Leave>', lambda _e: c.configure(cursor=''))
 
     def build_graphics(self):
         """Window, anti-aliasing (the game's own, FSR 4 or DLSS) and the overlay."""
@@ -1842,10 +1872,66 @@ class Launcher:
         holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(6, 0))
         for label, url in AUTHOR_LINKS:
             ttk.Button(holder, text=label, command=lambda u=url: open_url(u)).pack(side='left', padx=(0, 6))
-        if SUPPORT_LINKS:
-            self.row(f, _('Support the project'), self.link_buttons(f, SUPPORT_LINKS),
-                     _('The port is free. If it made your day, a donation helps keep it going.'))
         self.note(f, _('Thanks to {}.').format(CREDITS), top=8)
+        self.build_support(f)
+
+    def build_support(self, f):
+        """Advanced > Support the project: Pix (QR code and key) for Brazil, Ko-fi for everyone else.
+        The Home page's 'Support' link scrolls here."""
+        tk, ttk = self.tk, self.ttk
+        self.section(f, _('Support the project'))
+        self.support_anchor = f.grid_slaves(row=self.next_row(f) - 2, column=0)[0]
+        self.note(f, _("The port is free and always will be. If it gave you some good moments and you'd like to help "
+                       "keep it and the next projects going, or just say thanks, any amount is welcome and means a "
+                       "lot. Thank you! ♥"), top=4)
+        self.note(f, _("Donations only support the work: they don't unlock anything, and the port never includes "
+                       "game files."), top=4)
+        cards = ttk.Frame(f)
+        cards.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
+
+        def card(column, title):
+            box = tk.Frame(cards, bg=CARD, padx=self.px(16), pady=self.px(12))
+            box.grid(row=0, column=column, sticky='nsw', padx=(0, self.px(12)))
+            tk.Label(box, text=heading_text(title.upper()), bg=CARD, fg=TEXT, font=heading_font(17, UI_FONT)).pack(anchor='w')
+            return box
+
+        def copier(parent, label, text):
+            button = ttk.Button(parent, text=label)
+
+            def copy():
+                self.root.clipboard_clear()
+                self.root.clipboard_append(text)
+                button.configure(text=_('Copied ✓'))
+                self.root.after(1600, lambda: button.configure(text=label))
+            button.configure(command=copy)
+            return button
+
+        pix = card(0, _('Pix (Brazil)'))
+        try:
+            photo = tk.PhotoImage(file=str(PIX_QR))
+            if self.px(100) < 150 and photo.width() > 200:
+                photo = photo.subsample(2)
+            self.pix_photo = photo  # kept alive
+            tk.Label(pix, image=photo, bg=CARD, bd=0).pack(anchor='w', pady=(8, 6))
+        except (tk.TclError, OSError):
+            pass
+        tk.Label(pix, text=_('Random key'), bg=CARD, fg=MUTED, font=(UI_FONT, 9)).pack(anchor='w')
+        tk.Label(pix, text=PIX_KEY, bg=CARD, fg=TEXT, font=(UI_FONT, 9, 'bold')).pack(anchor='w', pady=(0, 6))
+        row = tk.Frame(pix, bg=CARD)
+        row.pack(anchor='w')
+        copier(row, _('Copy key'), PIX_KEY).pack(side='left', padx=(0, 6))
+        copier(row, _('Copy Pix code'), pix_payload()).pack(side='left')
+        world = card(1, _('Any country'))
+        tk.Label(world, text=_('Card or PayPal, in any currency, no account needed.'), bg=CARD, fg=MUTED,
+                 font=(UI_FONT, 10), wraplength=self.px(240), justify='left').pack(anchor='w', pady=(8, 10))
+        for label, url in SUPPORT_LINKS:
+            ttk.Button(world, text=label, command=lambda u=url: open_url(u)).pack(anchor='w', pady=(0, 6))
+
+    def show_support(self):
+        self.show('advanced')
+        anchor = getattr(self, 'support_anchor', None)
+        if anchor is not None:
+            self.pages['advanced'].scroll_to(anchor)
 
     def link_buttons(self, parent, links):
         holder = self.ttk.Frame(parent)

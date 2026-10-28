@@ -43,7 +43,7 @@ rm -rf -- out/stage
 mkdir -p "$dest/bin" "$dest/launcher"
 cp -r "out/pyi-dist/inFAMOUS Second Son/." "$dest/"
 llvm-strip -o "$dest/Play inFAMOUS Second Son.exe" out/issn-play.exe
-cp launcher/issn.ico launcher/issn.png "$dest/launcher/"
+cp launcher/issn.ico launcher/issn.png launcher/pix_qr.png "$dest/launcher/"
 # issn: the title face ships only when there is one (launcher/issn_font.ttf; none yet).
 [[ -f launcher/issn_font.ttf ]] && cp launcher/issn_font.ttf "$dest/launcher/"
 # The executables without debug information (out/ keeps the symbols for crash reports).
