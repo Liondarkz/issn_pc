@@ -97,19 +97,26 @@ class ControlMapTest(unittest.TestCase):
         import game_profiles
         self.assertEqual(game_profiles.AXY_RELEASE_FLAGS['SHADPS4_ASYNC_PIPELINES'], '1')
 
-    def test_render_scale(self):
+    def test_resolution_and_upscale_quality(self):
         base = {**launcher.APP_DEFAULTS}
-        self.assertNotIn('ISSN_RENDER_SCALE', launcher.game_environment(base))
-        self.assertEqual(launcher.game_environment({**base, 'render_scale': '67'})['ISSN_RENDER_SCALE'], '67')
-        self.assertNotIn('ISSN_RENDER_SCALE', launcher.game_environment({**base, 'render_scale': '33'}))
-        # The labels show the size the game patch makes (multiples of 8, issn_game_patches.cpp).
-        env = launcher.game_environment({**base, 'render_scale': 'h2160'})
-        self.assertEqual(env['ISSN_RENDER_HEIGHT'], '2160')
-        self.assertNotIn('ISSN_RENDER_SCALE', env)
-        for value, (text,) in launcher.RENDER_SCALES:
-            if value:
-                h = int(value[1:]) if value.startswith('h') else round(1080 * int(value) / 100 / 8) * 8
-                self.assertIn(f'{round(h * 16 / 9 / 8) * 8}x{h}', text)
+        env = launcher.game_environment(base)
+        self.assertNotIn('ISSN_RENDER_HEIGHT', env)
+        self.assertNotIn('ISSN_UPSCALE_FACTOR', env)
+        env = launcher.game_environment({**base, 'render_height': '600', 'upscale_quality': '2'})
+        self.assertEqual((env['ISSN_RENDER_HEIGHT'], env['ISSN_UPSCALE_FACTOR']), ('600', '2'))
+        self.assertNotIn('ISSN_RENDER_HEIGHT', launcher.game_environment({**base, 'render_height': '333'}))
+        # From 600 lines to 4K, each label the 16:9 size the game patch makes (multiples of 8).
+        heights = [int(v) for v, _t in launcher.RESOLUTIONS if v]
+        self.assertEqual((min(heights), max(heights)), (600, 2160))
+        for value, (text,) in launcher.RESOLUTIONS:
+            h = int(value or 1080)
+            self.assertIn(f'{round(h * 16 / 9 / 8) * 8} × {h}', text)
+
+    def test_old_render_scale_migrates(self):
+        self.assertEqual(launcher.migrate_settings({'render_scale': 'h2160'})['render_height'], '2160')
+        self.assertEqual(launcher.migrate_settings({'render_scale': '67'})['render_height'], '720')
+        self.assertEqual(launcher.migrate_settings({'render_scale': ''}), {})
+        self.assertNotIn('render_scale', launcher.migrate_settings({'render_scale': '50'}))
 
     def test_changed_buttons_in_table_order(self):
         controls = {'key': {'circle': ' Left Shift ', 'cross': 'Q', 'square': ''}, 'pad': {'cross': 'b'}}

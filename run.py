@@ -403,6 +403,9 @@ def infamous_render_lines(env, applied):
     """The lines inFAMOUS Second Son renders: Internal resolution (ISSN_RENDER_HEIGHT /
     ISSN_RENDER_SCALE, the shim's render size) or an old "Native WxH" patch, else 1080."""
     try:
+        if env.get('ISSN_UPSCALE_FACTOR') and float(env['ISSN_UPSCALE_FACTOR']) >= 1:
+            # the window decides (unknown here): a 4K screen, the most it can be
+            return max(360, min(2160, round(2160 / float(env['ISSN_UPSCALE_FACTOR']))))
         if env.get('ISSN_RENDER_HEIGHT'):
             return max(360, min(2160, int(env['ISSN_RENDER_HEIGHT'])))
         if env.get('ISSN_RENDER_SCALE'):

@@ -328,18 +328,29 @@ static void ApplyRenderSize() {
     } else if (const char* p = std::getenv("ISSN_RENDER_SCALE"); p && std::atof(p) > 0.0) {
         h0 = static_cast<u32>(std::lround(1080.0 * std::atof(p) / 100.0));
     }
-    h0 = std::clamp<u32>(Round8(h0), 360, 2160);
     const char* aspect_env = std::getenv("ISSN_ASPECT");
     const std::string mode = aspect_env && *aspect_env ? aspect_env : "auto";
     double aspect = base;
     int screen_w = 0, screen_h = 0;
+    const bool have_screen = IssnShape::ScreenPixels(screen_w, screen_h) && screen_h > 0 && screen_w > 0;
     if (const auto colon = mode.find(':'); colon != std::string::npos) {
         const double w = std::atof(mode.substr(0, colon).c_str());
         const double h = std::atof(mode.substr(colon + 1).c_str());
         aspect = h > 0.0 && w > 0.0 ? w / h : base;
-    } else if (mode == "auto" && IssnShape::ScreenPixels(screen_w, screen_h) && screen_h > 0) {
+    } else if (mode == "auto" && have_screen) {
         aspect = double(screen_w) / double(screen_h);
     }
+    // ISSN_UPSCALE_FACTOR (launcher: FSR 4 / DLSS quality): the window's 16:9-basis height divided
+    // by it (Quality 1.5 ... Ultra Performance 3); the upscaler rebuilds the window size.
+    double factor = 0.0;
+    if (const char* f = std::getenv("ISSN_UPSCALE_FACTOR"); f && std::atof(f) >= 1.0) {
+        factor = std::atof(f);
+        const double basis = !have_screen ? 1080.0
+                             : double(screen_w) / double(screen_h) >= base ? double(screen_h)
+                                                                           : double(screen_w) / base;
+        h0 = static_cast<u32>(std::lround(basis / factor));
+    }
+    h0 = std::clamp<u32>(Round8(h0), 360, 2160);
     // 3%: a "1280x720" window reports a client area like 1279x724 (axylpup's measurement).
     if (std::abs(aspect - base) < 0.03 * base) {
         aspect = base;
@@ -408,6 +419,9 @@ static void ApplyRenderSize() {
     IssnShape::g_aspect = aspect;
     if (shaped) {
         ApplyMovieFit(sw, sh);
+    }
+    if (factor > 0.0) {
+        std::printf("Render size: the window %dx%d / %.1f (FSR 4 / DLSS quality)\n", screen_w, screen_h, factor);
     }
     std::printf("Render size: %ux%u (%.0f%% of 1080 lines)%s\n", width, height, h0 * 100.0 / 1080.0,
                 shaped ? fmt::format(", screen shape {:.3f} ({}; window {}x{}), HUD space {}x{}{}", aspect,

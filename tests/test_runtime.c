@@ -159,6 +159,24 @@ static void posix_mutexes(void) {
     m=NULL;
     assert(lock(&m)==0 && lock(&m)==11 && trylock(&m)==16);
     assert(unlock(&m)==0 && destroy(&m)==0);
+    /* issn: a condition wait on a mutex the caller does not hold fails at once with EPERM and
+     * leaves the mutex free (the game's Wwise job wait; the host wait used to keep it locked). */
+    typedef int32_t (ABI *CondInit)(void **,void **,const char *);
+    typedef int32_t (ABI *CondWait)(void **,void **);
+    typedef int32_t (ABI *CondTimed)(void **,void **,uint32_t);
+    MutexInit sce_mutex_init=GET(MutexInit,"cmo1RIYva9o#libkernel");
+    HandleOp sce_lock=GET(HandleOp,"9UK1vLZQft4#libkernel"), sce_unlock=GET(HandleOp,"tn3VlD0hG60#libkernel");
+    CondInit cond_init=GET(CondInit,"2Tb92quprl0#libkernel");
+    CondWait cond_wait=GET(CondWait,"WKAXJ4XBPQ4#libkernel");
+    CondTimed cond_timed=GET(CondTimed,"BmMjYxmew1w#libkernel");
+    void *um=NULL,*uc=NULL;
+    assert(sce_mutex_init && sce_lock && sce_unlock && cond_init && cond_wait && cond_timed);
+    assert(sce_mutex_init(&um,NULL,"unowned")==0 && cond_init(&uc,NULL,"unowned")==0);
+    assert((uint32_t)cond_wait(&uc,&um)==0x80020001);
+    assert(sce_lock(&um)==0); /* still free */
+    assert((uint32_t)cond_timed(&uc,&um,1000)==0x8002003c); /* held: a real wait, timed out */
+    assert(sce_unlock(&um)==0);
+    assert((uint32_t)cond_timed(&uc,&um,1000)==0x80020001);
     assert(!runtime_resolve("dQHWEsJtoE4#libc",0));
 }
 static void wall_time(void) {

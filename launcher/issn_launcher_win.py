@@ -342,7 +342,7 @@ APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', s
                 'vk_validation': False, 'close_on_play': False,
                 'check_updates': False, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation',
                 'glyph_style': 'off', 'compute_priority': True, 'ordered_readback': False, 'draw_distance': '',
-                'perf_mode': '', 'render_scale': '', 'shader_compile': '', 'screen_shape': '',
+                'perf_mode': '', 'render_height': '', 'upscale_quality': '', 'shader_compile': '', 'screen_shape': '',
                 'anti_aliasing': 'game'}
 
 # PS4 button, default key, default gamepad button (SDL names; src/runtime_pad.c). L2/R2 come
@@ -463,16 +463,35 @@ DRAW_DISTANCE = [('', ('Original (default)',)), ('0.6', ('Short (faster)',)), ('
 # fewer high-resolution textures; Maximum also halves the pedestrians.
 PERF_MODES = [('', ('Off: full quality (default)',)), ('low', ('Balanced: about 13% more FPS in the city',)),
               ('office', ('Maximum: about 19% more FPS, fewer pedestrians',))]
-# ISSN_RENDER_SCALE (gpu/shim/issn_game_patches.cpp, axylpup's 1.1 render size): the lines the
-# game renders, in percent of 1080. With FSR 4 the picture is rebuilt at the window size by the
-# preset for that ratio (67% = Quality, 58% = Balanced, 50% = Performance).
-RENDER_SCALES = [('', ('100%: 1920x1080, the game\'s own (default)',)), ('83', ('83%: 1592x896',)),
-                 ('67', ('67%: 1280x720 (FSR 4 Quality)',)), ('58', ('58%: 1112x624 (FSR 4 Balanced)',)),
-                 ('50', ('50%: 968x544 (FSR 4 Performance)',)),
-                 # issn: above the game's own 1080 lines (sharper, slower; ISSN_RENDER_HEIGHT): the
-                 # port's own native 1440p / 1800p / 4K, in place of the old "Native ..." patches.
-                 ('h1440', ('1440p: 2560x1440 (native 2K)',)), ('h1800', ('1800p: 3200x1800',)),
-                 ('h2160', ('2160p: 3840x2160 (native 4K)',))]
+# issn: the two halves of the old Internal resolution, apart (tester request 10-27). RESOLUTIONS:
+# the lines the game draws (ISSN_RENDER_HEIGHT; the width follows the screen shape, 16:9 shown).
+RESOLUTIONS = [('600', ('1064 × 600 (like 800 × 600, the fastest)',)), ('720', ('1280 × 720 (720p)',)),
+               ('768', ('1368 × 768',)), ('900', ('1600 × 900',)),
+               ('', ("1920 × 1080 (1080p, the game's own, default)",)), ('1440', ('2560 × 1440 (2K)',)),
+               ('1800', ('3200 × 1800',)), ('2160', ('3840 × 2160 (4K)',))]
+# UPSCALE_QUALITY: with FSR 4 or DLSS, the game draws at the window's size divided by this and the
+# upscaler rebuilds the picture at the window size (ISSN_UPSCALE_FACTOR); it replaces Resolution.
+UPSCALE_QUALITY = [('', ('Off: the game draws at the Resolution above',)), ('1.5', ('Quality (window ÷ 1.5)',)),
+                   ('1.7', ('Balanced (window ÷ 1.7)',)), ('2', ('Performance (window ÷ 2)',)),
+                   ('3', ('Ultra Performance (window ÷ 3)',))]
+
+
+def migrate_settings(settings):
+    """Settings of older launchers in today's names: render_scale (percent of 1080 or 'hNNNN')
+    becomes render_height."""
+    settings = dict(settings)
+    old = str(settings.pop('render_scale', '') or '')
+    if old and 'render_height' not in settings:
+        try:
+            lines = int(old[1:]) if old.startswith('h') else round(1080 * int(old) / 100)
+        except ValueError:
+            lines = 1080
+        heights = [int(value) for value, _text in RESOLUTIONS if value] + [1080]
+        nearest = min(heights, key=lambda h: abs(h - lines))
+        settings['render_height'] = '' if nearest == 1080 else str(nearest)
+    return settings
+
+
 # ISSN_ASPECT (gpu/shim/issn_game_patches.cpp, axylpup's 1.1 screen shapes): '' = the game window's
 # shape (fullscreen: the monitor's), off = the game's 16:9, or a fixed shape.
 SCREEN_SHAPES = [('', ('Automatic: the shape of the window / monitor (default)',)), ('off', ('16:9, the game\'s own',)),
@@ -483,7 +502,7 @@ SHADER_COMPILE = [('', ('In the background: no stutter, new things can appear a 
                   ('frame', ('In the frame: the original, the game stutters while new shaders compile',))]
 # issn-axy: what replaces the game's own temporal anti-aliasing (SMAA T2x). FSR 4 ships with the
 # port (third_party/fsr4); DLSS needs NVIDIA's Streamline files in dlss_folder().
-ANTI_ALIASING = [('game', ("The game's own (SMAA T2x)",)), ('fsr4', ('FSR 4 Native AA (AMD Radeon RX 7000 / 9000)',)),
+ANTI_ALIASING = [('game', ("The game's own (SMAA T2x)",)), ('fsr4', ('FSR 4 (AMD Radeon RX 7000 / 9000)',)),
                  ('dlss', ('DLSS (NVIDIA RTX)',))]
 # NVIDIA's Streamline (DLSS) is Windows only: on Linux the choice is not offered.
 if not WINDOWS:
@@ -880,13 +899,13 @@ def game_environment(s):
     if s.get('draw_distance') in {value for value, _text in DRAW_DISTANCE if value}:
         env['ISSN_LOD_SCALE'] = str(s['draw_distance'])
     env.pop('ISSN_PERF_MODE', None)
-    for name in ('ISSN_RENDER_SCALE', 'ISSN_RENDER_HEIGHT'):
+    for name in ('ISSN_RENDER_SCALE', 'ISSN_RENDER_HEIGHT', 'ISSN_UPSCALE_FACTOR'):
         env.pop(name, None)
-    if s.get('render_scale') in {value for value, _text in RENDER_SCALES if value}:
-        if s['render_scale'].startswith('h'):
-            env['ISSN_RENDER_HEIGHT'] = s['render_scale'][1:]
-        else:
-            env['ISSN_RENDER_SCALE'] = s['render_scale']
+    s = migrate_settings(s)
+    if s.get('render_height') in {value for value, _text in RESOLUTIONS if value}:
+        env['ISSN_RENDER_HEIGHT'] = s['render_height']
+    if s.get('upscale_quality') in {value for value, _text in UPSCALE_QUALITY if value}:
+        env['ISSN_UPSCALE_FACTOR'] = s['upscale_quality']
     if s.get('perf_mode') in {value for value, _text in PERF_MODES if value}:
         env['ISSN_PERF_MODE'] = s['perf_mode']
     env.pop('ISSN_ASPECT', None)
@@ -1050,7 +1069,7 @@ class Launcher:
     def __init__(self, root, tk, ttk, filedialog, messagebox):
         self.tk, self.ttk, self.filedialog, self.messagebox = tk, ttk, filedialog, messagebox
         self.root = root
-        self.app = {**APP_DEFAULTS, **load_json(CONFIG_FILE, {})}
+        self.app = {**APP_DEFAULTS, **migrate_settings(load_json(CONFIG_FILE, {}))}
         self.ini, self.ini_lines = load_ini()
         self.vars = {}
         self.process = self.job = None
@@ -1442,6 +1461,16 @@ class Launcher:
                  _('Ultrawide and other screens: the game fills the shape and sees more at the sides (or above and '
                    'below on 16:10); the HUD moves to the edges and movies keep their shape with bars. Automatic '
                    'follows the window, so play in fullscreen on an ultrawide monitor.'), restart=True)
+        self.section(f, _('Resolution'))
+        self.row(f, _('Resolution'), self.choice(f, 'render_height', 'app', RESOLUTIONS, width=44),
+                 _('The size the game draws at. Lower is faster; higher is sharper and heavier (2K and 4K need '
+                   'more memory, given by itself). The picture is then fitted to the window, and the HUD keeps '
+                   'its layout. On wider screens the width grows with the shape.'), restart=True)
+        self.row(f, _('FSR 4 / DLSS quality'), self.choice(f, 'upscale_quality', 'app', UPSCALE_QUALITY, width=44),
+                 _('With FSR 4 or DLSS (Anti-aliasing below): the game draws smaller than the window and the '
+                   'upscaler rebuilds a sharp picture at the window size. Quality looks closest to native, '
+                   'Ultra Performance is the fastest. When not Off it decides the size instead of Resolution.'),
+                 restart=True)
         self.section(f, _('Anti-aliasing'))
         self.row(f, _('Anti-aliasing'), self.choice(f, 'anti_aliasing', 'app', ANTI_ALIASING, width=44),
                  _("Replaces the game's own temporal anti-aliasing. FSR 4 (included) needs a Radeon RX 7000 or "
@@ -1506,11 +1535,6 @@ class Launcher:
         self.row(f, _('Draw distance'), self.choice(f, 'draw_distance', 'app', DRAW_DISTANCE),
                  _('How far buildings and details keep their full detail in the open city. Long and Very long '
                    'show less pop-in than the PS4 and cost some FPS.'), restart=True)
-        self.row(f, _('Internal resolution'), self.choice(f, 'render_scale', 'app', RENDER_SCALES),
-                 _('The size the game draws at. Below 100% is faster; with FSR 4 (Graphics > Anti-aliasing) '
-                   'the picture is rebuilt at the window size, otherwise it is only scaled up and looks soft. '
-                   '1440p, 1800p and 4K draw natively at that size (sharper, heavier). The HUD keeps its layout.'),
-                 restart=True)
         self.row(f, _('Performance mode'), self.choice(f, 'perf_mode', 'app', PERF_MODES),
                  _('The game\'s own lower settings, from axylpup\'s 1.1: shorter detail distance, one shadow '
                    'level less, lighter particles and fewer high-resolution textures nearby. Figures are '
@@ -2698,7 +2722,7 @@ def main():
     args = sys.argv[1:]
     if args and args[0] in ('--run', '--script'):
         sys.exit(run_role(args))
-    settings = {**APP_DEFAULTS, **load_json(CONFIG_FILE, {})}
+    settings = {**APP_DEFAULTS, **migrate_settings(load_json(CONFIG_FILE, {}))}
     LANG = settings.get('ui_language') or windows_language()
     if not WINDOWS:
         integrate_desktop(settings.get('desktop_integration', True), os.environ.get('APPIMAGE'),
