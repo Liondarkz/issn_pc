@@ -77,6 +77,8 @@ int32_t runtime_guest_errno(int host_errno);
 void *runtime_low_map(size_t size, int prot);
 /* Windows: reserves the PS4 user address range as a placeholder (no-op elsewhere). */
 void runtime_memory_reserve(void);
+/* issn: creates the guest memory pool now (Windows: before the GPU raises the commit); 0 = ok. */
+int runtime_memory_create_pool(void);
 uintptr_t runtime_ajm_resolve(const char *name);
 void runtime_ajm_report(void);
 /* AjmDecMp3ParseFrame (guest layout). */

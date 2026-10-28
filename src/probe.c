@@ -218,10 +218,13 @@ static LONG CALLBACK vectored_fault(EXCEPTION_POINTERS *info) {
     }
     if (code==EXCEPTION_ACCESS_VIOLATION && record->NumberParameters>=2) {
         /* GPU page tracking (write-protected guest pages) is resolved first. */
-        if (gpu_enabled && issngpu_handle_fault(info,(void *)record->ExceptionInformation[1])) return EXCEPTION_CONTINUE_EXECUTION;
         if (runtime_fault_recover) {
             /* A speculative guest memory read (GPU draw preparation) faulted: the thread resumes
-             * in issn_longjmp, outside the exception dispatcher, back at its recovery point. */
+             * in issn_longjmp, outside the exception dispatcher, back at its recovery point. This
+             * comes before the GPU page tracking, as on Linux: with precise readbacks the page may
+             * be read-protected because the GPU wrote it, and its readback waits on the GPU
+             * thread, which can be waiting on this worker (HayatoG's iss_pc ea09b1c: the freeze
+             * "inside GPU page fault handler"). */
             unsigned long long *buffer=*runtime_fault_recover;
             runtime_fault_recover=NULL;
             CONTEXT *c=info->ContextRecord;
@@ -231,6 +234,8 @@ static LONG CALLBACK vectored_fault(EXCEPTION_POINTERS *info) {
             c->Rip=(DWORD64)(uintptr_t)issn_longjmp;
             return EXCEPTION_CONTINUE_EXECUTION;
         }
+        /* GPU page tracking (write-protected guest pages). */
+        if (gpu_enabled && issngpu_handle_fault(info,(void *)record->ExceptionInformation[1])) return EXCEPTION_CONTINUE_EXECUTION;
     }
     if (code==EXCEPTION_ACCESS_VIOLATION || code==EXCEPTION_ILLEGAL_INSTRUCTION || code==EXCEPTION_PRIV_INSTRUCTION ||
         code==EXCEPTION_STACK_OVERFLOW || code==EXCEPTION_INT_DIVIDE_BY_ZERO || code==EXCEPTION_DATATYPE_MISALIGNMENT) {
@@ -1121,6 +1126,16 @@ int main(int argc, char **argv) {
         if (procparam) memcpy(&sdk,image+procparam+16,8); /* procparam: size, magic, count, sdk_version */
         IssnGpuConfig gpu={title,serial,user_dir ? user_dir : "user",(uint32_t)sdk,attributes,1920,1080,(uint64_t)(uintptr_t)image,
                            app0,app_ver};
+#ifdef _WIN32
+        /* issn: the guest pool is committed before the GPU driver and the shader warm-up raise the
+         * process's commit (HayatoG's iss_pc fadd416); a failure stops with what to do. */
+        if (runtime_memory_create_pool()) {
+            printf("ERROR: the game's memory could not be reserved (see the Runtime line above): make the Windows "
+                   "page file larger or choose a lower Resolution.\n");
+            fflush(NULL);
+            _exit(22);
+        }
+#endif
         gpu_enabled=1; /* page tracking starts while the rasterizer registers guest memory */
         if (issngpu_init(&gpu)) fail("GPU initialization failed");
         printf("GPU: window and Vulkan presenter ready; SDK 0x%08x, %u HLE symbols\n",(unsigned)sdk,issngpu_symbol_count());
