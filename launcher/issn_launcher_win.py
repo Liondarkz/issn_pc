@@ -1771,9 +1771,9 @@ class Launcher:
                        'mouse aims (1:1, as in axylpup\'s build); Y or F7 lets the mouse go and takes it back, '
                        '- / = change its speed. Left click R2 (shoot), right click L2 (aim). Spray can: hold Z '
                        'to tilt the pad, tap Z or hold X to rattle it, move the mouse to aim. R / G: left / right '
-                       'touchpad; R + G together: both thumbs (the car on Reggie); G + an arrow: a swipe (doors, '
-                       'the Mobile Command Center core; keep the arrow down to hold). Arrows: d-pad. F12: '
-                       'screenshot. Insert: the port\'s menu.'), top=8)
+                       'touchpad (G held is both thumbs: the car on Reggie, the drains); G + W/A/S/D: a swipe (doors, '
+                       'wreckage, the Mobile Command Center core: hold G + W and click to hit it). Arrows: '
+                       'd-pad. F12: screenshot. Insert: the port\'s menu.'), top=8)
         table = ttk.Frame(f)
         table.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(16, 0))
         for column, span, title in ((0, 2, _('GAME BUTTON')), (2, 1, _('KEYBOARD')), (3, 2, _('GAMEPAD'))):

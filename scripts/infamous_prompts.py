@@ -24,10 +24,14 @@ from pathlib import Path
 
 import infamous_glyphs as glyphs
 
-VERSION = 2  # of the drawing: a change redraws the cached copies
+VERSION = 3  # of the drawing: a change redraws the cached copies
 PACKAGE = 'core_common.sprig.xpps'
 BC3, THIN_1D, TEX_2D = 37, 13, 9
 
+# The touchpad drawn under every touchpad prompt (a fingerprint to hold, two for both thumbs, an
+# arrow to swipe): its key goes in its corner (G; the View button on an Xbox pad).
+TOUCHPAD = bytes.fromhex('59666b0a8697b628')
+TOUCHPAD_PROMPT = ('touchpad', (512, 512), 10, 'touchpad')
 # package -> {texture hash -> (button, (width, height), mip levels, kind)}
 PROMPTS = {
     'core_common.sprig.xpps': {
@@ -42,7 +46,12 @@ PROMPTS = {
         bytes.fromhex('c49ce6e8ab97b628'): ('r2', (128, 256), 9, 'spray'),       # spray here (orange)
         bytes.fromhex('7a324f4b1343fcba'): ('r2', (128, 256), 9, 'spray'),       # (grey)
         bytes.fromhex('f837ecc1a2681118'): ('r2', (128, 256), 9, 'spray'),       # (orange, smaller)
+        TOUCHPAD: TOUCHPAD_PROMPT,
     },
+    # the missions that carry their own copy of the touchpad (the prologue's car and wreckage, the
+    # longhouse door)
+    'msn_smi.sprig.xpps': {TOUCHPAD: TOUCHPAD_PROMPT},
+    'msn_vor.sprig.xpps': {TOUCHPAD: TOUCHPAD_PROMPT},
 }
 ALL_PROMPTS = {digest: prompt for prompts in PROMPTS.values() for digest, prompt in prompts.items()}
 XBOX_LETTERS = {'triangle': 'Y', 'square': 'X', 'cross': 'A', 'circle': 'B'}
@@ -310,8 +319,36 @@ def _spray(image, label, style):
     return out
 
 
+def _touchpad(image, label, style):
+    """The touchpad of the touchpad prompts with its key (or the View button) on its top-left corner."""
+    w, h = image.size
+    px = image.load()
+    # the pad: the rows and columns mostly dark and opaque (the splatter around it is not)
+    dark = [[px[x, y][3] > 180 and sum(px[x, y][:3]) < 240 for x in range(w)] for y in range(h)]
+    rows = [y for y in range(h) if sum(dark[y]) > w * 0.25]
+    cols = [x for x in range(w) if sum(dark[y][x] for y in range(h)) > h * 0.12]
+    if not rows or not cols:
+        return None
+    x0, y0, x1, y1 = cols[0], rows[0], cols[-1] + 1, rows[-1] + 1
+    side = int(round((y1 - y0) * 0.42))
+    if style == 'xbox':
+        key = glyphs.draw_cell('touchpad', ('view', None), 'xbox', side, side)
+    else:
+        key = glyphs.draw_cell('touchpad', label, 'keyboard', side, side)
+    from PIL import Image, ImageFilter
+    shadow = Image.new('RGBA', key.size, (0, 0, 0, 0))
+    shadow.putalpha(key.getchannel('A').filter(ImageFilter.MaxFilter(5)))
+    out = image.copy()
+    at = (int(x0 - side * 0.22), int(y0 - side * 0.22))
+    out.alpha_composite(shadow, (max(0, at[0]), max(0, at[1])))
+    out.alpha_composite(key, (max(0, at[0]), max(0, at[1])))
+    return out
+
+
 def redraw(image, button, kind, style, labels):
     """The level-0 image of one prompt redrawn for `style`, or None when it stays the game's."""
+    if kind == 'touchpad':
+        return _touchpad(image, labels.get('touchpad', 'G'), style)
     if kind == 'spray':
         return _spray(image, labels.get(button, 'mouse:left') if style == 'keyboard' else 'RT', style)
     if kind == 'disc':
@@ -399,7 +436,7 @@ def build(game, target, style, key_map=''):
             copy.unlink(missing_ok=True)
             continue
         stat = source.stat()
-        key = hashlib.sha256(f'{VERSION}|{style}|{labels.get("triangle")}|{labels.get("square")}|'
+        key = hashlib.sha256(f'{VERSION}|{style}|{labels.get("triangle")}|{labels.get("square")}|{labels.get("touchpad")}|'
                              f'{stat.st_size}|{stat.st_mtime_ns}'.encode()).hexdigest()
         stamp = stamps.get(name, {})
         if stamp.get('key') != key or not (copy.is_file() or stamp.get('count') == 0):

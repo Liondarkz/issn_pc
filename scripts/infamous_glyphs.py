@@ -25,7 +25,7 @@ from pathlib import Path
 import shutil
 import struct
 
-VERSION = 3  # of the drawing: a change redraws the cached copies
+VERSION = 4  # of the drawing: a change redraws the cached copies
 PACKAGES = 'art/cache'
 FONT_FILE = Path(__file__).resolve().parent.parent / 'launcher' / 'issn_font.ttf'
 
@@ -56,19 +56,19 @@ SHORT_NAMES = {'left shift': 'SHIFT', 'right shift': 'SHIFT', 'left ctrl': 'CTRL
 
 
 # issn: the keyboard's words for the touchpad prompts that show no icon (written in place, never
-# longer than the game's text: the rest of the string becomes spaces, so no offset moves). R and G
-# are the left and right touchpad keys; both held are both thumbs, G with an arrow a swipe
-# (src/runtime_pad.c). Language of the package (lang_<name>_text.xpps) -> texts.
+# longer than the game's text: the rest of the string becomes spaces, so no offset moves). G is the
+# touchpad: held, both thumbs; with W/A/S/D a swipe (src/runtime_pad.c). Language of the package
+# (lang_<name>_text.xpps) -> texts.
 KEY_TEXTS = {
-    'en': ({'u_trainer_smi_push_car': 'Hold {left} + {touch} together (both thumbs)',
-            'u_trainer_smi_push_car_alt': 'Hold {left} + {touch} to move the car',
-            'u_hint_vor_door': '{touch} + an arrow key opens the door'},
-           (('the Touch Pad Button with both thumbs', '{left} + {touch}'), ('the Touch Pad Button', '{touch}'),
+    'en': ({'u_trainer_smi_push_car': 'Hold {touch} (both thumbs)',
+            'u_trainer_smi_push_car_alt': 'Hold {touch} to move the car',
+            'u_hint_vor_door': 'Hold {touch} + D to open the door'},
+           (('the Touch Pad Button with both thumbs', '{touch}'), ('the Touch Pad Button', '{touch}'),
             ('Touch Pad Button', '{touch}'))),
-    'pt': ({'u_trainer_smi_push_car': 'Segure {left} + {touch} juntos (os dois polegares)',
-            'u_trainer_smi_push_car_alt': 'Segure {left} + {touch} para mover o carro',
-            'u_hint_vor_door': 'Segure {touch} e aperte uma seta para abrir a porta'},
-           (('o botão do touch pad com ambos os polegares', '{left} + {touch}'), ('o botão do touch pad', '{touch}'))),
+    'pt': ({'u_trainer_smi_push_car': 'Segure {touch} (os dois polegares)',
+            'u_trainer_smi_push_car_alt': 'Segure {touch} para mover o carro',
+            'u_hint_vor_door': 'Segure {touch} e aperte D para abrir a porta'},
+           (('o botão do touch pad com ambos os polegares', '{touch}'), ('o botão do touch pad', '{touch}'))),
 }
 LANGUAGES = {'english': 'en', 'british': 'en', 'brazilian': 'pt', 'portuguese': 'pt'}
 
@@ -88,7 +88,7 @@ def retext(data, language, labels):
     out = bytearray(data)
     if not texts:
         return bytes(out)
-    words = {'left': 'R', 'touch': labels.get('touchpad', 'G')}
+    words = {'touch': labels.get('touchpad', 'G')}
     keyed, phrases = texts
     for key, text in keyed.items():
         at = out.find(b'\0' + key.encode() + b'\0')

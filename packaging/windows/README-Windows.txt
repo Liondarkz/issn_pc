@@ -23,11 +23,12 @@ What's new in 0.3.5
   follow your key changes) or the Xbox letters, and so do the prompts in the world: subdue and
   execute (F / C, or Y / X in the karma colours), the d-pad of missions and karma choices (the
   arrow keys, the lit one in its colour), the spray can's painted R2 (the left mouse button, or
-  RT). The first start with them makes copies of two game packages (~420 MB) in the port's out
+  RT). The first start with them makes copies of four game packages (~470 MB) in the port's out
   folder; the game files are not changed.
-- Keyboard: R + G together are both thumbs on the touchpad (the car on Reggie, "both thumbs"
-  drains); G with an arrow key is a swipe (doors, the Mobile Command Center's core; keep the arrow
-  down to hold the finger). The game's touchpad hints name these keys in English and Portuguese.
+- Keyboard: G is the touchpad, and holding it is both thumbs (the car on Reggie, the drains); G
+  with W/A/S/D (or an arrow) is a swipe (doors, wreckage, the Mobile Command Center's core: hold
+  G + W and click to hit it). The touchpad prompts in the world show the G key (the View button
+  with an Xbox pad), and the game's touchpad hints name the keys in English and Portuguese.
 - Fixed: the game closing after the intro on some Intel + NVIDIA PCs (crash at 0x1cfaaf /
   0x1cf8f9); freezes when absorbing a power and on rooftops (1.07); Alt+Tab in fullscreen closing
   the game; FSR 4 Quality crashing at start; fixes from HayatoG's iss_pc (freezes, a memory error
@@ -145,9 +146,9 @@ Controller
   - Space Cross, Left Shift Circle, C Square, F Triangle (numpad 2/6/4/8 too), Q L1, E R1,
     U L3, O R3, Enter Options, arrows d-pad.
   - Left click R2 (shoot), right click L2 (aim) while the mouse aims; 1 / 3 also work.
-  - R / G: left / right side of the touchpad click. R + G together: both thumbs (the car on
-    Reggie). G + an arrow key: a swipe that way (doors, the Mobile Command Center core); keep the
-    arrow down to hold the finger there.
+  - G: the touchpad, held with both thumbs (drains, the car on Reggie); R: its left side alone
+    (photo mode). G + W/A/S/D (or an arrow): a swipe that way (doors, wreckage, the Mobile Command
+    Center core); keep the key down to hold the finger there and click to hit.
   - Spray can: hold Z to tilt the pad, tap Z or hold X to rattle it, move the mouse to aim
     (- / = change its speed while the pad is tilted).
   - F12 screenshot, Insert the port's menu.

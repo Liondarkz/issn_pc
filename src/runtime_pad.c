@@ -208,6 +208,8 @@ static uint16_t touch_axis(float v, int max) {
  * that comes and goes with the button. The side is chosen when the click starts and kept: the
  * right source with L1 held is a left click (photo mode on pads without a touchpad). */
 enum { CLICK_LEAD_US=50000, CLICK_HOLD_US=50000, CLICK_TAIL_US=100000 };
+static int key_touch_held; /* issn: the keyboard's right touchpad key (G) is down this read */
+
 static struct { int side; uint64_t pressed, released; } click={-1,0,0};
 static void play_click(PadData *d) {
     const uint64_t now=d->timestamp;
@@ -230,11 +232,12 @@ static void play_click(PadData *d) {
         d->touches[d->touch_count]=(PadTouch){.x=click.side ? 1440 : 480,.y=471,.id=d->touch_count};
         ++d->touch_count;
     }
-    /* issn: both sources held (keyboard R + G): a finger on each half, the click held while either
-     * is (axylpup 2026-10-18: the Reggie car scene of Second Son, "Press and Hold the Touch Pad
-     * Button with both thumbs", needs both halves). */
+    /* issn: both sources held (keyboard R + G), or the keyboard's G alone: a finger on each half,
+     * the click held while either is (axylpup 2026-10-18: the Reggie car scene of Second Son,
+     * "Press and Hold the Touch Pad Button with both thumbs", needs both halves; the game's
+     * drains take both thumbs too). The prompts show G on the touchpad (infamous_prompts). */
     static int both_was;
-    const int both=(sources & CLICK_LEFT) && (sources & CLICK_RIGHT);
+    const int both=((sources & CLICK_LEFT) && (sources & CLICK_RIGHT)) || (key_touch_held && (sources & CLICK_RIGHT));
     if (both && d->touch_count<2) {
         d->touches[d->touch_count]=(PadTouch){.x=click.side ? 480 : 1440,.y=471,.id=d->touch_count};
         ++d->touch_count;
@@ -251,7 +254,6 @@ static void play_click(PadData *d) {
  * source is held. Stick first, then Select: a swipe with no click at all. R1 with it: two
  * fingers (play_two_fingers). */
 enum { SWIPE_US=250000, SWIPE_TAIL_US=50000 };
-static int key_touch_held; /* issn: the keyboard's right touchpad key (G) is down this read */
 static struct { int active, used; float dx, dy; uint64_t start, held; uint8_t id; } swipe;
 static float swipe_stick(uint8_t v) { return ((float)v-128.0f)/127.0f; }
 /* issn: two fingers (Second Son: both thumbs on the touchpad to lift a tree). R1 with the right
@@ -737,16 +739,19 @@ static void sample_host(PadData *d) {
     key_axis(&d->left_y,k[SDL_SCANCODE_W],k[SDL_SCANCODE_S]);
     key_axis(&d->right_x,k[SDL_SCANCODE_J],k[SDL_SCANCODE_L]);
     key_axis(&d->right_y,k[SDL_SCANCODE_I],k[SDL_SCANCODE_K]);
-    /* issn: swipes on the keyboard: the right touchpad key (G) held and an arrow pressed is a swipe
-     * that way (play_swipe; an arrow kept down holds the finger at the end: "swipe up and hold");
-     * the arrows then leave the d-pad alone. Second Son: the door, the prisoners, the Mobile
-     * Command Center's core. */
+    /* issn: swipes on the keyboard: the right touchpad key (G) held and W/A/S/D (or an arrow)
+     * pressed is a swipe that way (play_swipe; a key kept down holds the finger at the end: "swipe
+     * up and hold", the left hand alone, so the mouse can hit meanwhile); those keys then leave
+     * the left stick and the d-pad alone. Second Son: the door, the wreckage, the Mobile Command
+     * Center's core. */
     for (size_t i=0;i<key_map.count;++i)
         if (key_map.entries[i].ps==CLICK_RIGHT && k[key_map.entries[i].source]) key_touch_held=1;
     if (key_touch_held) {
-        const bool up=k[SDL_SCANCODE_UP], down=k[SDL_SCANCODE_DOWN], left=k[SDL_SCANCODE_LEFT], right=k[SDL_SCANCODE_RIGHT];
+        const bool up=k[SDL_SCANCODE_UP] || k[SDL_SCANCODE_W], down=k[SDL_SCANCODE_DOWN] || k[SDL_SCANCODE_S],
+                   left=k[SDL_SCANCODE_LEFT] || k[SDL_SCANCODE_A], right=k[SDL_SCANCODE_RIGHT] || k[SDL_SCANCODE_D];
         if (up || down || left || right) {
             d->buttons&=~(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT);
+            d->left_x=d->left_y=128;
             key_axis(&d->right_x,left,right);
             key_axis(&d->right_y,up,down);
         }
