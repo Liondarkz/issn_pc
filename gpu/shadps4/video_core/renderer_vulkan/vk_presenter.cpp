@@ -1119,21 +1119,39 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool hold_frame) {
         }
     };
 
-    // Recreate the swapchain if the window was resized or F3's Present Mode changed (live).
+    // Recreate the swapchain if the window was resized or F3's Present Mode changed (live), or
+    // the driver called the last image suboptimal (issn).
     if (window.GetWidth() != swapchain.GetWidth() || window.GetHeight() != swapchain.GetHeight() ||
-        swapchain.PresentModeChanged()) {
+        swapchain.PresentModeChanged() || swapchain.RecreatePending()) {
         swapchain.Recreate(window.GetWidth(), window.GetHeight());
     }
 
     const auto acquire_start = Common::FaultMonitor::Now();
+    static u32 skipped = 0;
     if (!swapchain.AcquireNextImage()) {
         swapchain.Recreate(window.GetWidth(), window.GetHeight());
         if (!swapchain.AcquireNextImage()) {
             // User resizes the window too fast and GPU can't keep up. Skip this frame.
-            LOG_WARNING(Render_Vulkan, "Skipping frame!");
+            // issn: once, then every 600 frames with why (a tester's log was 300 lines of it); an
+            // HDR swapchain the display keeps refusing falls back to SDR after 2 s of them.
+            if (skipped++ % 600 == 0) {
+                LOG_WARNING(Render_Vulkan, "Skipping frame! ({} in a row; window {}x{}, swapchain "
+                            "{}, last acquire {}, HDR {})", skipped, window.GetWidth(),
+                            window.GetHeight(), swapchain.HasSwapchain() ? "ready" : "none",
+                            vk::to_string(swapchain.LastAcquire()), swapchain.GetHDR());
+            }
+            if (skipped == 120 && swapchain.GetHDR()) {
+                LOG_WARNING(Render_Vulkan, "HDR output keeps failing: back to SDR");
+                hdr_refused = true;
+                SetHDR(false);
+            }
             free_frame();
             return;
         }
+    }
+    if (skipped) {
+        LOG_INFO(Render_Vulkan, "Frames shown again after {} skipped", skipped);
+        skipped = 0;
     }
 
     const u64 acquire_ns = Common::FaultMonitor::SinceNs(acquire_start);

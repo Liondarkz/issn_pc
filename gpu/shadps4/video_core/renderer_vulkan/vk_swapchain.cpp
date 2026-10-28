@@ -97,6 +97,7 @@ void Swapchain::Create(u32 width_, u32 height_) {
     width = width_;
     height = height_;
     needs_recreation = false;
+    recreate_pending = false;
 
     Destroy();
 
@@ -104,6 +105,14 @@ void Swapchain::Create(u32 width_, u32 height_) {
     // queried: no swapchain until the window is back; acquire and present skip frames meanwhile.
     // Both asserted before and closed the game on Alt+Tab in fullscreen (tester 10-27).
     if (!SetSurfaceProperties() || extent.width == 0 || extent.height == 0) {
+        static u32 empty_logged;
+        if (extent.width == 0 || extent.height == 0) {
+            if (empty_logged++ % 600 == 0) {
+                LOG_WARNING(Render_Vulkan, "Swapchain: the window's surface is {}x{} (minimized or "
+                            "off screen): frames are skipped until it is back", extent.width,
+                            extent.height);
+            }
+        }
         needs_recreation = true;
         std::this_thread::sleep_for(std::chrono::milliseconds(16)); // no busy loop while away
         return;
@@ -187,10 +196,21 @@ bool Swapchain::AcquireNextImage() {
         device.acquireNextImageKHR(swapchain, std::numeric_limits<u64>::max(),
                                    image_acquired[frame_index], VK_NULL_HANDLE, &image_index);
 
+    last_acquire = result;
     switch (result) {
     case vk::Result::eSuccess:
+        suboptimal_streak = 0;
         break;
     case vk::Result::eSuboptimalKHR:
+        // issn: the image is ours and can be shown. Rebuild the swapchain before the next frame
+        // a few times; a driver that stays suboptimal is presented to as it is.
+        if (++suboptimal_streak <= 3) {
+            recreate_pending = true;
+        } else if (suboptimal_streak == 4) {
+            LOG_WARNING(Render_Vulkan, "Swapchain: the driver keeps reporting it suboptimal; "
+                        "presenting anyway");
+        }
+        break;
     case vk::Result::eErrorSurfaceLostKHR:
     case vk::Result::eErrorOutOfDateKHR:
     case FullscreenExclusiveLost:
@@ -233,7 +253,9 @@ bool Swapchain::Present() {
     } else {
         result = instance.GetPresentQueue().presentKHR(present_info);
     }
-    if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR ||
+    if (result == vk::Result::eSuboptimalKHR) {
+        // issn: shown; the acquire side decides whether to rebuild (see AcquireNextImage)
+    } else if (result == vk::Result::eErrorOutOfDateKHR ||
         result == vk::Result::eErrorSurfaceLostKHR ||
         result == FullscreenExclusiveLost ||
         result == vk::Result::eErrorUnknown) {

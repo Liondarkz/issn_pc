@@ -106,6 +106,15 @@ public:
     /// F3's Present Mode changed since the swapchain chose its mode (checked every 30th call):
     /// picks the new mode; the caller recreates the swapchain (live, no restart).
     bool PresentModeChanged();
+    bool RecreatePending() const {
+        return recreate_pending;
+    }
+    vk::Result LastAcquire() const {
+        return last_acquire;
+    }
+    bool HasSwapchain() const {
+        return static_cast<bool>(swapchain);
+    }
 
 private:
     /// Selects the best available swapchain image format
@@ -150,6 +159,12 @@ private:
     u32 image_index = 0;
     u32 frame_index = 0;
     bool needs_recreation = true;
+    // issn: a driver that keeps answering "suboptimal" (tester 10-28, black screen for good: every
+    // acquire was dropped and the swapchain rebuilt) gets its images presented anyway; the
+    // swapchain is rebuilt for it a few times only.
+    bool recreate_pending = false;
+    u32 suboptimal_streak = 0;
+    vk::Result last_acquire = vk::Result::eSuccess;
     bool needs_hdr = false;    // The game requested HDR swapchain
     bool supports_hdr = false; // SC supports HDR output
 };

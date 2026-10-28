@@ -63,6 +63,7 @@ public:
         return window;
     }
 
+    bool hdr_refused = false; // issn: the HDR swapchain never showed a frame: SDR from then on
     Rasterizer& GetRasterizer() const {
         return *rasterizer.get();
     }
@@ -72,7 +73,7 @@ public:
     }
 
     void SetHDR(bool enable) {
-        if (!IsHDRSupported()) {
+        if (!IsHDRSupported() || (enable && hdr_refused)) { // issn: see Present
             return;
         }
         swapchain.SetHDR(enable);
