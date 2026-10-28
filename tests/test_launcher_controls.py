@@ -622,11 +622,11 @@ class GpuChoiceTest(unittest.TestCase):
 class ReleaseVersionTest(unittest.TestCase):
     def test_updates_come_from_this_ports_releases(self):
         # issn: own version line and own releases; the God of War III port's are never offered.
-        self.assertEqual(launcher.VERSION, '0.3.4')
+        self.assertEqual(launcher.VERSION, '0.3.5')
         self.assertIn('/Liondarkz/issn_pc/releases', launcher.RELEASES_API)
         self.assertNotIn('gow3_pc', launcher.RELEASES_API + launcher.RELEASES_PAGE)
-        self.assertGreater(launcher.version_tuple('windows-v0.3.5'), launcher.version_tuple(launcher.VERSION))
-        self.assertEqual(launcher.version_tuple('windows-v0.3.4'), launcher.version_tuple(launcher.VERSION))
+        self.assertGreater(launcher.version_tuple('windows-v0.3.6'), launcher.version_tuple(launcher.VERSION))
+        self.assertEqual(launcher.version_tuple('windows-v0.3.5'), launcher.version_tuple(launcher.VERSION))
 
     def test_game_language_follows_the_launcher(self):
         # issn: Automatic: Portuguese launcher -> Brazilian Portuguese game (17), as the profile.
