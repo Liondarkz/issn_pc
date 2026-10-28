@@ -24,12 +24,12 @@ from pathlib import Path
 
 import infamous_glyphs as glyphs
 
-VERSION = 4  # of the drawing: a change redraws the cached copies
+VERSION = 5  # of the drawing: a change redraws the cached copies
 PACKAGE = 'core_common.sprig.xpps'
 BC3, THIN_1D, TEX_2D = 37, 13, 9
 
 # The touchpad drawn under every touchpad prompt (a fingerprint to hold, two for both thumbs, an
-# arrow to swipe): its key goes in its corner (G; the View button on an Xbox pad).
+# arrow to swipe): its key goes in its corner (R; the View button on an Xbox pad).
 TOUCHPAD = bytes.fromhex('59666b0a8697b628')  # swipes (wreckage, the door, the Command Center's core)
 TOUCHPAD_HOLD = bytes.fromhex('26566e881b66276a')  # holds (the drains, the car on Reggie)
 TOUCHPAD_PROMPT = ('touchpad', (512, 512), 10, 'touchpad')
@@ -350,7 +350,7 @@ def _touchpad(image, label, style):
 def redraw(image, button, kind, style, labels):
     """The level-0 image of one prompt redrawn for `style`, or None when it stays the game's."""
     if kind == 'touchpad':
-        return _touchpad(image, labels.get('touchpad', 'G'), style)
+        return _touchpad(image, labels.get('touchpad', 'R'), style)
     if kind == 'spray':
         return _spray(image, labels.get(button, 'mouse:left') if style == 'keyboard' else 'RT', style)
     if kind == 'disc':

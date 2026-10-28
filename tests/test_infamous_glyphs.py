@@ -89,9 +89,9 @@ class InfamousGlyphTests(unittest.TestCase):
                    b'u_x\0Press the Touch Pad Button to drain Smoke Sources\0')
         out = g.retext(strings, 'english', g.key_labels(''))
         self.assertEqual(len(out), len(strings))
-        self.assertIn(b'\0Hold G (both thumbs)   ', out)
-        self.assertIn(b'\0Hold G + D to open the door         \0', out)
-        self.assertIn(b'\0Press G to drain Smoke Sources', out)
+        self.assertIn(b'\0Hold R (both thumbs)   ', out)
+        self.assertIn(b'\0Hold R + D to open the door         \0', out)
+        self.assertIn(b'\0Press R to drain Smoke Sources', out)
         self.assertEqual(out.count(b'\0'), strings.count(b'\0'))  # every string where it was
         self.assertEqual(g.retext(strings, 'french', g.key_labels('')), strings)
 

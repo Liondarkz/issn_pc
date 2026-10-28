@@ -140,8 +140,8 @@ class ControlMapTest(unittest.TestCase):
     def test_touchpad_sides_are_separate_buttons(self):
         rows = {b: (k, p) for b, k, p in launcher.CONTROLS}
         self.assertNotIn('touchpad', rows)
-        self.assertEqual(rows['touchpad_left'], ('R', None))  # photo mode: L1 + the right-click button
-        self.assertEqual(rows['touchpad_right'], ('G', 'back'))  # pause menu
+        self.assertEqual(rows['touchpad_left'], ('G', None))  # photo mode: L1 + the right-click button
+        self.assertEqual(rows['touchpad_right'], ('R', 'back'))  # pause menu
         self.assertEqual(launcher.control_map({'pad': {'touchpad_right': 'guide'}}, 'pad'), 'touchpad_right=guide')
         self.assertEqual(launcher.control_map({'key': {'touchpad_right': 'Delete'}}, 'key'), 'touchpad_right=Delete')
 

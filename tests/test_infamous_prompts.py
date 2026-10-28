@@ -120,7 +120,7 @@ class InfamousPromptTests(unittest.TestCase):
     def test_touchpad_gets_its_key(self):
         image = Image.new('RGBA', (512, 512), (0, 0, 0, 0))
         ImageDraw.Draw(image).rectangle((60, 90, 470, 340), fill=(15, 15, 15, 255))  # the pad
-        out = p.redraw(image, 'touchpad', 'touchpad', 'keyboard', {'touchpad': 'G'})
+        out = p.redraw(image, 'touchpad', 'touchpad', 'keyboard', {'touchpad': 'R'})
         corner = [out.getpixel((x, y)) for y in range(70, 120) for x in range(40, 100)]
         self.assertTrue(any(min(c[:3]) > 230 and c[3] > 200 for c in corner))  # the white key
         self.assertEqual(out.getpixel((300, 250)), image.getpixel((300, 250)))  # the pad itself kept

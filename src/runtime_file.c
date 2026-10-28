@@ -275,11 +275,12 @@ static int64_t do_open(const char *guest,int flags,int mode) {
     Listing *dir=NULL;
     if (!fstat(host,&s) && S_ISDIR(s.st_mode)) dir=list_directory(path);
 #endif
-    /* issn: the game's language packages (the button icons mount copies over them) are logged
-     * with where they were opened from: the icons did not change on a tester's PC (10-27). */
-    if (contains_nocase(guest,"_text") && contains_nocase(guest,".xpps")) {
+    /* issn: the game's packages are logged with where they were opened from (the first 600):
+     * the button icons mount copies over some (the icons did not change on a tester's PC, 10-27),
+     * and the log tells which package a prompt still to redraw comes with (10-28). */
+    if (contains_nocase(guest,".xpps")) {
         static unsigned logged;
-        if (__atomic_fetch_add(&logged,1,__ATOMIC_RELAXED)<16) printf("Runtime: open %s -> %s\n",guest,path);
+        if (__atomic_fetch_add(&logged,1,__ATOMIC_RELAXED)<600) printf("Runtime: open %s -> %s\n",guest,path);
     }
     pthread_mutex_lock(&lock);
     int fd=-1;

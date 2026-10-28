@@ -4,7 +4,9 @@
  * Default keyboard layout (axylpup's; ISSN_KEY_MAP changes the buttons, see apply_button_map):
  *   WASD left stick, IJKL right stick, arrows d-pad, Space Cross, LShift Circle, C Square,
  *   F Triangle (numpad 2/6/4/8 too), Q L1, E R1, 1 / right mouse L2, 3 / left mouse R2, U L3, O R3,
- *   Enter Options, R left touchpad (photo mode), G right touchpad (pause menu), Y mouse camera.
+ *   Enter Options, R the touchpad (held: both thumbs; R + W/A/S/D: a swipe), G its left side alone
+ *   (photo mode), Y mouse camera. (issn 10-28: R and G swapped from axylpup's, João: R "recharges" the
+ *   powers, the drains.)
  *
  * issn: synthetic motion (axylpup's SyntheticMotionLocked) for a keyboard or a pad without motion
  * sensors, for inFAMOUS Second Son's spray can: Z held (or L3+R3 / H to toggle) tilts the pad on
@@ -208,7 +210,7 @@ static uint16_t touch_axis(float v, int max) {
  * that comes and goes with the button. The side is chosen when the click starts and kept: the
  * right source with L1 held is a left click (photo mode on pads without a touchpad). */
 enum { CLICK_LEAD_US=50000, CLICK_HOLD_US=50000, CLICK_TAIL_US=100000 };
-static int key_touch_held; /* issn: the keyboard's right touchpad key (G) is down this read */
+static int key_touch_held; /* issn: the keyboard's touchpad key (R) is down this read */
 
 static struct { int side; uint64_t pressed, released; } click={-1,0,0};
 static void play_click(PadData *d) {
@@ -232,10 +234,10 @@ static void play_click(PadData *d) {
         d->touches[d->touch_count]=(PadTouch){.x=click.side ? 1440 : 480,.y=471,.id=d->touch_count};
         ++d->touch_count;
     }
-    /* issn: both sources held (keyboard R + G), or the keyboard's G alone: a finger on each half,
+    /* issn: both sources held (keyboard R + G), or the keyboard's R alone: a finger on each half,
      * the click held while either is (axylpup 2026-10-18: the Reggie car scene of Second Son,
      * "Press and Hold the Touch Pad Button with both thumbs", needs both halves; the game's
-     * drains take both thumbs too). The prompts show G on the touchpad (infamous_prompts). */
+     * drains take both thumbs too). The prompts show R on the touchpad (infamous_prompts). */
     static int both_was;
     const int both=((sources & CLICK_LEFT) && (sources & CLICK_RIGHT)) || (key_touch_held && (sources & CLICK_RIGHT));
     if (both && d->touch_count<2) {
@@ -406,7 +408,7 @@ static ButtonMap key_map={{
     {SDL_SCANCODE_SPACE,BTN_CROSS}, {SDL_SCANCODE_LSHIFT,BTN_CIRCLE}, {SDL_SCANCODE_C,BTN_SQUARE},
     {SDL_SCANCODE_F,BTN_TRIANGLE}, {SDL_SCANCODE_Q,BTN_L1}, {SDL_SCANCODE_E,BTN_R1},
     {SDL_SCANCODE_1,BTN_L2}, {SDL_SCANCODE_3,BTN_R2}, {SDL_SCANCODE_U,BTN_L3}, {SDL_SCANCODE_O,BTN_R3},
-    {SDL_SCANCODE_RETURN,BTN_OPTIONS}, {SDL_SCANCODE_R,CLICK_LEFT}, {SDL_SCANCODE_G,CLICK_RIGHT},
+    {SDL_SCANCODE_RETURN,BTN_OPTIONS}, {SDL_SCANCODE_R,CLICK_RIGHT}, {SDL_SCANCODE_G,CLICK_LEFT},
     {SDL_SCANCODE_UP,BTN_UP}, {SDL_SCANCODE_DOWN,BTN_DOWN}, {SDL_SCANCODE_LEFT,BTN_LEFT}, {SDL_SCANCODE_RIGHT,BTN_RIGHT},
     {SDL_SCANCODE_KP_2,BTN_CROSS}, {SDL_SCANCODE_KP_6,BTN_CIRCLE}, {SDL_SCANCODE_KP_4,BTN_SQUARE},
     {SDL_SCANCODE_KP_8,BTN_TRIANGLE},
@@ -739,7 +741,7 @@ static void sample_host(PadData *d) {
     key_axis(&d->left_y,k[SDL_SCANCODE_W],k[SDL_SCANCODE_S]);
     key_axis(&d->right_x,k[SDL_SCANCODE_J],k[SDL_SCANCODE_L]);
     key_axis(&d->right_y,k[SDL_SCANCODE_I],k[SDL_SCANCODE_K]);
-    /* issn: swipes on the keyboard: the right touchpad key (G) held and W/A/S/D (or an arrow)
+    /* issn: swipes on the keyboard: the touchpad key (R) held and W/A/S/D (or an arrow)
      * pressed is a swipe that way (play_swipe; a key kept down holds the finger at the end: "swipe
      * up and hold", the left hand alone, so the mouse can hit meanwhile); those keys then leave
      * the left stick and the d-pad alone. Second Son: the door, the wreckage, the Mobile Command

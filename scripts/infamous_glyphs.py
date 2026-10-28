@@ -25,7 +25,7 @@ from pathlib import Path
 import shutil
 import struct
 
-VERSION = 4  # of the drawing: a change redraws the cached copies
+VERSION = 5  # of the drawing: a change redraws the cached copies
 PACKAGES = 'art/cache'
 FONT_FILE = Path(__file__).resolve().parent.parent / 'launcher' / 'issn_font.ttf'
 
@@ -42,7 +42,7 @@ ICON_BUTTONS = {
 # The port's default keyboard (src/runtime_pad.c): button -> label. L2 / R2 are the mouse buttons.
 KEYBOARD = {'cross': 'SPACE', 'circle': 'SHIFT', 'square': 'C', 'triangle': 'F', 'l1': 'Q', 'r1': 'E',
             'l2': 'mouse:right', 'r2': 'mouse:left', 'l3': 'U', 'r3': 'O', 'options': 'ENTER',
-            'touchpad': 'G', 'up': 'arrow:up', 'down': 'arrow:down', 'left': 'arrow:left',
+            'touchpad': 'R', 'up': 'arrow:up', 'down': 'arrow:down', 'left': 'arrow:left',
             'right': 'arrow:right', 'dpad': 'arrows', 'lstick': 'WASD', 'rstick': 'mouse:'}
 XBOX = {'cross': ('A', (108, 196, 74)), 'circle': ('B', (232, 72, 66)), 'square': ('X', (66, 142, 232)),
         'triangle': ('Y', (244, 196, 48)), 'l1': ('LB', None), 'r1': ('RB', None), 'l2': ('LT', None),
@@ -56,7 +56,7 @@ SHORT_NAMES = {'left shift': 'SHIFT', 'right shift': 'SHIFT', 'left ctrl': 'CTRL
 
 
 # issn: the keyboard's words for the touchpad prompts that show no icon (written in place, never
-# longer than the game's text: the rest of the string becomes spaces, so no offset moves). G is the
+# longer than the game's text: the rest of the string becomes spaces, so no offset moves). R is the
 # touchpad: held, both thumbs; with W/A/S/D a swipe (src/runtime_pad.c). Language of the package
 # (lang_<name>_text.xpps) -> texts.
 KEY_TEXTS = {
@@ -88,7 +88,7 @@ def retext(data, language, labels):
     out = bytearray(data)
     if not texts:
         return bytes(out)
-    words = {'touch': labels.get('touchpad', 'G')}
+    words = {'touch': labels.get('touchpad', 'R')}
     keyed, phrases = texts
     for key, text in keyed.items():
         at = out.find(b'\0' + key.encode() + b'\0')
@@ -200,6 +200,7 @@ def key_labels(key_map=''):
     for entry in (key_map or '').split(','):
         button, _, key = (part.strip() for part in entry.partition('='))
         button = button.casefold()
+        button = 'touchpad' if button == 'touchpad_right' else button  # the key the prompts show
         if button in labels and key and not labels[button].startswith(('mouse', 'arrow')):
             labels[button] = SHORT_NAMES.get(key.casefold(), key.upper()[:6])
     return labels

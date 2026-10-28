@@ -383,7 +383,7 @@ CONTROLS = [('cross', 'Space', 'a'), ('circle', 'Left Shift', 'b'), ('square', '
             ('triangle', 'F', 'y'), ('l1', 'Q', 'leftshoulder'), ('r1', 'E', 'rightshoulder'),
             ('l2', '1', None), ('r2', '3', None), ('l3', 'U', 'leftstick'),
             ('r3', 'O', 'rightstick'), ('options', 'Return', 'start'),
-            ('touchpad_left', 'R', None), ('touchpad_right', 'G', 'back'),
+            ('touchpad_left', 'G', None), ('touchpad_right', 'R', 'back'),
             ('up', 'Up', 'dpup'), ('down', 'Down', 'dpdown'), ('left', 'Left', 'dpleft'), ('right', 'Right', 'dpright'),
             # issn: rattles the pad's motion sensor (the spray can); misc1 is the Share button of an
             # Xbox Series pad and the mute button of a DualSense, which the game does not use.
@@ -1771,9 +1771,9 @@ class Launcher:
         self.note(f, _('Keyboard and mouse: WASD moves, IJKL turns the camera. Click in the game window and the '
                        'mouse aims (1:1, as in axylpup\'s build); Y or F7 lets the mouse go and takes it back, '
                        '- / = change its speed. Left click R2 (shoot), right click L2 (aim). Spray can: hold Z '
-                       'to tilt the pad, tap Z or hold X to rattle it, move the mouse to aim. R / G: left / right '
-                       'touchpad (G held is both thumbs: the car on Reggie, the drains); G + W/A/S/D: a swipe (doors, '
-                       'wreckage, the Mobile Command Center core: hold G + W and click to hit it). Arrows: '
+                       'to tilt the pad, tap Z or hold X to rattle it, move the mouse to aim. R: the touchpad (held, '
+                       'both thumbs: the drains, the car on Reggie); R + W/A/S/D: a swipe (doors, wreckage, the '
+                       'Mobile Command Center core: hold R + W and click to hit it); G: its left side (photo mode). Arrows: '
                        'd-pad. F12: screenshot. Insert: the port\'s menu.'), top=8)
         table = ttk.Frame(f)
         table.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(16, 0))
