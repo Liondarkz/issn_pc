@@ -135,4 +135,6 @@ if [[ ${1:-} == --test ]]; then
     out/isa-stub-test tests/data/isa_fixture.bin
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -I. -Isrc tests/test_isa_extrq.c out/isa_rewrite.o out/isa_emulate.o -o out/isa-extrq-test
     out/isa-extrq-test
+    "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -I. -Isrc tests/test_redzone_guard.c -o out/redzone-guard-test
+    out/redzone-guard-test
 fi

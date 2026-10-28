@@ -626,6 +626,31 @@ extern void issn_view_attach(unsigned char *guest_image);
 /* issn: draw distance, LOD and clip planes of inFAMOUS 1.07 (src/view_hook.h, from HayatoG's
  * iss_pc): the menu's/environment's values reach the game's data through issn_view_attach; the
  * regions' LOD_ADJUST and FADE_DISTANCE go through four stubs. Silent for other builds. */
+#include "redzone_guard.h"
+/* issn: red-zone guards (src/redzone_guard.h): on Windows a fault on a write-tracked GPU page
+ * overwrites a guest leaf function's red zone; the known ones get their red zone above rsp.
+ * ISSN_REDZONE_GUARD=0 leaves them alone, =1 applies them on Linux too (where signals skip the
+ * red zone and they are not needed). */
+static void install_redzone_guards(uint64_t size) {
+    const char *e = getenv("ISSN_REDZONE_GUARD");
+#ifdef _WIN32
+    if (e && e[0] == '0') return;
+#else
+    if (!e || e[0] != '1') return;
+#endif
+    unsigned char *stubs = NULL;
+    for (size_t i = 0; i < sizeof issn_redzone_guards / sizeof *issn_redzone_guards; ++i) {
+        const RedZoneGuard *g = &issn_redzone_guards[i];
+        if ((uint64_t)g->start + g->length > size) continue;
+        if (!stubs) stubs = allocate(page_size);
+        unsigned char *area = stubs + i * 4 * ISSN_RZ_STUB;
+        const int r = issn_redzone_guard_apply(g, image, area);
+        if (r > 0) printf("Red zone guard: %s at %#x\n", g->name, g->start);
+        else if (r < 0) printf("Red zone guard: %s unavailable (stub outside relative-jump range)\n", g->name);
+    }
+    if (stubs) protect(stubs, page_size, 5);
+}
+
 static void install_view_tuning(Segment *segments, uint64_t count, uint64_t size) {
     if (!mapped(segments, count, ISSN_VIEW_LOD_TABLE, ISSN_VIEW_LOD_ROWS * ISSN_VIEW_LOD_STRIDE) ||
         !mapped(segments, count, ISSN_VIEW_BANDS, 4 * ISSN_VIEW_BAND_COUNT) ||
@@ -1162,6 +1187,7 @@ int main(int argc, char **argv) {
         runtime_set_report_hook(isa_report_hook);
         protect(stubs, stub_area, 5);
     }
+    install_redzone_guards(size);
     protect(traps, round_page((import_count + 1) * 32), 5);
     protect(image, round_page(size), 0);
     int executable_entry = 0;
