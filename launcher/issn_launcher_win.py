@@ -371,7 +371,7 @@ APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', s
                 'vk_validation': False, 'close_on_play': False,
                 'check_updates': False, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation',
                 'glyph_style': 'off', 'compute_priority': True, 'ordered_readback': False, 'draw_distance': '',
-                'perf_mode': '', 'render_height': '', 'upscale_quality': '', 'shader_compile': '', 'screen_shape': '',
+                'perf_mode': '', 'render_height': '', 'upscale_quality': '', 'aniso': '', 'shader_compile': '', 'screen_shape': '',
                 'anti_aliasing': 'game'}
 
 # PS4 button, default key, default gamepad button (SDL names; src/runtime_pad.c). L2/R2 come
@@ -502,6 +502,8 @@ RESOLUTIONS = [('600', ('1064 × 600 (like 800 × 600, the fastest)',)), ('720',
                ('1800', ('3200 × 1800',)), ('2160', ('3840 × 2160 (4K)',))]
 # UPSCALE_QUALITY: with FSR 4 or DLSS, the game draws at the window's size divided by this and the
 # upscaler rebuilds the picture at the window size (ISSN_UPSCALE_FACTOR); it replaces Resolution.
+# issn: anisotropic filtering forced on the game's textures (ISSN_ANISO, texture_cache/sampler.cpp).
+ANISO = [('', ("The game's own (default)",)), ('4', ('4x',)), ('8', ('8x',)), ('16', ('16x (sharpest)',))]
 UPSCALE_QUALITY = [('', ('Off: the game draws at the Resolution above',)), ('1.5', ('Quality (window ÷ 1.5)',)),
                    ('1.7', ('Balanced (window ÷ 1.7)',)), ('2', ('Performance (window ÷ 2)',)),
                    ('3', ('Ultra Performance (window ÷ 3)',))]
@@ -935,6 +937,9 @@ def game_environment(s):
     s = migrate_settings(s)
     if s.get('render_height') in {value for value, _text in RESOLUTIONS if value}:
         env['ISSN_RENDER_HEIGHT'] = s['render_height']
+    env.pop('ISSN_ANISO', None)
+    if s.get('aniso') in {value for value, _text in ANISO if value}:
+        env['ISSN_ANISO'] = s['aniso']
     if s.get('upscale_quality') in {value for value, _text in UPSCALE_QUALITY if value}:
         env['ISSN_UPSCALE_FACTOR'] = s['upscale_quality']
     if s.get('perf_mode') in {value for value, _text in PERF_MODES if value}:
@@ -1525,6 +1530,9 @@ class Launcher:
                    'upscaler rebuilds a sharp picture at the window size. Quality looks closest to native, '
                    'Ultra Performance is the fastest. When not Off it decides the size instead of Resolution.'),
                  restart=True)
+        self.row(f, _('Texture filtering'), self.choice(f, 'aniso', 'app', ANISO, width=44),
+                 _('Anisotropic filtering: ground, roads and walls seen at an angle stay sharp in the distance. '
+                   'Costs a little FPS on weak graphics cards; it does not change stutter.'), restart=True)
         self.section(f, _('Anti-aliasing'))
         self.row(f, _('Anti-aliasing'), self.choice(f, 'anti_aliasing', 'app', ANTI_ALIASING, width=44),
                  _("Replaces the game's own temporal anti-aliasing. FSR 4 (included) needs a Radeon RX 7000 or "

@@ -97,6 +97,12 @@ class ControlMapTest(unittest.TestCase):
         import game_profiles
         self.assertEqual(game_profiles.AXY_RELEASE_FLAGS['SHADPS4_ASYNC_PIPELINES'], '1')
 
+    def test_texture_filtering(self):
+        base = {**launcher.APP_DEFAULTS}
+        self.assertNotIn('ISSN_ANISO', launcher.game_environment(base))
+        self.assertEqual(launcher.game_environment({**base, 'aniso': '16'})['ISSN_ANISO'], '16')
+        self.assertNotIn('ISSN_ANISO', launcher.game_environment({**base, 'aniso': '32'}))
+
     def test_resolution_and_upscale_quality(self):
         base = {**launcher.APP_DEFAULTS}
         env = launcher.game_environment(base)
