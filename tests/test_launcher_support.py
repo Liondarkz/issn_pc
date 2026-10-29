@@ -25,5 +25,11 @@ class PixTest(unittest.TestCase):
         self.assertEqual(launcher.PIX_QR.name, 'pix_qr.png')
 
 
+
+class CommunityTest(unittest.TestCase):
+    def test_discord_invite(self):
+        self.assertTrue(launcher.DISCORD_URL.startswith('https://discord.gg/'))
+
+
 if __name__ == '__main__':
     unittest.main()

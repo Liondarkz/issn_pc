@@ -6,6 +6,8 @@ Ryzen 7 3700X + RX 9060 XT. The first start prepares the shaders once (a few min
 progress screen); new ones that still appear while playing compile in the background. Please
 report how far you get and what goes wrong (see Reporting problems).
 
+Community: Discord https://discord.gg/y82HQ5uTQg (news, help, test builds).
+
 DLSS (optional, NVIDIA RTX)
 NVIDIA's files are not included (licence). Download Streamline SDK 2.14.16 from
 https://github.com/NVIDIA-RTX/Streamline/releases (exactly that version) and copy these five files

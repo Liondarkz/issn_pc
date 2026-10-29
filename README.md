@@ -9,6 +9,8 @@ vez).
 > Projeto sem relação com a Sony Interactive Entertainment ou a Sucker Punch Productions.
 > inFAMOUS é marca da Sony Interactive Entertainment.
 
+💬 **Discord:** https://discord.gg/y82HQ5uTQg (novidades, ajuda e builds de teste / news, help and test builds)
+
 [English below](#english)
 
 ## Download

@@ -70,6 +70,8 @@ UPDATES = bool(RELEASES_API)
 # SUPPORT_LINKS: donation pages; the 'Support the project' row shows only when one is set.
 AUTHOR = 'Liondarkz'
 AUTHOR_LINKS = [('GitHub', 'https://github.com/Liondarkz')]
+# The port's Discord server (opened 10-29): Home page link and Advanced > About.
+DISCORD_URL = 'https://discord.gg/y82HQ5uTQg'
 SUPPORT_LINKS = [('Ko-fi', 'https://ko-fi.com/liondarkz'),  # card or PayPal, any country
                  ('GitHub Sponsors', 'https://github.com/sponsors/Liondarkz')]
 # Pix (Brazil): his random key; the QR code in launcher/pix_qr.png holds pix_payload() (static BR
@@ -989,6 +991,7 @@ BG, PANEL, CARD, LINE = '#09090c', '#101116', '#181a21', '#262935'
 TEXT, MUTED, ACCENT, ACCENT_HI = '#f2f2f4', '#8c90a0', '#e2263b', '#ff4359'
 NEON, HOVER = '#24d3f2', '#15171e'
 NEON_PINK = '#ff3ea5'
+DISCORD_BLUE = '#8c9bff'  # Discord's blurple, lightened for the dark page
 RESOLUTION_CHOICES = [('native', ('Native (1080p)',)), ('480p', ('480p',)), ('720p', ('720p',)),
                       ('1440p', ('1440p',)), ('1800p', ('1800p',)), ('4K', ('4K',))]
 ENGINE_FPS_CHOICES = [('60', ('60 (original)',)), ('120', ('120',)), ('240', ('240',))]
@@ -1516,7 +1519,11 @@ class Launcher:
         support = c.create_text(c.bbox(credit)[0] - self.px(18), h - self.px(18), text='♥ ' + _('Support the project'),
                                 anchor='se', fill=NEON_PINK, font=(UI_FONT, 10, 'bold'), activefill=TEXT)
         c.tag_bind(support, '<Button-1>', lambda _e: self.show_support())
-        for item in (credit, support):
+        # issn: and the Discord server, left of that.
+        discord = c.create_text(c.bbox(support)[0] - self.px(18), h - self.px(18), text='💬 Discord',
+                                anchor='se', fill=DISCORD_BLUE, font=(UI_FONT, 10, 'bold'), activefill=TEXT)
+        c.tag_bind(discord, '<Button-1>', lambda _e: open_url(DISCORD_URL))
+        for item in (credit, support, discord):
             c.tag_bind(item, '<Enter>', lambda _e: c.configure(cursor='hand2'))
             c.tag_bind(item, '<Leave>', lambda _e: c.configure(cursor=''))
 
@@ -1898,7 +1905,7 @@ class Launcher:
         self.note(f, _('Made by {}').format(AUTHOR), top=2)
         holder = ttk.Frame(f)
         holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(6, 0))
-        for label, url in AUTHOR_LINKS:
+        for label, url in AUTHOR_LINKS + [('Discord', DISCORD_URL)]:
             ttk.Button(holder, text=label, command=lambda u=url: open_url(u)).pack(side='left', padx=(0, 6))
         self.note(f, _('Thanks to {}.').format(CREDITS), top=8)
         self.build_support(f)
