@@ -236,8 +236,24 @@ static int contains_nocase(const char *text,const char *part) {
     for (; *text; ++text) if (!strncasecmp(text,part,n)) return 1;
     return 0;
 }
+/* issn: ISSN_SKIP_INTRO=1 (launcher: Game > Skip the intro logos): the start-up splash movie
+ * (art/movies/cutscene/splash_*.bsf: PlayStation and Sucker Punch logos) reads as missing, and
+ * the game goes on to the title screen. Other movies (cutscenes, power previews) are untouched. */
+static int skip_intro_movie(const char *guest) {
+    static int on=-1;
+    if (on<0) { const char *e=getenv("ISSN_SKIP_INTRO"); on=e && e[0]=='1'; }
+    if (!on) return 0;
+    const char *base=strrchr(guest,'/');
+    base=base ? base+1 : guest;
+    return contains_nocase(guest,"movies/cutscene/") && !strncasecmp(base,"splash_",7) &&
+           contains_nocase(base,".bsf");
+}
 static int64_t do_open(const char *guest,int flags,int mode) {
     if (game_path(guest) && (flags & (3|0x8|0x200|0x400|0x800))) return -EROFS;
+    if (skip_intro_movie(guest)) {
+        printf("Runtime: intro movie skipped (%s)\n",guest);
+        return -ENOENT;
+    }
     char path[1024];
     int e=translate(guest,path,sizeof(path));
     if (e) return -e;
@@ -281,6 +297,10 @@ static int64_t do_open(const char *guest,int flags,int mode) {
     if (contains_nocase(guest,".xpps")) {
         static unsigned logged;
         if (__atomic_fetch_add(&logged,1,__ATOMIC_RELAXED)<600) printf("Runtime: open %s -> %s\n",guest,path);
+    } else if (contains_nocase(guest,".bsf")) {
+        /* The game's movies: which one plays when (the intro logos, 10-29). */
+        static unsigned logged;
+        if (__atomic_fetch_add(&logged,1,__ATOMIC_RELAXED)<200) printf("Runtime: movie %s\n",guest);
     }
     pthread_mutex_lock(&lock);
     int fd=-1;

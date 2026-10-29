@@ -366,7 +366,7 @@ PAGES = ('home', 'graphics', 'performance', 'game', 'advanced')
 PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_lists', 'refresh_game_patches')}
 APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', str(PORT_DIR.parent / 'CUSA00004') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
-                'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '',
+                'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False,
                 'player_name': '', 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
                 'gpu_id': '', 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binaries': False,
                 'perf_diag': False, 'frame_capture_key': False, 'frame_stats': False, 'gpu_profile': False,
@@ -964,6 +964,10 @@ def game_environment(s):
     env.pop('ISSN_PAD_EMULATION', None)
     if s.get('pad_emulation') in ('0', '1'):
         env['ISSN_PAD_EMULATION'] = s['pad_emulation']
+    # issn: the start-up logos movie reads as missing (runtime_file.c).
+    env.pop('ISSN_SKIP_INTRO', None)
+    if s.get('skip_intro'):
+        env['ISSN_SKIP_INTRO'] = '1'
     env.pop('ISSN_STICK_DEADZONE', None)
     if s.get('stick_deadzone') in {value for value, _text in STICK_DEADZONE if value}:
         env['ISSN_STICK_DEADZONE'] = s['stick_deadzone']
@@ -1653,6 +1657,9 @@ class Launcher:
         self.row(f, _('Game language', 'Язык игры'), self.choice(f, 'game_language', 'app', LANGUAGES),
                  _('Text and voices. Automatic follows the launcher language (Portuguese: the Brazilian dub).'),
                  restart=True)
+        self.check(f, 'skip_intro', 'app', _('Skip the intro logos'),
+                   _('The game opens straight on its title screen, without the PlayStation and Sucker Punch '
+                     'logos.'), restart=True)
         self.build_patches(f)
         self.build_mods(f)
         self.build_controls(f)

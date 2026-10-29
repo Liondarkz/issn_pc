@@ -838,6 +838,8 @@ EXTRA = {
         'For Xbox, 8BitDo and other pads without a touchpad or motion sensors. Touchpad click: Select/Back (with L1: the left side). Swipe: hold Select/Back and push the right stick. Two fingers: hold Select/Back + RB. Spray can: L3 + R3 together tilts the pad, LB rattles it, the right stick aims. Automatic turns it off on a DualShock 4 or DualSense.': 'Para controles Xbox, 8BitDo e outros sem touchpad ou sensor de movimento. Clique no touchpad: Select/Back (com L1: o lado esquerdo). Deslizar: segure Select/Back e empurre o analógico direito. Dois dedos: segure Select/Back + RB. Lata de spray: L3 + R3 juntos inclinam o controle, LB sacode, o analógico direito mira. No Automático ele desliga num DualShock 4 ou DualSense.',
         'Spray can stick speed': 'Velocidade do analógico na lata',
         'Stick dead zone': 'Zona morta dos analógicos',
+        'Skip the intro logos': 'Pular as logos da abertura',
+        'The game opens straight on its title screen, without the PlayStation and Sucker Punch logos.': 'O jogo abre direto na tela de título, sem as logos da PlayStation e da Sucker Punch.',
         'Small: 5% (default)': 'Pequena: 5% (padrão)',
         'Medium: 10%': 'Média: 10%',
         'Large: 15%': 'Grande: 15%',
