@@ -27,7 +27,26 @@ if (ISSN_LTO)
         message(WARNING "LTO unavailable: ${issn_ipo_error}")
     endif()
 endif()
-if (ISSN_PGO STREQUAL "generate")
+# issn: Clang (the Windows build, MSYS2 CLANG64) uses LLVM's instrumentation: generate writes
+# <ISSN_GPU_USER_DIR>/pgo/issn-%p.profraw (merged by tools/pgo_merge.sh into
+# pgo-windows/issn-windows.profdata), use reads ISSN_PGO_FILE. axylpup's own .profdata cannot be
+# used: his clang-cl build has MSVC symbol names, this one Itanium names.
+set(ISSN_PGO_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../pgo-windows/issn-windows.profdata" CACHE FILEPATH
+    "Clang profile for ISSN_PGO=use")
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND ISSN_PGO STREQUAL "generate")
+    add_compile_options(-fprofile-instr-generate -fprofile-update=atomic)
+    add_link_options(-fprofile-instr-generate)
+    add_compile_definitions(ISSN_PGO_GENERATE ISSN_PGO_LLVM)
+elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND ISSN_PGO STREQUAL "use")
+    if (EXISTS "${ISSN_PGO_FILE}")
+        add_compile_options(-fprofile-instr-use=${ISSN_PGO_FILE} -Wno-profile-instr-unprofiled
+                            -Wno-profile-instr-out-of-date -Wno-profile-instr-missing
+                            -Wno-backend-plugin)
+        message(STATUS "PGO: ${ISSN_PGO_FILE}")
+    else()
+        message(WARNING "PGO: ${ISSN_PGO_FILE} not found, built without a profile")
+    endif()
+elseif (ISSN_PGO STREQUAL "generate")
     # Atomic counters: the GPU, recording, preparation and copy threads run the same code.
     add_compile_options(-fprofile-generate=${ISSN_PGO_DIR} -fprofile-update=atomic)
     add_link_options(-fprofile-generate=${ISSN_PGO_DIR})

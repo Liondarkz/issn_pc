@@ -469,7 +469,32 @@ u32 IssnDisplayRefreshHz() {
     return hz;
 }
 
-#ifdef ISSN_PGO_GENERATE
+#if defined(ISSN_PGO_GENERATE) && defined(ISSN_PGO_LLVM)
+extern "C" int __llvm_profile_write_file(void);
+extern "C" void __llvm_profile_set_filename(const char*);
+// Instrumented Clang build: the counters are cumulative, so each write replaces the file with
+// the totals so far (the game often ends through _exit, which skips the write at exit). One file
+// per process: <user>/pgo/issn-<pid>.profraw.
+static void StartProfileWriter() {
+    static std::string path = [] {
+        const char* user = std::getenv("ISSN_GPU_USER_DIR");
+        const std::filesystem::path dir = std::filesystem::path(user && *user ? user : "user") / "pgo";
+        std::error_code ec;
+        std::filesystem::create_directories(dir, ec);
+        return (dir / "issn-%p.profraw").string();
+    }();
+    __llvm_profile_set_filename(path.c_str());
+    std::printf("PGO: instrumented build, profile in %s every 30 s\n", path.c_str());
+    std::thread([] {
+        Common::SetCurrentThreadName("port:pgo");
+        for (;;) {
+            std::this_thread::sleep_for(std::chrono::seconds(30));
+            __llvm_profile_write_file();
+            std::printf("PGO: profile written\n");
+        }
+    }).detach();
+}
+#elif defined(ISSN_PGO_GENERATE)
 extern "C" void __gcov_dump(void);
 extern "C" void __gcov_reset(void);
 // Instrumented build (ISSN_PGO=generate): the game often ends through _exit (watchdog, guest
