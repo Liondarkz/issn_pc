@@ -213,6 +213,13 @@ class ControlMapTest(unittest.TestCase):
         for key in ('display_mode', 'fps_limit', 'render_resolution', 'engine_fps'):
             self.assertIn(key, launcher.INI_DEFAULTS)
 
+    def test_saved_light_effects_no_longer_apply(self):
+        # Light / Off readbacks left the picture dark at night (stale exposure metering).
+        for value in ('0', '1'):
+            env = launcher.game_environment({**launcher.APP_DEFAULTS, 'readbacks': value})
+            self.assertNotEqual(env.get('ISSN_READBACKS'), value)
+        self.assertFalse(hasattr(launcher, 'READBACKS'))
+
     def test_graphics_defaults_match_the_game(self):
         d = launcher.INI_DEFAULTS
         self.assertEqual((d['display_mode'], d['vsync'], d['fps_limit'], d['engine_fps']), ('windowed', '1', '0', '120'))

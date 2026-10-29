@@ -484,8 +484,9 @@ def game_language(s):
 DRAW_PIPE = [('', ('Auto (8+ threads)', 'Авто (8+ потоков)')), ('1', ('On', 'Включён')),
              ('0', ('Off (more stable)', 'Выключен (стабильнее)'))]
 # inFAMOUS: the game profile reads GPU results back precisely (smoke, sparks, neon need them).
-READBACKS = [('', ('Full effects (default)',)), ('1', ('Light: faster, some effects missing',)),
-             ('0', ('Off: fastest, most effects missing',))]
+# The old Effects choice (Light '1' / Off '0') is gone in 0.3.5.1: the CPU then reads the game's
+# exposure metering stale and the picture can stay dark at night (tester, RTX 5060). A saved
+# Light / Off is ignored; ISSN_READBACKS set by hand in the environment still applies.
 # ISSN_LOD_SCALE: how far detail is drawn in the city ('' = the game profile's 1.0, the game's own).
 DRAW_DISTANCE = [('', ('Original (default)',)), ('0.6', ('Short (faster)',)), ('1.5', ('Long (less pop-in)',)),
                  ('2.0', ('Very long (least pop-in, slower)',))]
@@ -921,8 +922,6 @@ def game_environment(s):
         env['ISSN_USER_NAME'] = str(s['player_name']).strip()
     if s['hdr']:
         env['ISSN_HDR'] = '1'
-    if s.get('readbacks'):
-        env['ISSN_READBACKS'] = s['readbacks']
     # The saved UI choice wins over inherited diagnostic overrides, including when reverting.
     stream_memory = s.get('stream_memory', APP_DEFAULTS['stream_memory'])
     env['ISSN_STREAM_MEMORY'] = stream_memory if stream_memory in ('cached', 'host', 'device') else 'cached'
@@ -1609,10 +1608,6 @@ class Launcher:
                    'game keeps running and what they draw shows up a moment later; in the frame the game '
                    'waits for them (a stutter). Either way they are kept in the cache for the next time.'),
                  restart=True)
-        self.row(f, _('Effects'), self.choice(f, 'readbacks', 'app', READBACKS),
-                 _('Smoke, sparks, neon, bullets and the light metering of the picture are computed on the '
-                   'graphics card and read back by the game. Full keeps all of them; Light and Off are '
-                   'faster but lose effects and can leave the picture too dark at night.'), restart=True)
         self.section(f, _('Graphics card'))
         gpus = list_gpus()
         cards = [('', ('Automatic',))] + [(row[0], (row[1],)) for row in gpus]
