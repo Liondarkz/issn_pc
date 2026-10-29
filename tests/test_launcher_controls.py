@@ -213,6 +213,11 @@ class ControlMapTest(unittest.TestCase):
         for key in ('display_mode', 'fps_limit', 'render_resolution', 'engine_fps'):
             self.assertIn(key, launcher.INI_DEFAULTS)
 
+    def test_frame_pacing_setting(self):
+        self.assertNotIn('SHADPS4_VSYNC_DIVIDER', launcher.game_environment({**launcher.APP_DEFAULTS}))
+        self.assertEqual(launcher.game_environment({**launcher.APP_DEFAULTS, 'frame_pacing': '2'})
+                         ['SHADPS4_VSYNC_DIVIDER'], '2')
+
     def test_skip_intro_setting(self):
         self.assertNotIn('ISSN_SKIP_INTRO', launcher.game_environment({**launcher.APP_DEFAULTS}))
         self.assertEqual(launcher.game_environment({**launcher.APP_DEFAULTS, 'skip_intro': True})['ISSN_SKIP_INTRO'], '1')

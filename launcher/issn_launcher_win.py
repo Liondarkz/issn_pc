@@ -360,13 +360,19 @@ INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1',
                 'render_resolution': 'native', 'engine_fps': '120',
                 'frames_queued': '1', 'cheat_very_hard': '0', 'cheat_double_jumps': '0'}
 DISPLAY_MODES = [('windowed', ('Windowed',)), ('borderless', ('Borderless',)), ('fullscreen', ('Fullscreen',))]
+# issn: frame pacing on screens without G-Sync / FreeSync (axylpup's 1.1 "Fifo (half refresh)",
+# vk_swapchain.cpp): every game frame is presented N times with V-Sync, so each stays exactly N
+# screen refreshes (72 FPS on 144 Hz, 120 on 240 Hz) instead of some one and some two (judder).
+FRAME_PACING = [('', ('Normal: a new frame at every refresh it is ready (default)',)),
+                ('2', ('Half the refresh rate, even (72 FPS on 144 Hz, 120 on 240 Hz)',)),
+                ('3', ('A third of the refresh rate, even (48 FPS on 144 Hz, 80 on 240 Hz)',))]
 FPS_LIMITS = [('30', ('30',)), ('60', ('60',)), ('120', ('120',)), ('240', ('240',)), ('0', ('Unlimited',))]
 # The sidebar's pages, top to bottom, and the methods that refresh a page's lists when it is shown.
 PAGES = ('home', 'graphics', 'performance', 'game', 'advanced')
 PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_lists', 'refresh_game_patches')}
 APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', str(PORT_DIR.parent / 'CUSA00004') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
-                'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False,
+                'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False, 'frame_pacing': '',
                 'player_name': '', 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
                 'gpu_id': '', 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binaries': False,
                 'perf_diag': False, 'frame_capture_key': False, 'frame_stats': False, 'gpu_profile': False,
@@ -964,6 +970,10 @@ def game_environment(s):
     env.pop('ISSN_PAD_EMULATION', None)
     if s.get('pad_emulation') in ('0', '1'):
         env['ISSN_PAD_EMULATION'] = s['pad_emulation']
+    # issn: even frame pacing: V-Sync with every frame shown N refreshes (vk_swapchain.cpp).
+    env.pop('SHADPS4_VSYNC_DIVIDER', None)
+    if s.get('frame_pacing') in {value for value, _text in FRAME_PACING if value}:
+        env['SHADPS4_VSYNC_DIVIDER'] = s['frame_pacing']
     # issn: the start-up logos movie reads as missing (runtime_file.c).
     env.pop('ISSN_SKIP_INTRO', None)
     if s.get('skip_intro'):
@@ -1613,6 +1623,11 @@ class Launcher:
         self.row(f, _('Frame rate limit'), self.choice(f, 'fps_limit', 'ini', FPS_LIMITS),
                  _('The highest frame rate. The game keeps its speed at any frame rate; Unlimited runs as fast '
                    'as the PC allows.'), restart=True)
+        self.row(f, _('Frame pacing'), self.choice(f, 'frame_pacing', 'app', FRAME_PACING, width=44),
+                 _('For screens without G-Sync / FreeSync: when the game runs between half and the full '
+                   'refresh rate, some frames stay on screen longer than others and motion judders even at a '
+                   'high FPS. Half or a third shows every frame for the same time (V-Sync on). Pick the one '
+                   'your PC holds in the heaviest places.'), restart=True)
         self.section(f, 'inFAMOUS')
         self.row(f, _('Draw distance'), self.choice(f, 'draw_distance', 'app', DRAW_DISTANCE),
                  _('How far buildings and details keep their full detail in the open city. Long and Very long '
