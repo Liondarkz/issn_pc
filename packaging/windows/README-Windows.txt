@@ -1,5 +1,5 @@
-inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.5
-======================================================
+inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.5.1
+========================================================
 
 A test build: the game plays from the start, at about 90-105 FPS standing in the open city on a
 Ryzen 7 3700X + RX 9060 XT. The first start prepares the shaders once (a few minutes, with a
@@ -13,6 +13,23 @@ from its bin\x64 folder (not development) into bin\dlss next to issn-probe.exe (
 Graphics > Open the DLSS folder): sl.interposer.dll, sl.common.dll, sl.dlss.dll, sl.pcl.dll,
 nvngx_dlss.dll. Then choose DLSS in Graphics > Anti-aliasing. Untested by us (no NVIDIA card):
 please report how it goes. Without the files the game keeps its own anti-aliasing.
+
+What's new in 0.3.5.1
+- Fixed: the picture staying dark at night (only lights and glow visible) on some PCs. The
+  launcher's Graphics > Effects at Light or Off kept the game from reading its light metering back
+  from the graphics card; that choice is gone and a saved Light / Off now plays as Full.
+- Fixed: on some NVIDIA PCs with DLSS the port's code fixes did not apply (the 0x1cfaaf crash
+  guard, draw distance, 1:1 mouse aim); the log now shows them all as ready.
+- The shader seed is back (0.3.5 shipped without one, so every shader compiled while playing),
+  and it now also reaches a user folder in Documents. On NVIDIA and older AMD cards the effect
+  shaders come ready; the rest still compile in the background while playing.
+- Game > Controls > Stick dead zone (5% to 20%): raise it if Delsin walks or the camera turns on
+  its own (a worn stick drifting).
+- Black screen that never recovered on some PCs (the window reported as "suboptimal"): those
+  frames are now shown; with HDR on and no frame shown for two seconds, HDR is turned off.
+- Graphics > Texture filtering: anisotropic filtering 4x / 8x / 16x over the game's own.
+- Resolution: 5K and 8K (experimental). DLSS waits for its inputs at render sizes other than
+  1080p instead of stepping aside at once (untested: no NVIDIA card here).
 
 What's new in 0.3.5
 - Native resolutions (launcher: Graphics > Resolution, from 800x600-class 1064x600 up to 4K): the
