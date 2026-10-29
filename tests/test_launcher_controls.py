@@ -213,6 +213,13 @@ class ControlMapTest(unittest.TestCase):
         for key in ('display_mode', 'fps_limit', 'render_resolution', 'engine_fps'):
             self.assertIn(key, launcher.INI_DEFAULTS)
 
+    def test_stick_deadzone_setting(self):
+        self.assertNotIn('ISSN_STICK_DEADZONE', launcher.game_environment({**launcher.APP_DEFAULTS}))
+        env = launcher.game_environment({**launcher.APP_DEFAULTS, 'stick_deadzone': '0.15'})
+        self.assertEqual(env['ISSN_STICK_DEADZONE'], '0.15')
+        self.assertNotIn('ISSN_STICK_DEADZONE',
+                         launcher.game_environment({**launcher.APP_DEFAULTS, 'stick_deadzone': '0.9'}))
+
     def test_saved_light_effects_no_longer_apply(self):
         # Light / Off readbacks left the picture dark at night (stale exposure metering).
         for value in ('0', '1'):
