@@ -115,6 +115,10 @@ void MarkGameMainThread();
 bool JobCensus();
 /// Called at guest thread start with its name; registers JobWorker* threads for the job census.
 void NoteGuestThread(const char* name);
+/// issn 0.3.6: read faults, write faults, GPU waits, wait ns, wait-reg-mem, VO label waits,
+/// downloads, download bytes, draws, submits, dispatches (for the hitch lines).
+inline constexpr u32 HitchCounterCount = 11;
+void HitchCounters(u64 out[HitchCounterCount]);
 /// Cycles spent in one NativeRecDraw / NativeRecShader call (job census only).
 void NoteNativeRecCycles(u64 cycles);
 u64 CensusTicks();

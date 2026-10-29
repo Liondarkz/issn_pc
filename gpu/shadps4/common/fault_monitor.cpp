@@ -652,6 +652,19 @@ std::ofstream OpenCsv() {
 
 } // namespace (ReportLoop helpers; gmc census below is public)
 
+// issn 0.3.6: the counters the frame-stats hitch lines compare across one slow frame
+// (core/libraries/videoout/driver.cpp). Counts are always on; times only with
+// SHADPS4_FAULT_TIMERS builds (0 otherwise).
+void HitchCounters(u64 out[HitchCounterCount]) {
+    const Sample s = Read();
+    const u64 values[HitchCounterCount] = {s.read,  s.write,     s.waits,    s.wait_ns,
+                                           s.wrm_count, s.vo_count, s.dl_calls, s.dl_bytes,
+                                           s.draws, s.submits,   s.disp_count};
+    for (u32 i = 0; i < HitchCounterCount; ++i) {
+        out[i] = values[i];
+    }
+}
+
 namespace {
 struct GmCensus {
     std::array<std::atomic<u64>, 16> wait_ticks{}, wait_n{};

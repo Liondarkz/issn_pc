@@ -17,6 +17,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <time.h>
 #ifdef _WIN32
 #include <windows.h>
 /* 64-bit sizes and times; directories are never opened as CRT descriptors. */
@@ -354,17 +355,31 @@ static ssize_t host_write(int h,const void *buffer,uint64_t size) { return write
  * disk into GPU memory, and a lost read left a scene waiting forever). The copy faults to our
  * handler like any guest write. offset<0: from the current position. */
 enum { BOUNCE_SIZE=4<<20 };
+/* issn 0.3.6: time spent reading the disk and copying into guest memory, all threads (the
+ * frame-stats hitch lines, gpu/shadps4/core/libraries/videoout/driver.cpp). */
+static uint64_t io_read_ns,io_copy_ns;
+static uint64_t io_now_ns(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return (uint64_t)t.tv_sec*1000000000u+(uint64_t)t.tv_nsec; }
+void runtime_file_io_stats(uint64_t *bytes,uint64_t *read_ns,uint64_t *copy_ns,uint64_t *opened) {
+    *bytes=__atomic_load_n(&bytes_read,__ATOMIC_RELAXED);
+    *read_ns=__atomic_load_n(&io_read_ns,__ATOMIC_RELAXED);
+    *copy_ns=__atomic_load_n(&io_copy_ns,__ATOMIC_RELAXED);
+    *opened=__atomic_load_n(&opens,__ATOMIC_RELAXED);
+}
 static int64_t bounce_read(int h,void *buffer,uint64_t size,int64_t offset) {
     static _Thread_local unsigned char *bounce;
     if (!bounce && !(bounce=malloc(BOUNCE_SIZE))) return -ENOMEM;
     uint64_t done=0;
     while (done<size) {
         const uint64_t chunk=size-done<BOUNCE_SIZE ? size-done : BOUNCE_SIZE;
+        const uint64_t t0=io_now_ns();
         const ssize_t n=offset<0 ? host_read(h,bounce,chunk) : pread(h,bounce,chunk,offset+(int64_t)done);
+        const uint64_t t1=io_now_ns();
+        __atomic_add_fetch(&io_read_ns,t1-t0,__ATOMIC_RELAXED);
         if (n<0) return done ? (int64_t)done : -errno;
         /* issn: into GPU-modified memory without a fault (ISSN_WRITE_MERGE). */
         if (n<64 || !issngpu_cpu_write((unsigned char *)buffer+done,bounce,-1,(uint64_t)n))
             memcpy((unsigned char *)buffer+done,bounce,(size_t)n);
+        __atomic_add_fetch(&io_copy_ns,io_now_ns()-t1,__ATOMIC_RELAXED);
         done+=(uint64_t)n;
         if ((uint64_t)n<chunk) break; /* end of file */
     }

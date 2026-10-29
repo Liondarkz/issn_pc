@@ -4,7 +4,9 @@
 #include <cstdlib>
 
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include "common/assert.h"
 #include "common/debug.h"
 #include "common/fault_monitor.h"
@@ -20,6 +22,10 @@
 
 extern std::unique_ptr<Vulkan::Presenter> presenter;
 extern std::unique_ptr<AmdGpu::Liverpool> liverpool;
+
+// issn 0.3.6: the runtime's disk read totals (src/runtime_file.c).
+extern "C" void runtime_file_io_stats(std::uint64_t* bytes, std::uint64_t* read_ns,
+                                      std::uint64_t* copy_ns, std::uint64_t* opened);
 
 namespace Libraries::VideoOut {
 
@@ -320,6 +326,33 @@ void VideoOutDriver::Flip(const Request& req) {
         const auto now = Clock::now();
         const double frame_ms = std::chrono::duration<double, std::milli>(now - last).count();
         last = now;
+        // issn 0.3.6: one line per slow frame with what happened during it, to tell streaming
+        // (disk reads and copies into guest memory), guest faults, GPU waits and readbacks
+        // apart (João's log 10-29: the spikes came with the game opening its b*.xpps blocks).
+        static u64 prev_counters[Common::FaultMonitor::HitchCounterCount]{};
+        static u64 prev_io[4]{};
+        static u32 hitch_lines = 0;
+        u64 counters[Common::FaultMonitor::HitchCounterCount];
+        Common::FaultMonitor::HitchCounters(counters);
+        u64 io[4];
+        runtime_file_io_stats(&io[0], &io[1], &io[2], &io[3]);
+        if (frame_ms > 45.0 && frame_ms < 5000.0 && hitch_lines < 400 && prev_io[0] != 0) {
+            ++hitch_lines;
+            const auto d = [&](u32 i) { return counters[i] - prev_counters[i]; };
+            std::printf("Hitch: %.0f ms | disk %.1f MB, read %.1f ms, copy into game memory %.1f ms, "
+                        "%llu files opened | faults read %llu write %llu | GPU waits %llu "
+                        "(%.1f ms) wait-reg-mem %llu flip-label %llu | readbacks %llu (%.0f kB) "
+                        "| draws %llu dispatches %llu submits %llu\n",
+                        frame_ms, double(io[0] - prev_io[0]) / 1048576.0,
+                        double(io[1] - prev_io[1]) / 1e6, double(io[2] - prev_io[2]) / 1e6,
+                        (unsigned long long)(io[3] - prev_io[3]), (unsigned long long)d(0),
+                        (unsigned long long)d(1), (unsigned long long)d(2), double(d(3)) / 1e6,
+                        (unsigned long long)d(4), (unsigned long long)d(5),
+                        (unsigned long long)d(6), double(d(7)) / 1024.0, (unsigned long long)d(8),
+                        (unsigned long long)d(10), (unsigned long long)d(9));
+        }
+        std::memcpy(prev_counters, counters, sizeof(counters));
+        std::memcpy(prev_io, io, sizeof(io));
         worst_ms = std::max(worst_ms, frame_ms);
         over_33 += frame_ms > 33.4 ? 1 : 0;
         ++frames;
