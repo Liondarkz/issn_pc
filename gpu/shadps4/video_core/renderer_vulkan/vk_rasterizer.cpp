@@ -1771,6 +1771,14 @@ void Rasterizer::DlssResolve() {
             std::fflush(stdout);
         }
     };
+    // issn 10-28 (Reddit: DLSS "ready" but never running with a quality preset): at a render size
+    // other than 1080p the inputs are found by the offset search above, which runs every 30th
+    // resolve; DLSS stepped aside at the first miss, before it could. Now, as FSR 4, it waits
+    // ~5 s of misses in a row first.
+    static u32 dlss_size_misses = 0;
+    if (in) {
+        dlss_size_misses = 0;
+    }
     if (!in) [[unlikely]] {
         if (fsr4_mode) {
             fsr4_missed("no colour input");
@@ -1781,6 +1789,14 @@ void Rasterizer::DlssResolve() {
         // session: g_ready off stops the classification (the game's own T2x resolve runs from the
         // next frame on, on every path), the upscaler and DLSS 5.
         if (out.info.size.width != 1920 || out.info.size.height != 1080) {
+            if (++dlss_size_misses == 1) {
+                LOG_WARNING(Render_Vulkan, "DLSS: no colour input yet at {:#x} for the game's {}x{} "
+                            "frame; searching", colour_addr, out.info.size.width,
+                            out.info.size.height);
+            }
+            if (dlss_size_misses < 300) {
+                return;
+            }
             if (Dlss::g_ready.exchange(false, std::memory_order_relaxed)) {
                 LOG_WARNING(Render_Vulkan,
                             "DLSS steps aside: no colour input at {:#x} for the game's {}x{} "
