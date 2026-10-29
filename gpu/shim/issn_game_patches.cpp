@@ -313,7 +313,7 @@ static void ApplyMovieFit(u32 sw, u32 sh) {
 // Render size and screen shape (axylpup 1.1 render height + SHADPS4_ASPECT, src/common/
 // memory_patcher.cpp ApplyAspectRatio), decided at boot:
 // - ISSN_RENDER_HEIGHT / ISSN_RENDER_SCALE (launcher: Internal resolution): the lines the game
-//   renders (360 - 2160, 1080 = the game's own).
+//   renders (360 - 4320, 1080 = the game's own; above 2160 experimental).
 // - ISSN_ASPECT (launcher: Screen shape): auto (default) = the game window's shape (fullscreen:
 //   the monitor's), off = 16:9, or W:H (21:9, 32:9, 16:10, 4:3). Wider screens see more at the
 //   sides (the vertical view stays), narrower ones keep the 16:9 width and see more above and
@@ -351,7 +351,7 @@ static void ApplyRenderSize() {
                                                                            : double(screen_w) / base;
         h0 = static_cast<u32>(std::lround(basis / factor));
     }
-    h0 = std::clamp<u32>(Round8(h0), 360, 2160);
+    h0 = std::clamp<u32>(Round8(h0), 360, 4320); // issn 10-28: 5K and 8K (testers' requests)
     // 3%: a "1280x720" window reports a client area like 1279x724 (axylpup's measurement).
     if (std::abs(aspect - base) < 0.03 * base) {
         aspect = base;
@@ -359,8 +359,10 @@ static void ApplyRenderSize() {
     aspect = std::clamp(aspect, 1.0, 32.0 / 9.0);
     u32 width, height;
     SizeAt(h0, aspect, width, height);
-    // At most 4K's pixels in any shape (axylpup: larger lost the device).
-    while (u64(width) * height > 3840ull * 2160ull && h0 > 360) {
+    // At most 8K's pixels in any shape. axylpup capped this at 4K's (larger lost the device) before
+    // the light list grew with the size (ApplyLightListCapacity, below); 5K / 8K are the
+    // launcher's "experimental" sizes.
+    while (u64(width) * height > 7680ull * 4320ull && h0 > 360) {
         h0 -= 8;
         SizeAt(h0, aspect, width, height);
     }

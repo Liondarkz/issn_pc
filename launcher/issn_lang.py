@@ -845,6 +845,8 @@ EXTRA = {
         "Donations only support the work: they don't unlock anything, and the port never includes game files.": 'As doações são só um apoio ao trabalho: não liberam nada extra, e o port nunca inclui arquivos do jogo.',
         'Copied ✓': 'Copiado ✓',
         'Texture filtering': 'Filtragem de texturas',
+        '5120 × 2880 (5K, experimental: 16 GB of RAM or more)': '5120 × 2880 (5K, experimental: 16 GB de RAM ou mais)',
+        '7680 × 4320 (8K, experimental: 32 GB of RAM, 16 GB of VRAM)': '7680 × 4320 (8K, experimental: 32 GB de RAM, 16 GB de VRAM)',
         "The game's own (default)": 'A do próprio jogo (padrão)',
         '16x (sharpest)': '16x (mais nítida)',
         'Anisotropic filtering: ground, roads and walls seen at an angle stay sharp in the distance. Costs a little FPS on weak graphics cards; it does not change stutter.': 'Filtragem anisotrópica: chão, ruas e paredes vistos de lado ficam nítidos ao longe. Custa um pouco de FPS em placas fracas; não muda as travadas.',

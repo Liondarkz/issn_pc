@@ -450,7 +450,7 @@ def infamous_render_lines(env, applied):
             # the window decides (unknown here): a 4K screen, the most it can be
             return max(360, min(2160, round(2160 / float(env['ISSN_UPSCALE_FACTOR']))))
         if env.get('ISSN_RENDER_HEIGHT'):
-            return max(360, min(2160, int(env['ISSN_RENDER_HEIGHT'])))
+            return max(360, min(4320, int(env['ISSN_RENDER_HEIGHT'])))
         if env.get('ISSN_RENDER_SCALE'):
             return max(360, min(2160, round(1080 * float(env['ISSN_RENDER_SCALE']) / 100)))
     except ValueError:
@@ -471,7 +471,9 @@ def infamous_dmem_mb(env, applied):
     if lines <= 1080:
         return 0
     extra = 4096 * ((lines / 1080) ** 2 - 1) / 3
-    return 5056 + int(-(-extra // 256) * 256)
+    # 16 GiB at most: the probe's pool limit (more is ignored there) and below the guest image,
+    # which starts 24 GiB above the pool (5K needs about 13.3 GiB; 8K is held at 16).
+    return min(16384, 5056 + int(-(-extra // 256) * 256))
 
 
 # Windows exit codes of a process that ended without its own report.

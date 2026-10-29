@@ -499,7 +499,10 @@ PERF_MODES = [('', ('Off: full quality (default)',)), ('low', ('Balanced: about 
 RESOLUTIONS = [('600', ('1064 × 600 (like 800 × 600, the fastest)',)), ('720', ('1280 × 720 (720p)',)),
                ('768', ('1368 × 768',)), ('900', ('1600 × 900',)),
                ('', ("1920 × 1080 (1080p, the game's own, default)",)), ('1440', ('2560 × 1440 (2K)',)),
-               ('1800', ('3200 × 1800',)), ('2160', ('3840 × 2160 (4K)',))]
+               ('1800', ('3200 × 1800',)), ('2160', ('3840 × 2160 (4K)',)),
+               # issn 10-28 (testers): above 4K, experimental; on a smaller screen it is supersampling.
+               ('2880', ('5120 × 2880 (5K, experimental: 16 GB of RAM or more)',)),
+               ('4320', ('7680 × 4320 (8K, experimental: 32 GB of RAM, 16 GB of VRAM)',))]
 # UPSCALE_QUALITY: with FSR 4 or DLSS, the game draws at the window's size divided by this and the
 # upscaler rebuilds the picture at the window size (ISSN_UPSCALE_FACTOR); it replaces Resolution.
 # issn: anisotropic filtering forced on the game's textures (ISSN_ANISO, texture_cache/sampler.cpp).

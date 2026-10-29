@@ -111,9 +111,9 @@ class ControlMapTest(unittest.TestCase):
         env = launcher.game_environment({**base, 'render_height': '600', 'upscale_quality': '2'})
         self.assertEqual((env['ISSN_RENDER_HEIGHT'], env['ISSN_UPSCALE_FACTOR']), ('600', '2'))
         self.assertNotIn('ISSN_RENDER_HEIGHT', launcher.game_environment({**base, 'render_height': '333'}))
-        # From 600 lines to 4K, each label the 16:9 size the game patch makes (multiples of 8).
+        # From 600 lines to 8K, each label the 16:9 size the game patch makes (multiples of 8).
         heights = [int(v) for v, _t in launcher.RESOLUTIONS if v]
-        self.assertEqual((min(heights), max(heights)), (600, 2160))
+        self.assertEqual((min(heights), max(heights)), (600, 4320))
         for value, (text,) in launcher.RESOLUTIONS:
             h = int(value or 1080)
             self.assertIn(f'{round(h * 16 / 9 / 8) * 8} × {h}', text)

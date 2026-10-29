@@ -19,6 +19,9 @@ class InfamousResolutionTests(unittest.TestCase):
         self.assertEqual(run.infamous_dmem_mb({}, []), 0)
         self.assertEqual(run.infamous_dmem_mb({'ISSN_RENDER_SCALE': '50'}, []), 0)
         self.assertEqual(run.infamous_dmem_mb({'ISSN_RENDER_HEIGHT': '2160'}, []), 5056 + 4096)
+        self.assertEqual(run.infamous_render_lines({'ISSN_RENDER_HEIGHT': '4320'}, []), 4320)
+        self.assertEqual(run.infamous_dmem_mb({'ISSN_RENDER_HEIGHT': '2880'}, []), 5056 + 8448)
+        self.assertEqual(run.infamous_dmem_mb({'ISSN_RENDER_HEIGHT': '4320'}, []), 16384)  # the probe's limit
         self.assertEqual(run.infamous_dmem_mb({}, ['Native 3840x2160 (render and output)']), 5056 + 4096)
         self.assertTrue(5056 < run.infamous_dmem_mb({'ISSN_RENDER_HEIGHT': '1440'}, []) < 5056 + 4096)
 
