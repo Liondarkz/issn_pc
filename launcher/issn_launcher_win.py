@@ -372,7 +372,7 @@ PAGES = ('home', 'graphics', 'performance', 'game', 'advanced')
 PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_lists', 'refresh_game_patches')}
 APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', str(PORT_DIR.parent / 'CUSA00004') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
-                'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False, 'frame_pacing': '',
+                'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False, 'frame_pacing': '', 'seed_any_profile': False,
                 'player_name': '', 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
                 'gpu_id': '', 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binaries': False,
                 'perf_diag': False, 'frame_capture_key': False, 'frame_stats': False, 'gpu_profile': False,
@@ -970,6 +970,10 @@ def game_environment(s):
     env.pop('ISSN_PAD_EMULATION', None)
     if s.get('pad_emulation') in ('0', '1'):
         env['ISSN_PAD_EMULATION'] = s['pad_emulation']
+    # issn 0.3.6 (test): the shader seed's graphics stages on any GPU (vk_pipeline_serialization.cpp).
+    env.pop('ISSN_SEED_ANY_PROFILE', None)
+    if s.get('seed_any_profile'):
+        env['ISSN_SEED_ANY_PROFILE'] = '1'
     # issn: even frame pacing: V-Sync with every frame shown N refreshes (vk_swapchain.cpp).
     env.pop('SHADPS4_VSYNC_DIVIDER', None)
     if s.get('frame_pacing') in {value for value, _text in FRAME_PACING if value}:
@@ -2040,6 +2044,10 @@ class Launcher:
         body.columnconfigure(1, weight=1)
         body_row = self.next_row(f)
         self.check(body, 'frame_stats', 'app', _('Frame statistics in the log (every 5 s)', 'Статистика кадров в журнале (раз в 5 с)'))
+        self.check(body, 'seed_any_profile', 'app', _('Prepare the drawing shaders on any graphics card (test)'),
+                   _('NVIDIA and older AMD cards: the first start also prepares the shaders that otherwise compile '
+                     'while playing. A test: send the log of the first start and say if anything looks wrong.'),
+                   restart=True)
         self.check(body, 'vk_validation', 'app', _('Vulkan validation layers (needs the Vulkan SDK; much slower)',
                                                    'Слои валидации Vulkan (нужен Vulkan SDK; сильно замедляет)'))
         shown = tk.BooleanVar(value=False)

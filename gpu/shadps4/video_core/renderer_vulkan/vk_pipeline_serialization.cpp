@@ -941,7 +941,19 @@ void PipelineCache::ReadSeedStamp() {
     const bool same_vertex_input =
         (dynamic_vertex_input != 0) == instance.IsVertexInputDynamicState();
     seed_stamp.compute = true;
-    seed_stamp.graphics = same_profile && same_vertex_input;
+    // issn 0.3.6 (test, ISSN_SEED_ANY_PROFILE=1): graphics stages on another GPU's profile too
+    // (NVIDIA, older AMD), as compute already is: each rebuilt stage still has to match the
+    // seed's resource layout (layout_mismatch refuses it) and the game file's code. Off by
+    // default until an NVIDIA run shows the counts and a clean picture.
+    const bool any_profile = [] {
+        const char* v = std::getenv("ISSN_SEED_ANY_PROFILE");
+        return v && v[0] == '1';
+    }();
+    seed_stamp.graphics = same_vertex_input && (same_profile || any_profile);
+    if (!same_profile && any_profile && same_vertex_input) {
+        LOG_WARNING(Render, "CacheRebuild: ISSN_SEED_ANY_PROFILE=1: graphics stages are rebuilt on "
+                            "this GPU's profile too (each checked against the seed's layout)");
+    }
     seed_stamp.shaders = std::move(shaders);
     seed_stamp.perms = std::move(perms);
     if (seed_stamp.graphics) {

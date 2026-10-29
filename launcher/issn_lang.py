@@ -840,6 +840,8 @@ EXTRA = {
         'Stick dead zone': 'Zona morta dos analógicos',
         'Skip the intro logos': 'Pular as logos da abertura',
         'Frame pacing': 'Ritmo dos quadros',
+        'Prepare the drawing shaders on any graphics card (test)': 'Preparar os shaders de desenho em qualquer placa (teste)',
+        'NVIDIA and older AMD cards: the first start also prepares the shaders that otherwise compile while playing. A test: send the log of the first start and say if anything looks wrong.': 'Placas NVIDIA e AMD mais antigas: a primeira abertura também prepara os shaders que senão compilam durante o jogo. É um teste: mande o log da primeira abertura e diga se algo aparecer errado.',
         'Normal: a new frame at every refresh it is ready (default)': 'Normal: um quadro novo a cada atualização em que ele fica pronto (padrão)',
         'Half the refresh rate, even (72 FPS on 144 Hz, 120 on 240 Hz)': 'Metade da taxa da tela, constante (72 FPS em 144 Hz, 120 em 240 Hz)',
         'A third of the refresh rate, even (48 FPS on 144 Hz, 80 on 240 Hz)': 'Um terço da taxa da tela, constante (48 FPS em 144 Hz, 80 em 240 Hz)',
