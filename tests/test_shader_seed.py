@@ -67,6 +67,21 @@ class ShaderSeedTest(unittest.TestCase):
             (port / 'shader-seed.txt').write_text('../escape\n')
             self.assertIsNone(run.shader_seed_name(port, user))
 
+    def test_shipped_seed_reaches_another_user_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            port, user = Path(tmp) / 'port', Path(tmp) / 'Documents' / 'inFAMOUS-PC'
+            shipped = port / 'user' / 'cache' / 'issn-seed-0.3.6'
+            shipped.mkdir(parents=True)
+            (port / 'shader-seed.txt').write_text('issn-seed-0.3.6\n')
+            self.assertIsNone(run.shader_seed_name(port, user))  # no stamp: not a seed
+            (shipped / 'seed-stamp.bin').write_bytes(b'SSTP')
+            (shipped / 'a.key').write_bytes(b'k')
+            self.assertEqual(run.shader_seed_name(port, user), 'issn-seed-0.3.6')
+            self.assertEqual((user / 'cache' / 'issn-seed-0.3.6' / 'a.key').read_bytes(), b'k')
+            (user / 'cache' / 'issn-seed-0.3.6' / 'a.key').write_bytes(b'played')
+            run.shader_seed_name(port, user)  # a folder already there is never overwritten
+            self.assertEqual((user / 'cache' / 'issn-seed-0.3.6' / 'a.key').read_bytes(), b'played')
+
 
 if __name__ == '__main__':
     unittest.main()

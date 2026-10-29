@@ -33,7 +33,22 @@ def shader_seed_name(port, user_dir):
         return None
     if not name or not all(c.isalnum() or c in '-_.' for c in name) or name.startswith('.'):
         return None
-    return name if (Path(user_dir) / 'cache' / name).is_dir() else None
+    target = Path(user_dir) / 'cache' / name
+    shipped = Path(port) / 'user' / 'cache' / name
+    # A user folder elsewhere (Documents\inFAMOUS-PC, the launcher's choice) gets a copy of the
+    # seed the package ships: it is a fresh folder named after the release, never merged into a
+    # cache that was played with (package.sh). Without it those players compiled every shader
+    # while playing (tester logs, 10-29: "no valid seed-stamp.bin in the cache folder").
+    if not target.is_dir() and (shipped / 'seed-stamp.bin').is_file():
+        part = target.with_name(name + '.part')
+        try:
+            shutil.rmtree(part, ignore_errors=True)
+            shutil.copytree(shipped, part)
+            part.rename(target)
+            print(f'Shader seed {name} copied to {target.parent}', flush=True)
+        except OSError as error:
+            print(f'Shader seed: could not copy it to {target.parent} ({error})', flush=True)
+    return name if target.is_dir() else None
 
 def fail(message):
     print(message, file=sys.stderr)
