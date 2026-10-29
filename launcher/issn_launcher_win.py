@@ -1610,8 +1610,9 @@ class Launcher:
                    'waits for them (a stutter). Either way they are kept in the cache for the next time.'),
                  restart=True)
         self.row(f, _('Effects'), self.choice(f, 'readbacks', 'app', READBACKS),
-                 _('Smoke, sparks, neon and bullets are computed on the graphics card and read back by the '
-                   'game. Full keeps all of them; Light and Off are faster but lose effects.'), restart=True)
+                 _('Smoke, sparks, neon, bullets and the light metering of the picture are computed on the '
+                   'graphics card and read back by the game. Full keeps all of them; Light and Off are '
+                   'faster but lose effects and can leave the picture too dark at night.'), restart=True)
         self.section(f, _('Graphics card'))
         gpus = list_gpus()
         cards = [('', ('Automatic',))] + [(row[0], (row[1],)) for row in gpus]

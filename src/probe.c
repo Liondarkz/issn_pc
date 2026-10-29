@@ -71,6 +71,24 @@ static void *allocate(size_t size) {
 #endif
     return p;
 }
+/* issn: pages for the hook stubs (cheats, red-zone guards, draw distance, mouse aim, ...),
+ * reserved right after the guest image, before the GPU starts: each is reached by a rel32 jump
+ * from the image. Reserved later they could land past what the graphics driver maps meanwhile
+ * (NVIDIA with DLSS / Streamline: tester's log, all five hooks 'outside relative-jump range',
+ * so no red-zone guard and the 0x1cfaaf crash back). */
+#define CAVE_ARENA_BYTES (UINT64_C(64) * 4096)
+static unsigned char *cave_arena;
+static size_t cave_left;
+static void *allocate_cave(size_t size) {
+    size = (size + page_size - 1) / page_size * page_size;
+    if (cave_arena && size <= cave_left) {
+        void *p = cave_arena;
+        cave_arena += size;
+        cave_left -= size;
+        return p;
+    }
+    return allocate(size);
+}
 static void protect(void *p, size_t size, unsigned flags) {
 #ifdef _WIN32
     DWORD old, mode = PAGE_NOACCESS;
@@ -535,7 +553,7 @@ static void install_cheats(Segment *segments, uint64_t count, uint64_t size) {
             printf("Cheats: %s unavailable (code not found in this eboot.bin)\n", names[id]);
             continue;
         }
-        unsigned char *stubs = allocate(page_size);
+        unsigned char *stubs = allocate_cave(page_size);
         int32_t relative[ISSN_CHEAT_HOOK_COUNT] = {0};
         for (unsigned i = 0; i < ISSN_CHEAT_HOOK_COUNT; ++i) {
             const IssnCheatHook *hook = &issn_cheat_hooks[i];
@@ -573,7 +591,7 @@ static void install_actor_watch(Segment *segments, uint64_t count, uint64_t size
         printf("Health display: unavailable (code not found in this eboot.bin)\n");
         return;
     }
-    unsigned char *stub = allocate(page_size);
+    unsigned char *stub = allocate_cave(page_size);
     const int64_t delta = (int64_t)(uintptr_t)stub - (int64_t)(uintptr_t)(image + at + 5);
     if (delta < INT32_MIN || delta > INT32_MAX) {
         printf("Health display: unavailable (hook outside relative-jump range)\n");
@@ -601,7 +619,7 @@ static void install_orb_multiplier(Segment *segments, uint64_t count, uint64_t s
     }
     /* SysV call sites: preserve the receiver across the helper, then tail-call the original
      * setter. Its cap and upgrade notifications remain in the game's own code. */
-    unsigned char *stub = allocate(page_size);
+    unsigned char *stub = allocate_cave(page_size);
     uintptr_t helper = (uintptr_t)issn_orbs_gain, setter = (uintptr_t)(image + setter_at);
     unsigned char code[26];
     issn_orb_build_stub(code, helper, setter);
@@ -656,7 +674,7 @@ static void install_redzone_guards(uint64_t size) {
     for (size_t i = 0; i < sizeof issn_redzone_guards / sizeof *issn_redzone_guards; ++i) {
         const RedZoneGuard *g = &issn_redzone_guards[i];
         if ((uint64_t)g->start + g->length > size) continue;
-        if (!stubs) stubs = allocate(page_size);
+        if (!stubs) stubs = allocate_cave(page_size);
         unsigned char *area = stubs + i * 4 * ISSN_RZ_STUB;
         const int r = issn_redzone_guard_apply(g, image, area);
         if (r > 0) printf("Red zone guard: %s at %#x\n", g->name, g->start);
@@ -673,7 +691,7 @@ static void install_view_tuning(Segment *segments, uint64_t count, uint64_t size
         !issn_view_signature_match(image, size)) {
         return;
     }
-    unsigned char *stubs = allocate(page_size);
+    unsigned char *stubs = allocate_cave(page_size);
     const uint32_t *sites[2] = {issn_view_region_sites, issn_view_fade_sites};
     for (unsigned kind = 0; kind < 2; ++kind) {
         for (unsigned i = 0; i < 2; ++i) {
@@ -718,7 +736,7 @@ static void install_mouse_aim(Segment *segments, uint64_t count, uint64_t size) 
     const int free_tilt = clamp && clamp[0] == '0';
     const unsigned char *code = free_tilt ? issn_mouse_cave_free : issn_mouse_cave_clamp;
     const size_t length = free_tilt ? sizeof(issn_mouse_cave_free) : sizeof(issn_mouse_cave_clamp);
-    unsigned char *cave = allocate(page_size);
+    unsigned char *cave = allocate_cave(page_size);
     const int64_t delta = (int64_t)(uintptr_t)cave - (int64_t)(uintptr_t)(image + ISSN_MOUSE_STORE + 5);
     if (delta < INT32_MIN || delta > INT32_MAX) {
         printf("Mouse aim: unavailable (cave outside relative-jump range)\n");
@@ -745,7 +763,7 @@ static void install_stat_multipliers(Segment *segments, uint64_t count, uint64_t
                  issn_damage_signature_match(image + damage_at, size - damage_at);
     int pickup = pickup_at != UINT64_MAX && mapped(segments, count, pickup_at, ISSN_ORB_PICKUP_LENGTH) &&
                  issn_orb_pickup_signature_match(image + pickup_at, size - pickup_at);
-    unsigned char *stubs = damage || pickup ? allocate(page_size) : NULL;
+    unsigned char *stubs = damage || pickup ? allocate_cave(page_size) : NULL;
     if (damage) {
         issn_damage_build_stub(stubs, issn_damage_multiplier(1), issn_damage_multiplier(0),
                                (uintptr_t)(image + damage_at + ISSN_DAMAGE_HOOK_LENGTH));
@@ -1099,6 +1117,8 @@ int main(int argc, char **argv) {
     image = allocate(round_page(size) + stub_area);
     image_size_for_watchdog=size;
     fprintf(stderr,"Guest image at %p (%zu bytes)\n",(void *)image,(size_t)size);
+    cave_arena = runtime_low_map(CAVE_ARENA_BYTES, PROT_READ | PROT_WRITE);
+    cave_left = cave_arena ? CAVE_ARENA_BYTES : 0;
     unsigned char *stubs = image + round_page(size);
     if (fread(image, 1, size, f) != size || fgetc(f) != EOF) fail("incorrect memory image size");
     fclose(f);

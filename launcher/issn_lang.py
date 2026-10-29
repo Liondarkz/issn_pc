@@ -827,7 +827,7 @@ EXTRA = {
         'Full effects (default)': 'Completos (padrão)',
         'Light: faster, some effects missing': 'Leves: mais rápido, alguns efeitos somem',
         'Off: fastest, most effects missing': 'Desligados: o mais rápido, a maioria dos efeitos some',
-        'Smoke, sparks, neon and bullets are computed on the graphics card and read back by the game. Full keeps all of them; Light and Off are faster but lose effects.': 'Fumaça, faíscas, neon e tiros são calculados na placa de vídeo e lidos de volta pelo jogo. Completos mantém todos; Leves e Desligados são mais rápidos, mas perdem efeitos.',
+        'Smoke, sparks, neon, bullets and the light metering of the picture are computed on the graphics card and read back by the game. Full keeps all of them; Light and Off are faster but lose effects and can leave the picture too dark at night.': 'Fumaça, faíscas, neon, tiros e a medição de luz da imagem são calculados na placa de vídeo e lidos de volta pelo jogo. Completos mantém todos; Leves e Desligados são mais rápidos, mas perdem efeitos e podem deixar a imagem escura demais à noite.',
         'Effects work goes ahead of drawing (faster)': 'Efeitos passam na frente do desenho (mais rápido)',
         'The effects the game waits for are handled before the rest of the frame. About 29 to 39 FPS in combat on an RX 9060 XT. Switch it off if the game freezes.': 'Os efeitos que o jogo espera são atendidos antes do resto do quadro. Cerca de 29 para 39 FPS em combate numa RX 9060 XT. Desligue se o jogo congelar.',
         'Draw distance': 'Distância de detalhe',
