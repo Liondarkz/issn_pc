@@ -39,6 +39,11 @@ bool Visible();
 /// Present thread: draws into `view` (layout ColorAttachmentOptimal).
 void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent);
 
+/// The driver's Flip: a new game frame goes to the screen. The FPS readout counts these, not the
+/// presents: with frame pacing (SHADPS4_VSYNC_DIVIDER) each frame is presented 2-4 times, and
+/// counting presents showed the screen's refresh rate (144 on a 144 Hz screen at 72 FPS).
+void NoteGameFrame();
+
 /// The menu is open or a text entry is shown: the game's input is held neutral.
 bool CapturesInput();
 

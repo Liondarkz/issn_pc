@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdint>
 #include <cfloat>
 #include <chrono>
 #include <cmath>
@@ -97,6 +98,8 @@ float base_scale = 1.0f;
 
 // Present rate for the FPS counter.
 std::chrono::steady_clock::time_point last_present{};
+std::atomic<std::uint64_t> game_frames{0}; ///< NoteGameFrame
+std::uint64_t seen_frames = 0;
 float frame_ms_avg = 0.0f;
 
 void SetOpen(bool value) {
@@ -1284,13 +1287,30 @@ void SetTextEntry(bool active, const std::string& prompt, const std::string& tex
     text_entry_text = text;
 }
 
+void NoteGameFrame() {
+    game_frames.fetch_add(1, std::memory_order_relaxed);
+}
+
 void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
-    // Present interval for the FPS readout (measured also while nothing is drawn).
+    // Game frame interval for the FPS readout (measured also while nothing is drawn). A present
+    // that repeats the last frame (frame pacing) is not a new frame; before the driver's first
+    // Flip every present counts.
     const auto now = std::chrono::steady_clock::now();
-    const float ms = std::chrono::duration<float, std::milli>(now - last_present).count();
-    last_present = now;
-    if (ms > 0.0f && ms < 1000.0f) {
-        frame_ms_avg = frame_ms_avg == 0.0f ? ms : frame_ms_avg * 0.95f + ms * 0.05f;
+    // The menu's own clock: every present.
+    static auto last_render = now;
+    const float ms = std::chrono::duration<float, std::milli>(now - last_render).count();
+    last_render = now;
+    const std::uint64_t frames = game_frames.load(std::memory_order_relaxed);
+    if (frames != seen_frames || frames == 0) {
+        const std::uint64_t count = frames > seen_frames ? frames - seen_frames : 1;
+        const float frame_ms =
+            std::chrono::duration<float, std::milli>(now - last_present).count() / float(count);
+        last_present = now;
+        seen_frames = frames;
+        if (frame_ms > 0.0f && frame_ms < 1000.0f) {
+            frame_ms_avg =
+                frame_ms_avg == 0.0f ? frame_ms : frame_ms_avg * 0.95f + frame_ms * 0.05f;
+        }
     }
     ConfirmRestart();
     if (!Visible()) {

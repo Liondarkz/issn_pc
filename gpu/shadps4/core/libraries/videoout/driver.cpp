@@ -17,6 +17,7 @@
 #include "core/libraries/videoout/driver.h"
 #include "core/libraries/videoout/videoout_error.h"
 #include "imgui/renderer/imgui_core.h"
+#include "issn_overlay.h"
 #include "video_core/amdgpu/liverpool.h"
 #include "video_core/renderer_vulkan/vk_presenter.h"
 
@@ -264,6 +265,7 @@ void VideoOutDriver::Flip(const Request& req) {
     // reuse until the repeats are submitted: the game, running ahead in this mode, waits for a
     // free frame and would otherwise draw into it while it is still being shown (review 10-21).
     const u32 divider = Vulkan::VsyncDivider();
+    IssnOverlay::NoteGameFrame(); // the FPS readout counts game frames, not the repeats
     presenter->Present(req.frame, false, divider > 1);
     if (divider > 1) {
         for (u32 i = 1; i < divider; ++i) {
