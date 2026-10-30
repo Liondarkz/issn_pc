@@ -49,5 +49,20 @@ class UpdateSeedTest(unittest.TestCase):
             self.assertFalse(launcher.install_shader_seed(new, old))  # already there: kept
 
 
+
+class ReleaseNotesTest(unittest.TestCase):
+    def test_markdown_becomes_plain_text(self):
+        body = ('## Test build 0.3.5.1\r\n\r\n### Fixes\r\n- **Dark picture** at night: see '
+                '[the log](https://example.com/x)\r\n* `user\\last_run.log`\r\n\r\n\r\n![img](a.png)Thanks')
+        text = launcher.release_text(body)
+        self.assertEqual(text.splitlines()[:4], ['Test build 0.3.5.1', '', 'Fixes',
+                                                 '• Dark picture at night: see the log'])
+        self.assertIn('• user\\last_run.log', text)
+        self.assertNotIn('**', text)
+        self.assertTrue(text.endswith('Thanks'))
+        self.assertNotIn('\n\n\n', text)
+        self.assertTrue(launcher.release_text('a\n' * 3000, limit=100).endswith('…'))
+
+
 if __name__ == '__main__':
     unittest.main()

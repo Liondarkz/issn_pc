@@ -64,6 +64,8 @@ VERSION = '0.3.5.1'
 RELEASES_REPO = 'Liondarkz/issn_pc'  # releases moved here with 0.3.0 (the repo is public)
 RELEASES_API = f'https://api.github.com/repos/{RELEASES_REPO}/releases/latest'
 RELEASES_PAGE = f'https://github.com/{RELEASES_REPO}/releases'
+# The What's new page: the latest releases and their notes (the GitHub release text).
+RELEASES_LIST = f'https://api.github.com/repos/{RELEASES_REPO}/releases?per_page=8'
 UPDATES = bool(RELEASES_API)
 # issn: who makes the port and where to follow it (Advanced > About, and the Home page's corner).
 # AUTHOR_LINKS: (label, url); the social networks are added as the author gives them.
@@ -368,8 +370,8 @@ FRAME_PACING = [('', ('Normal: a new frame at every refresh it is ready (default
                 ('3', ('A third of the refresh rate, even (48 FPS on 144 Hz, 80 on 240 Hz)',))]
 FPS_LIMITS = [('30', ('30',)), ('60', ('60',)), ('120', ('120',)), ('240', ('240',)), ('0', ('Unlimited',))]
 # The sidebar's pages, top to bottom, and the methods that refresh a page's lists when it is shown.
-PAGES = ('home', 'graphics', 'performance', 'game', 'advanced')
-PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_lists', 'refresh_game_patches')}
+PAGES = ('home', 'news', 'graphics', 'performance', 'game', 'advanced')
+PAGE_REFRESH = {'home': ('refresh_status',), 'news': ('refresh_news',), 'game': ('refresh_lists', 'refresh_game_patches')}
 APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', str(PORT_DIR.parent / 'CUSA00004') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
                 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False, 'frame_pacing': '', 'seed_any_profile': False,
@@ -1408,7 +1410,8 @@ class Launcher:
         tk.Label(brand, text=f'SECOND SON  /  PC  ·  v{VERSION}', bg=BG, fg=ACCENT_HI,
                  font=heading_font(14, UI_FONT, every_language=True), bd=0, pady=0).pack(anchor='w')
         self.nav, self.current_page = {}, None
-        titles = {'home': _('Home'), 'graphics': _('Graphics', 'Графика'), 'performance': _('Performance'),
+        titles = {'home': _('Home'), 'news': _("What's new", 'Что нового'), 'graphics': _('Graphics', 'Графика'),
+                  'performance': _('Performance'),
                   'game': _('Game', 'Игра'), 'advanced': _('Advanced', 'Дополнительно')}
         tabs = tk.Frame(header, bg=BG)
         tabs.pack(side='left', fill='y')
@@ -1455,6 +1458,7 @@ class Launcher:
 
         self.pages = {}
         self.build_home()
+        self.build_news()
         self.build_graphics()
         self.build_performance()
         self.build_game()
@@ -1481,6 +1485,83 @@ class Launcher:
             underline.configure(bg=ACCENT if n == name else BG)
         for method in PAGE_REFRESH.get(name, ()):
             getattr(self, method)()
+
+    def build_news(self):
+        """What's new: the latest releases from GitHub with their notes, newest first; the newest
+        one, when it is newer than this launcher, with its Update button."""
+        f = self.scrolled_page('news', _("What's new", 'Что нового'),
+                               _('The latest versions of the port and what changed in each.'))
+        self.news_body = self.ttk.Frame(f)
+        self.news_body.grid(row=self.next_row(f), column=0, columnspan=2, sticky='we')
+        self.news_body.columnconfigure(0, weight=1)
+        self.news_state = None  # None: not asked yet, 'loading', 'done'
+        self.news_message(_('Open this page to load the notes.'))
+
+    def news_message(self, text):
+        for child in self.news_body.winfo_children():
+            child.destroy()
+        self.ttk.Label(self.news_body, text=text, style='Muted.TLabel', wraplength=self.px(680),
+                       justify='left').grid(row=0, column=0, sticky='w', pady=(8, 0))
+
+    def refresh_news(self):
+        if self.news_state in ('loading', 'done') or not UPDATES:
+            return
+        self.news_state = 'loading'
+        self.news_message(_('Loading the release notes from GitHub…'))
+
+        def work():
+            try:
+                releases = release_list()
+            except (OSError, ValueError, KeyError) as failure:
+                def failed(error=failure):
+                    self.news_state = None
+                    self.news_message(_('Could not load the release notes: {}').format(error))
+                self.ui_calls.put(failed)
+                return
+
+            def show():
+                self.news_state = 'done'
+                self.show_news(releases)
+            self.ui_calls.put(show)
+        threading.Thread(target=work, daemon=True).start()
+
+    def show_news(self, releases):
+        tk, ttk = self.tk, self.ttk
+        for child in self.news_body.winfo_children():
+            child.destroy()
+        if not releases:
+            self.news_message(_('No releases yet.'))
+            return
+        for index, release in enumerate(releases):
+            box = tk.Frame(self.news_body, bg=CARD, padx=self.px(18), pady=self.px(14))
+            box.grid(row=index, column=0, sticky='we', pady=(self.px(10), 0))
+            box.columnconfigure(1, weight=1)
+            colour = NEON if index == 0 else LINE
+            tk.Frame(box, bg=colour, width=self.px(4)).grid(row=0, column=0, rowspan=4, sticky='nsw',
+                                                             padx=(0, self.px(14)))
+            top = tk.Frame(box, bg=CARD)
+            top.grid(row=0, column=1, sticky='we')
+            tk.Label(top, text=heading_text(release['title'].upper()), bg=CARD, fg=TEXT,
+                     font=heading_font(20, UI_FONT), anchor='w', justify='left',
+                     wraplength=self.px(560)).pack(side='left')
+            newer = version_tuple(release['version']) > version_tuple(VERSION)
+            same = version_tuple(release['version']) == version_tuple(VERSION)
+            badge = _('New') if newer else _('Installed') if same else ''
+            if badge:
+                tk.Label(top, text=badge.upper(), bg=ACCENT if newer else LINE, fg=TEXT,
+                         font=(UI_FONT, 8, 'bold'), padx=self.px(6)).pack(side='left', padx=self.px(10))
+            tk.Label(box, text=release['date'], bg=CARD, fg=MUTED, font=(UI_FONT, 9), anchor='w').grid(
+                row=1, column=1, sticky='w')
+            tk.Label(box, text=release['text'], bg=CARD, fg=TEXT, font=(UI_FONT, 10), anchor='w',
+                     justify='left', wraplength=self.px(680)).grid(row=2, column=1, sticky='w',
+                                                                   pady=(self.px(8), 0))
+            buttons = tk.Frame(box, bg=CARD)
+            buttons.grid(row=3, column=1, sticky='w', pady=(self.px(10), 0))
+            if index == 0 and newer and release['zip'] and WINDOWS:
+                ttk.Button(buttons, text=_('Update', 'Обновить'), command=lambda r=release: self.install_update(
+                    r['version'], r['zip'], r['page'])).pack(side='left', padx=(0, 6))
+            ttk.Button(buttons, text=_('Open on GitHub'), command=lambda u=release['page']: open_url(u)).pack(
+                side='left')
 
     def build_home(self):
         tk, ttk = self.tk, self.ttk
@@ -2579,7 +2660,7 @@ class Launcher:
         self.update_button = ttk.Button(box, text=_('Update', 'Обновить'),
                                         command=lambda: self.install_update(version, url, page))
         self.update_button.pack(side='right', padx=(0, self.px(14)), pady=self.px(6))
-        ttk.Button(box, text=_("What's new", 'Что нового'), command=lambda: open_url(page)).pack(
+        ttk.Button(box, text=_("What's new", 'Что нового'), command=lambda: self.show('news')).pack(
             side='right', padx=(0, self.px(8)), pady=self.px(6))
         box.pack(fill='x')
         self.notice.pack(fill='x', after=self.notice.master.winfo_children()[1])
@@ -2889,6 +2970,44 @@ def latest_release():
     url = next((asset['browser_download_url'] for asset in release.get('assets', [])
                 if asset.get('name', '').lower().endswith('.zip')), None)
     return version, url, release.get('html_url') or RELEASES_PAGE
+
+
+def release_text(body, limit=2200):
+    """A release's notes as plain text for the What's new page: Markdown headings, emphasis,
+    code and links reduced to their words, list items as bullets, at most `limit` characters."""
+    lines = []
+    for line in (body or '').replace('\r', '').split('\n'):
+        line = re.sub(r'^#{1,6}\s*', '', line.rstrip())
+        line = re.sub(r'^\s*[-*+]\s+', '• ', line)
+        line = re.sub(r'!\[[^\]]*\]\([^)]*\)', '', line)          # images
+        line = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', line)       # links: their text
+        line = re.sub(r'(\*\*|__|`)', '', line)
+        line = re.sub(r'(?<![\w*])\*(?!\s)([^*]+)(?<!\s)\*', r'\1', line)
+        if line.strip() or (lines and lines[-1]):
+            lines.append(line)
+    text = '\n'.join(lines).strip()
+    if len(text) > limit:
+        text = text[:limit].rsplit('\n', 1)[0].rstrip() + '\n…'
+    return text
+
+
+def release_list():
+    """The latest GitHub releases, newest first: version, title, date, notes, zip URL, page URL."""
+    request = urllib.request.Request(RELEASES_LIST, headers={'Accept': 'application/vnd.github+json',
+                                                             'User-Agent': 'issn-launcher'})
+    with urllib.request.urlopen(request, timeout=15) as response:
+        releases = json.load(response)
+    out = []
+    for release in releases:
+        if release.get('draft'):
+            continue
+        version = '.'.join(re.findall(r'\d+', release.get('tag_name', '')))
+        out.append({'version': version, 'title': release.get('name') or release.get('tag_name') or version,
+                    'date': (release.get('published_at') or '')[:10], 'text': release_text(release.get('body')),
+                    'zip': next((asset['browser_download_url'] for asset in release.get('assets', [])
+                                 if asset.get('name', '').lower().endswith('.zip')), None),
+                    'page': release.get('html_url') or RELEASES_PAGE})
+    return out
 
 
 def install_shader_seed(source, target):
