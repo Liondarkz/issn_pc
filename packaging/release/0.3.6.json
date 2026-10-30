@@ -1,0 +1,123 @@
+{
+ "version": "0.3.6",
+ "en": {
+  "sub": "PC PORT  /  UPDATE 0.3.6",
+  "hero": "XeSS IS HERE",
+  "hero_sub": "Intel XeSS anti-aliasing and upscaling. Runs on Intel Arc, Radeon RX 5000+ and GeForce GTX 10+: cards without FSR 4 or DLSS get it too.",
+  "hero_pts": [
+   "XeSS and DLSS files download by themselves",
+   "About 1 ms per frame on an RX 9060 XT"
+  ],
+  "shot": "NEW LAUNCHER  ·  YOUR PC",
+  "new": "WHAT'S NEW",
+  "cards": [
+   [
+    "red",
+    "Recommended preset",
+    "One click: the best settings for most PCs."
+   ],
+   [
+    "neon",
+    "Faster Windows build",
+    "About 100 FPS in the city on a Ryzen 7 3700X."
+   ],
+   [
+    "pink",
+    "Smooth frame pacing",
+    "Even frames at half the refresh rate, no G-Sync needed."
+   ],
+   [
+    "green",
+    "Less streaming stutter",
+    "File reads no longer fault page by page."
+   ],
+   [
+    "gold",
+    "Change keys in game",
+    "Menu > Controls: press the new key, done."
+   ],
+   [
+    "neon",
+    "New launcher",
+    "Side bar, What's new page, Help that reads your log."
+   ]
+  ],
+  "also": "ALSO",
+  "also_pts": [
+   "Esc opens Options",
+   "R + mouse = touchpad finger",
+   "Skip the intro logos",
+   "Real FPS counter with frame pacing"
+  ],
+  "next": "COMING NEXT",
+  "next_tag": "planned for the next updates",
+  "next_pts": [
+   "FSR 3.1 Frame Generation (all GPUs)",
+   "DLSS Frame Generation (NVIDIA RTX)",
+   "Fewer hitches in combat",
+   "Launcher: guided first start and controller test"
+  ],
+  "disc": "JOIN THE DISCORD",
+  "disc_sub": "News, help and test builds"
+ },
+ "pt": {
+  "sub": "PORT PARA PC  /  ATUALIZAÇÃO 0.3.6",
+  "hero": "CHEGOU O XeSS",
+  "hero_sub": "Anti-aliasing e upscaling XeSS da Intel. Roda em Intel Arc, Radeon RX 5000+ e GeForce GTX 10+: quem não tem FSR 4 nem DLSS também ganha.",
+  "hero_pts": [
+   "Arquivos do XeSS e do DLSS baixam sozinhos",
+   "Cerca de 1 ms por quadro numa RX 9060 XT"
+  ],
+  "shot": "LAUNCHER NOVO  ·  SEU PC",
+  "new": "NOVIDADES",
+  "cards": [
+   [
+    "red",
+    "Preset Recomendado",
+    "Um clique: o melhor ajuste na maioria dos PCs."
+   ],
+   [
+    "neon",
+    "Build do Windows mais rápida",
+    "Cerca de 100 FPS na cidade num Ryzen 7 3700X."
+   ],
+   [
+    "pink",
+    "Ritmo dos quadros liso",
+    "Quadros por igual na metade da taxa da tela, sem G-Sync."
+   ],
+   [
+    "green",
+    "Menos engasgos ao carregar",
+    "A leitura de arquivos não falha mais página por página."
+   ],
+   [
+    "gold",
+    "Trocar teclas no jogo",
+    "Menu > Controles: aperte a tecla nova e pronto."
+   ],
+   [
+    "neon",
+    "Launcher novo",
+    "Barra lateral, página de Novidades, Ajuda que lê o seu log."
+   ]
+  ],
+  "also": "E MAIS",
+  "also_pts": [
+   "Esc abre o Options",
+   "R + mouse = dedo no touchpad",
+   "Pular os logos de abertura",
+   "Contador de FPS real com o ritmo"
+  ],
+  "next": "PRÓXIMA ATUALIZAÇÃO",
+  "next_tag": "planejado para as próximas versões",
+  "next_pts": [
+   "FSR 3.1 Frame Generation (todas as placas)",
+   "DLSS Frame Generation (NVIDIA RTX)",
+   "Menos engasgos em combate",
+   "Launcher: primeira abertura guiada e teste do controle"
+  ],
+  "disc": "ENTRE NO DISCORD",
+  "disc_sub": "Novidades, ajuda e builds de teste"
+ }
+}
