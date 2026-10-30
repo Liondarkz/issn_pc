@@ -188,6 +188,7 @@ def list_gpus():
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import button_icons  # noqa: E402
+import issn_hardware  # noqa: E402
 import issn_lang  # noqa: E402
 
 LANG = 'en'
@@ -1634,10 +1635,104 @@ class Launcher:
             c.tag_bind(item, '<Enter>', lambda _e: c.configure(cursor='hand2'))
             c.tag_bind(item, '<Leave>', lambda _e: c.configure(cursor=''))
 
+    def build_pc_check(self, f):
+        """Your PC: the graphics card, processor and memory found here, what to expect in the city,
+        and three goals that set the graphics for this PC (issn_hardware.settings_for)."""
+        tk, ttk = self.tk, self.ttk
+        self.section(f, _('Your PC'), top=4)
+        card = tk.Frame(f, bg=CARD, padx=self.px(18), pady=self.px(14))
+        card.grid(row=self.next_row(f), column=0, columnspan=2, sticky='we', pady=(self.px(8), 0))
+        card.columnconfigure(1, weight=1)
+        self.pc_lines = tk.Label(card, text=_('Looking at this PC…'), bg=CARD, fg=TEXT, font=(UI_FONT, 10),
+                                 justify='left', anchor='w')
+        self.pc_lines.grid(row=0, column=0, columnspan=2, sticky='w')
+        self.pc_verdict = tk.Label(card, text='', bg=CARD, fg=NEON, font=(UI_FONT, 10, 'bold'), justify='left',
+                                   anchor='w', wraplength=self.px(680))
+        self.pc_verdict.grid(row=1, column=0, columnspan=2, sticky='w', pady=(self.px(8), 0))
+        goals = tk.Frame(card, bg=CARD)
+        goals.grid(row=2, column=0, columnspan=2, sticky='w', pady=(self.px(12), 0))
+        tk.Label(goals, text=_('Set up the graphics for this PC:'), bg=CARD, fg=MUTED, font=(UI_FONT, 9)).pack(
+            side='left', padx=(0, self.px(10)))
+        self.pc_goal_buttons = []
+        for goal, label in (('smooth', _('Smooth (up to 120 FPS)')), ('balanced', _('Balanced (60 FPS, sharpest)')),
+                            ('quiet', _('Quiet (60 FPS, lighter on the card)'))):
+            button = ttk.Button(goals, text=label, state='disabled', command=lambda g=goal: self.apply_goal(g))
+            button.pack(side='left', padx=(0, self.px(6)))
+            self.pc_goal_buttons.append(button)
+        self.pc_applied = tk.Label(card, text='', bg=CARD, fg=MUTED, font=(UI_FONT, 9), justify='left', anchor='w',
+                                   wraplength=self.px(680))
+        self.pc_applied.grid(row=3, column=0, columnspan=2, sticky='w', pady=(self.px(8), 0))
+        self.pc = None
+
+        def work():
+            try:
+                found = issn_hardware.detect(list_gpus())
+            except Exception:  # a detection problem never stops the launcher
+                found = issn_hardware.Pc()
+            self.ui_calls.put(lambda: self.show_pc(found))
+        threading.Thread(target=work, daemon=True).start()
+
+    def show_pc(self, pc):
+        self.pc = pc
+        unknown = _('not recognised')
+        lines = [_('Graphics card: {}').format(pc.gpu_name or unknown),
+                 _('Processor: {}').format(pc.cpu_name or unknown),
+                 _('Memory: {} GB').format(pc.ram_gb) if pc.ram_gb else _('Memory: {}').format(unknown)]
+        self.pc_lines.configure(text='\n'.join(lines))
+        fps = issn_hardware.expected_fps(pc)
+        verdict = {'great': _('Runs it very well'), 'good': _('Runs it well'), 'minimum': _('Runs it, at lower settings'),
+                   'below': _('Below what the game needs'), 'unknown': _('Not in the list yet')}[issn_hardware.tier(pc)]
+        text = verdict
+        if fps:
+            text += ' · ' + _('about {} FPS in the open city at 1080p').format(fps)
+        limit = issn_hardware.limit(pc)
+        if limit:
+            text += ' · ' + (_('the processor sets the limit') if limit == 'cpu' else _('the graphics card sets the limit'))
+        if pc.integrated:
+            text += '\n' + _('This is an integrated graphics chip: a graphics card is needed for this game.')
+        if pc.ram_gb and pc.ram_gb < 16:
+            text += '\n' + _('16 GB of memory or more is recommended.')
+        self.pc_verdict.configure(text=text, fg=NEON if issn_hardware.tier(pc) in ('great', 'good') else ACCENT_HI)
+        for button in self.pc_goal_buttons:
+            button.configure(state='normal')
+
+    def apply_goal(self, goal):
+        """Sets the graphics for the goal on this PC; Save keeps them."""
+        if self.pc is None:
+            return
+        screen = self.root.winfo_screenheight()
+        chosen, reasons = issn_hardware.settings_for(self.pc, goal, screen_height=max(screen, 1080))
+        for store, values in (('app', chosen['app']), ('ini', chosen['ini'])):
+            for key, value in values.items():
+                if store == 'app' and key not in APP_DEFAULTS or store == 'ini' and key not in INI_DEFAULTS:
+                    continue
+                var = self.var(key, store)
+                var.set(value == '1' if store == 'ini' and key in INI_FLAGS else value)
+        app = chosen['app']
+        resolution = next((_(*text) for value, text in RESOLUTIONS if value == app['render_height']), app['render_height'])
+        notes = [_('Resolution: {}').format(resolution),
+                 _('Frame rate limit: {}').format(chosen['ini']['fps_limit']),
+                 _('Anti-aliasing: {}').format('FSR 4' if app['anti_aliasing'] == 'fsr4' else _("the game's own")),
+                 _('Performance mode: {}').format({'': _('off'), 'low': _('Balanced'), 'office': _('Maximum')}[app['perf_mode']]),
+                 _('Texture filtering: {}x').format(app['aniso'])]
+        why = []
+        for kind, value in reasons:
+            if kind == 'cpu':
+                why.append(_('the processor holds about {} FPS in the city').format(value))
+            elif kind == 'ram':
+                why.append(_('{} GB of memory').format(value))
+            elif kind == 'vram':
+                why.append(_('{} GB of video memory').format(value))
+        text = _('Set: {}.').format(' · '.join(notes))
+        if why:
+            text += ' ' + _('Because: {}.').format(', '.join(why))
+        self.pc_applied.configure(text=text + ' ' + _('Press Save to keep it; every setting below can still be changed.'))
+
     def build_graphics(self):
         """Window, anti-aliasing (the game's own, FSR 4 or DLSS) and the overlay."""
         tk, ttk = self.tk, self.ttk
         f = self.scrolled_page('graphics', _('Graphics', 'Графика'), _('How the game appears on your screen.'))
+        self.build_pc_check(f)
         self.build_display(f)
         self.row(f, _('Screen shape'), self.choice(f, 'screen_shape', 'app', SCREEN_SHAPES, width=44),
                  _('Ultrawide and other screens: the game fills the shape and sees more at the sides (or above and '
