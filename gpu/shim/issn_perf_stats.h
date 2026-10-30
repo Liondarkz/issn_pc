@@ -6,6 +6,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -31,7 +32,10 @@ enum Item : unsigned {
 inline constexpr unsigned DefaultItems = Fps | FrameTime | Gpu | Vram;
 
 struct Sample {
-    float fps = 0.0f, frame_ms = 0.0f;
+    /// fps / frame_ms: frames on the screen (what MSI Afterburner and the like count, frame
+    /// pacing repeats and generated frames included); game_fps: frames the game made, shown
+    /// next to it when the two differ (0 = not known).
+    float fps = 0.0f, frame_ms = 0.0f, game_fps = 0.0f;
     std::string upscaler;
     std::string gpu_name;
     float gpu_percent = -1.0f, cpu_percent = -1.0f;
@@ -66,7 +70,11 @@ inline std::string Format(const Sample& s, unsigned mask, bool row) {
         }
     };
     if (mask & Fps) {
-        std::snprintf(part, sizeof(part), "%.0f FPS", s.fps);
+        if (s.game_fps > 0.0f && std::abs(s.game_fps - s.fps) > 0.05f * s.fps) {
+            std::snprintf(part, sizeof(part), "%.0f FPS (game %.0f)", s.fps, s.game_fps);
+        } else {
+            std::snprintf(part, sizeof(part), "%.0f FPS", s.fps);
+        }
         add();
     }
     if (mask & FrameTime) {

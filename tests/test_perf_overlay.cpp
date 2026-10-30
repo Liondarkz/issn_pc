@@ -39,6 +39,13 @@ int main() {
            "238 FPS\n4.2 ms\nFSR 3.1\nRTX 4070 87%\nCPU 34%\nRAM 6.1 / 31.9 GB\nVRAM 5.4 / 12.0 GB");
     assert(P::Format(s, P::Cpu | P::Vram, true) == "CPU 34%   VRAM 5.4 / 12.0 GB");
     assert(P::Format(s, 0, true).empty());
+    // Frame pacing / frame generation: the screen's rate, the game's next to it (10-30).
+    P::Sample paced;
+    paced.fps = 100.0f;
+    paced.game_fps = 50.0f;
+    assert(P::Format(paced, P::Fps, true) == "100 FPS (game 50)");
+    paced.game_fps = 99.0f;
+    assert(P::Format(paced, P::Fps, true) == "100 FPS");
 
     P::Sample unknown;
     unknown.upscaler = "";

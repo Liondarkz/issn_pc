@@ -23,6 +23,9 @@ What's new in 0.3.6.1
   playing: heavy stutter. The seed is now placed even when Windows holds the new files for a
   moment; updating to 0.3.6.1 brings it.
 - The log names the shader cache folder in use and why ("Shader cache: ...").
+- The FPS counter shows the frames on the screen, as MSI Afterburner and similar tools count them,
+  with the game's own frame rate next to it when they differ (frame pacing, frame generation):
+  "100 FPS (game 50)".
 - Performance > Frame generation (FSR 3.1, test): a frame between every two of the game; needs
   FSR 4, XeSS or DLSS as anti-aliasing. A first test version: the HUD can blur in motion.
 

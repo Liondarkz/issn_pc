@@ -112,7 +112,8 @@ float base_scale = 1.0f;
 std::chrono::steady_clock::time_point last_present{};
 std::atomic<std::uint64_t> game_frames{0}; ///< NoteGameFrame
 std::uint64_t seen_frames = 0;
-float frame_ms_avg = 0.0f;
+float frame_ms_avg = 0.0f;   ///< between game frames (NoteGameFrame)
+float present_ms_avg = 0.0f; ///< between frames on the screen (every present)
 
 void SetOpen(bool value) {
     if (menu_open.exchange(value) == value) {
@@ -319,8 +320,11 @@ std::string OverlayText() {
         P::Start(*overlay_instance);
     }
     P::Sample sample = P::Latest();
-    sample.fps = frame_ms_avg > 0.0f ? 1000.0f / frame_ms_avg : 0.0f;
-    sample.frame_ms = frame_ms_avg;
+    // The screen's frame rate, as other counters show it (user 10-30: MSI said 100, the
+    // overlay 50 with frame pacing); the game's own next to it when it differs.
+    sample.fps = present_ms_avg > 0.0f ? 1000.0f / present_ms_avg : 0.0f;
+    sample.frame_ms = present_ms_avg;
+    sample.game_fps = frame_ms_avg > 0.0f ? 1000.0f / frame_ms_avg : 0.0f;
     sample.upscaler = UpscalerLabel(s.upscaler);
     unsigned shown = items;
     if (const int mode = Vulkan::Dlss::Mode(); mode == 1 || Vulkan::Dlss::OwnUpscaler()) {
@@ -1312,6 +1316,9 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
     static auto last_render = now;
     const float ms = std::chrono::duration<float, std::milli>(now - last_render).count();
     last_render = now;
+    if (ms > 0.0f && ms < 1000.0f) {
+        present_ms_avg = present_ms_avg == 0.0f ? ms : present_ms_avg * 0.95f + ms * 0.05f;
+    }
     const std::uint64_t frames = game_frames.load(std::memory_order_relaxed);
     if (frames != seen_frames || frames == 0) {
         const std::uint64_t count = frames > seen_frames ? frames - seen_frames : 1;
