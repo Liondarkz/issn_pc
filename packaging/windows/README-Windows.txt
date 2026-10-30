@@ -17,6 +17,15 @@ XeSS runs on Intel Arc, Radeon RX 5000 and later and GeForce GTX 10 and later; D
 NVIDIA RTX card. XeSS needs the Visual C++ 2015-2022 runtime (vc_redist.x64). Without the files
 the game keeps its own anti-aliasing.
 
+What's new in 0.3.6.1
+- Fixed: after updating to 0.3.6 from the launcher, the game could start without its shader
+  seed (only a user\cache\issn-seed-0.3.6.part folder was left) and compiled every shader while
+  playing: heavy stutter. The seed is now placed even when Windows holds the new files for a
+  moment; updating to 0.3.6.1 brings it.
+- The log names the shader cache folder in use and why ("Shader cache: ...").
+- Performance > Frame generation (FSR 3.1, test): a frame between every two of the game; needs
+  FSR 4, XeSS or DLSS as anti-aliasing. A first test version: the HUD can blur in motion.
+
 What's new in 0.3.6
 - XeSS (Intel) as anti-aliasing / upscaler: Graphics > Anti-aliasing > XeSS. It runs on Intel Arc,
   Radeon RX 5000 and later and GeForce GTX 10 and later, so cards without FSR 4 or DLSS get a
