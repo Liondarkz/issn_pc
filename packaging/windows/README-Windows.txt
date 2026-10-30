@@ -1,4 +1,4 @@
-inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.6.1
+inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.6.2
 ========================================================
 
 A test build: the game plays from the start, at about 90-105 FPS standing in the open city on a
@@ -27,6 +27,16 @@ bin\dlss next to issn-probe.exe. Graphics > Download XeSS now / Download DLSS no
 XeSS runs on Intel Arc, Radeon RX 5000 and later and GeForce GTX 10 and later; DLSS needs an
 NVIDIA RTX card. XeSS needs the Visual C++ 2015-2022 runtime (vc_redist.x64). Without the files
 the game keeps its own anti-aliasing.
+
+What's new in 0.3.6.2
+- Game > Saves > Import from another port: brings your saves from HayatoG's iss_pc (or an older
+  folder of this port). Both ports keep saves the same way (savedata\1\CUSA00223), so they are
+  copied as they are. The other launcher's data folder is found by itself; otherwise pick its
+  folder (the port's folder, its user or savedata folder, or CUSA00223). The current saves are
+  backed up first and show up in Save backups.
+- Frame generation: no extra wait between the two frames when V-Sync already spaces them, so the
+  game's own frame rate no longer drops with it on (100 Hz screen: about 100 FPS, game 50 + FG 50).
+- The log has the raw controller stick values for the first two minutes (to find stick drift).
 
 What's new in 0.3.6.1
 - Fixed: after updating to 0.3.6 from the launcher, the game could start without its shader

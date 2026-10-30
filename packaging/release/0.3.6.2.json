@@ -1,0 +1,119 @@
+{
+ "version": "0.3.6.2",
+ "en": {
+  "sub": "PC PORT  /  UPDATE 0.3.6.2",
+  "hero": "BRING YOUR SAVES",
+  "hero_sub": "Coming from HayatoG's iss_pc? Both ports keep saves the same way, so the launcher now imports them in one click, with no conversion.",
+  "hero_pts": [
+   "Game > Saves > Import from another port",
+   "Your current saves are backed up first"
+  ],
+  "shot": "GAME  ·  SAVES",
+  "new": "WHAT'S NEW",
+  "cards": [
+   [
+    "red",
+    "Import saves",
+    "From HayatoG's iss_pc or an old folder of this port."
+   ],
+   [
+    "green",
+    "Backup before importing",
+    "Your current saves go to Save backups first."
+   ],
+   [
+    "neon",
+    "Finds the other port",
+    "Reads its launcher's data folder by itself."
+   ],
+   [
+    "pink",
+    "Smoother frame generation",
+    "No extra wait with V-Sync: the game keeps its FPS."
+   ],
+   [
+    "gold",
+    "System requirements",
+    "Minimum and recommended PCs in the README."
+   ],
+   [
+    "neon",
+    "Controller drift logs",
+    "Stick values in the log to track down drift."
+   ]
+  ],
+  "also": "ALSO",
+  "also_pts": [
+   "Same layout: savedata\\1\\CUSA00223",
+   "Pick any level: port, user or savedata folder"
+  ],
+  "next": "COMING NEXT",
+  "next_tag": "planned for the next updates",
+  "next_pts": [
+   "Frame generation with a sharp HUD",
+   "Option to turn off motion blur",
+   "Support for CPUs without F16C",
+   "Multi-frame generation"
+  ],
+  "disc": "JOIN THE DISCORD",
+  "disc_sub": "News, help and test builds"
+ },
+ "pt": {
+  "sub": "PORT PARA PC  /  ATUALIZAÇÃO 0.3.6.2",
+  "hero": "TRAGA SEUS SAVES",
+  "hero_sub": "Vindo do iss_pc do HayatoG? Os dois ports guardam os saves do mesmo jeito, então o launcher agora importa com um clique, sem conversão.",
+  "hero_pts": [
+   "Jogo > Saves > Importar de outro port",
+   "Os saves atuais passam por backup antes"
+  ],
+  "shot": "JOGO  ·  SAVES",
+  "new": "NOVIDADES",
+  "cards": [
+   [
+    "red",
+    "Importar saves",
+    "Do iss_pc do HayatoG ou de uma pasta antiga deste port."
+   ],
+   [
+    "green",
+    "Backup antes de importar",
+    "Os saves atuais vão para os Backups de saves."
+   ],
+   [
+    "neon",
+    "Acha o outro port sozinho",
+    "Lê a pasta de dados do launcher dele."
+   ],
+   [
+    "pink",
+    "Geração de quadros mais leve",
+    "Sem espera extra com V-Sync: o jogo mantém o FPS."
+   ],
+   [
+    "gold",
+    "Requisitos do sistema",
+    "PC mínimo e recomendado no README."
+   ],
+   [
+    "neon",
+    "Logs do drift do controle",
+    "Valores dos analógicos no log para achar o drift."
+   ]
+  ],
+  "also": "E MAIS",
+  "also_pts": [
+   "Mesmo formato: savedata\\1\\CUSA00223",
+   "Serve a pasta do port, user ou savedata"
+  ],
+  "next": "PRÓXIMA ATUALIZAÇÃO",
+  "next_tag": "planejado para as próximas versões",
+  "next_pts": [
+   "Geração de quadros com HUD nítido",
+   "Opção para desligar o motion blur",
+   "Suporte a processadores sem F16C",
+   "Geração de vários quadros (multi frame gen)"
+  ],
+  "disc": "ENTRE NO DISCORD",
+  "disc_sub": "Novidades, ajuda e builds de teste"
+ }
+}
