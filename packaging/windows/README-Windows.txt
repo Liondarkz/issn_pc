@@ -1,10 +1,21 @@
-inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.5.1
+inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.6.1
 ========================================================
 
 A test build: the game plays from the start, at about 90-105 FPS standing in the open city on a
 Ryzen 7 3700X + RX 9060 XT. The first start prepares the shaders once (a few minutes, with a
 progress screen); new ones that still appear while playing compile in the background. Please
 report how far you get and what goes wrong (see Reporting problems).
+
+Requirements (Windows 10 1903+ / 11 64-bit, a Vulkan 1.3 graphics driver)
+- Minimum (1080p, about 30-45 FPS): Intel Core 4th gen (i5-4xxx) / AMD Ryzen 1000 / FX-8300,
+  GeForce GTX 1060 6 GB / Radeon RX 580 8 GB, 12 GB RAM.
+- Recommended (1080p, 60 FPS): Intel Core i5 8th gen / Ryzen 5 1600, GTX 1070 / RTX 2060 /
+  RX 6600, 16 GB RAM, 8 GB video memory.
+- 1440p: 16 GB RAM; 4K: 32 GB RAM (the game reserves more memory at higher resolutions).
+- The CPU needs AVX and F16C (Intel 3rd gen / AMD FX-8300 or newer); the port translates the
+  MOVBE, BMI1, LZCNT and SSE4A instructions some CPUs lack.
+Minimum and recommended are the launcher's estimates (Graphics > Your PC); measured: Ryzen 7 3700X
++ RX 9060 XT, about 100 FPS in the open city.
 
 Community: Discord https://discord.gg/y82HQ5uTQg (news, help, test builds).
 

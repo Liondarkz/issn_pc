@@ -22,8 +22,21 @@ assim mesmo (o programa não é assinado).
 
 Para atualizar, extraia o zip novo por cima da pasta antiga: saves e configurações ficam.
 
-**Requisitos:** Windows 10 (1903+) ou 11 de 64 bits, processador com AVX, placa de vídeo com
-Vulkan 1.3 e driver atualizado. Versões do jogo: CUSA00223 (EUA) e CUSA00004 (Europa).
+**Requisitos:** Windows 10 (1903+) ou 11 de 64 bits, placa de vídeo com Vulkan 1.3 e driver
+atualizado. Versões do jogo: CUSA00223 (EUA) e CUSA00004 (Europa), com a atualização 01.07.
+
+| | Mínimo (1080p, ~30-45 FPS) | Recomendado (1080p, 60 FPS) | Testado (1080p, ~100 FPS) |
+|---|---|---|---|
+| Processador | Intel Core 4ª geração (i5-4xxx) / AMD Ryzen 1000 / FX-8300 | Intel Core i5 8ª geração / Ryzen 5 1600 | Ryzen 7 3700X |
+| Placa de vídeo | GTX 1060 6 GB / RX 580 8 GB | GTX 1070 / RTX 2060 / RX 6600 | RX 9060 XT 16 GB |
+| Memória (RAM) | 12 GB | 16 GB | 32 GB |
+| Memória de vídeo | 6 GB | 8 GB | 16 GB |
+
+O processador precisa de AVX e F16C (Intel 3ª geração / AMD FX-8300 ou mais novo); instruções que
+faltam em alguns modelos (MOVBE, BMI1, LZCNT, SSE4A) o port traduz sozinho. Em 1440p o jogo reserva
+mais memória: 16 GB de RAM; em 4K, 32 GB. FSR 4 precisa de Radeon RX 7000 / 9000; XeSS roda em
+Arc, Radeon RX 5000+ e GeForce GTX 10+; DLSS precisa de GeForce RTX. Os números do mínimo e do
+recomendado são estimativas do próprio launcher (Gráficos > Seu PC); só o PC testado foi medido.
 
 ## O que tem
 
@@ -69,7 +82,12 @@ playable, but expect bugs. The first start prepares the shaders once (a few minu
 
 Download `issn-windows.zip` from [Releases](../../releases), extract it anywhere and open
 `inFAMOUS Second Son.exe`, choose the game folder (with `eboot.bin`) and click PLAY. Windows 10
-(1903+) / 11 64-bit, an AVX CPU and a Vulkan 1.3 GPU are needed. Features: axylpup's graphics core,
+(1903+) / 11 64-bit and a Vulkan 1.3 GPU are needed. Minimum (1080p, ~30-45 FPS): Intel Core 4th
+gen / Ryzen 1000 / FX-8300, GTX 1060 6 GB / RX 580 8 GB, 12 GB RAM. Recommended (1080p, 60 FPS):
+Core i5 8th gen / Ryzen 5 1600, GTX 1070 / RTX 2060 / RX 6600, 16 GB RAM (32 GB for 4K). The CPU
+needs AVX and F16C; the port translates the missing MOVBE / BMI1 / LZCNT / SSE4A. Minimum and
+recommended are the launcher's estimates (Graphics > Your PC); measured: Ryzen 7 3700X + RX 9060 XT,
+about 100 FPS in the city. Features: axylpup's graphics core,
 the game's AA, FSR 4 (included) or DLSS (bring NVIDIA's Streamline 2.14.16 files into `bin\dlss`),
 shaders prepared on the first start from a shipped seed (shader list and settings, no game
 code; new ones compile in the background), internal resolution with FSR 4 upscaling, performance
