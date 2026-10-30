@@ -310,9 +310,14 @@ void Swapchain::FindPresentFormat() {
 }
 
 static std::atomic<u32> g_vsync_divider{1};
+static std::atomic<bool> g_present_fifo{true}; ///< PresentWaitsForVsync
 
 u32 VsyncDivider() {
     return g_vsync_divider.load(std::memory_order_relaxed);
+}
+
+bool PresentWaitsForVsync() {
+    return g_present_fifo.load(std::memory_order_relaxed);
 }
 
 bool Swapchain::PresentModeChanged() {
@@ -344,6 +349,7 @@ void Swapchain::FindPresentMode() {
         LOG_ERROR(Render, "Failed to query available present modes, falling back to Fifo as "
                           "guaranteed supported option.");
         present_mode = vk::PresentModeKHR::eFifo;
+        g_present_fifo.store(true, std::memory_order_relaxed);
         return;
     }
 
@@ -370,6 +376,9 @@ void Swapchain::FindPresentMode() {
                     vk::to_string(present_mode), vk::to_string(fallback));
         present_mode = fallback;
     }
+    g_present_fifo.store(present_mode == vk::PresentModeKHR::eFifo ||
+                             present_mode == vk::PresentModeKHR::eFifoRelaxed,
+                         std::memory_order_relaxed);
     LOG_INFO(Render_Vulkan, "Present mode: {}", vk::to_string(present_mode));
 }
 

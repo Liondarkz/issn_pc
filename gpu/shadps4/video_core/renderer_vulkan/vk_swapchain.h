@@ -27,6 +27,9 @@ class Scheduler;
 /// "Fifo (half refresh)" = 2, or SHADPS4_VSYNC_DIVIDER=2..4; both force FIFO (V-Sync). Set when
 /// the swapchain picks its present mode (PERF-PLAN 15).
 u32 VsyncDivider();
+/// issn-axy: the swapchain presents with FIFO (V-Sync): each present waits for a screen refresh.
+/// Frame generation then needs no pacing of its own (driver.cpp Flip).
+bool PresentWaitsForVsync();
 
 class Swapchain {
 public:

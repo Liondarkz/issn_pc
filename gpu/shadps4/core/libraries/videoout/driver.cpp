@@ -292,7 +292,10 @@ void VideoOutDriver::Flip(const Request& req) {
     Vulkan::Frame* const generated = std::exchange(req.frame->generated, nullptr);
     if (generated) {
         presenter->Present(generated);
-        if (divider < 2) {
+        // With V-Sync each present already waits for a refresh, so the game's frame follows the
+        // generated one by one refresh. Sleeping here on top held the flip back and the game
+        // dropped from ~70 to 48 FPS (test 10-30); pacing by time only without V-Sync.
+        if (divider < 2 && !Vulkan::PresentWaitsForVsync()) {
             PaceGeneratedFrame(flip_clock);
         }
     }
