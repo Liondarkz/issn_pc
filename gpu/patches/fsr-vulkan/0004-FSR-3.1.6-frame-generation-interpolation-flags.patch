@@ -1,0 +1,27 @@
+diff --git a/include/ffx_vk_fsr3_3_1_5_bridge.h b/include/ffx_vk_fsr3_3_1_5_bridge.h
+index 863476c..69e59d7 100644
+--- a/include/ffx_vk_fsr3_3_1_5_bridge.h
++++ b/include/ffx_vk_fsr3_3_1_5_bridge.h
+@@ -252,6 +252,10 @@ typedef struct FfxVkFsr3_3_1_6FrameGenerationCreateInfo {
+     uint32_t displayWidth;
+     uint32_t displayHeight;
+     VkFormat colorFormat;
++    /* issn: FfxFrameInterpolationInitializationFlagBits for the interpolation context
++     * (FFX_FRAMEINTERPOLATION_ENABLE_DEPTH_INVERTED = 1, ..._DEPTH_INFINITE = 2); zero keeps
++     * the SDK's defaults (depth 0..1, near to far). */
++    uint32_t interpolationFlags;
+ } FfxVkFsr3_3_1_6FrameGenerationCreateInfo;
+ 
+ typedef struct FfxVkFsr3_3_1_6FrameGenerationPrepareInfo {
+diff --git a/src/ffx_vk_fsr3_3_1_6_framegen.cpp b/src/ffx_vk_fsr3_3_1_6_framegen.cpp
+index 9636cec..d389103 100644
+--- a/src/ffx_vk_fsr3_3_1_6_framegen.cpp
++++ b/src/ffx_vk_fsr3_3_1_6_framegen.cpp
+@@ -360,6 +360,7 @@ ffxVkFsr3_3_1_6FrameGenerationContextCreate(
+         context->opticalFlowCreated = true;
+     FfxFrameInterpolationContextDescription interpolationDescription{};
+     interpolationDescription.backendInterface = context->backend;
++    interpolationDescription.flags = createInfo->interpolationFlags;
+     interpolationDescription.maxRenderSize = {createInfo->maxRenderWidth, createInfo->maxRenderHeight};
+     interpolationDescription.displaySize = {createInfo->displayWidth, createInfo->displayHeight};
+     interpolationDescription.backBufferFormat = to_ffx_format(context->colorFormat);

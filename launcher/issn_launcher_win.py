@@ -379,7 +379,7 @@ PAGES = ('home', 'news', 'graphics', 'performance', 'game', 'advanced', 'help')
 PAGE_REFRESH = {'home': ('refresh_status',), 'news': ('refresh_news',), 'help': ('run_help',), 'game': ('refresh_lists', 'refresh_game_patches')}
 APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', str(PORT_DIR.parent / 'CUSA00004') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
-                'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False, 'frame_pacing': '', 'seed_any_profile': False,
+                'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False, 'frame_pacing': '', 'frame_gen': False, 'seed_any_profile': False,
                 'player_name': '', 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
                 'gpu_id': '', 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binaries': False,
                 'perf_diag': False, 'frame_capture_key': False, 'frame_stats': False, 'gpu_profile': False,
@@ -1066,6 +1066,10 @@ def game_environment(s):
     env.pop('ISSN_SKIP_INTRO', None)
     if s.get('skip_intro'):
         env['ISSN_SKIP_INTRO'] = '1'
+    # issn-axy: FSR 3.1 frame generation (gpu issn_framegen.h); it needs FSR 4, XeSS or DLSS.
+    env.pop('ISSN_FRAME_GEN', None)
+    if s.get('frame_gen') and s.get('anti_aliasing', 'game') != 'game':
+        env['ISSN_FRAME_GEN'] = '1'
     env.pop('ISSN_STICK_DEADZONE', None)
     if s.get('stick_deadzone') in {value for value, _text in STICK_DEADZONE if value}:
         env['ISSN_STICK_DEADZONE'] = s['stick_deadzone']
@@ -2042,6 +2046,10 @@ class Launcher:
                    'refresh rate, some frames stay on screen longer than others and motion judders even at a '
                    'high FPS. Half or a third shows every frame for the same time (V-Sync on). Pick the one '
                    'your PC holds in the heaviest places.'), restart=True)
+        self.check(f, 'frame_gen', 'app', _('Frame generation (FSR 3.1, test)'),
+                   _('Makes a frame between every two of the game: 60 FPS on the screen become 120. Needs FSR 4, '
+                     'XeSS or DLSS as anti-aliasing (Graphics). Adds a little input delay; best with a base of '
+                     '60 FPS or more, and with Frame pacing at half on fast screens (72 becomes 144 on 144 Hz).'))
         self.section(f, 'inFAMOUS')
         self.row(f, _('Draw distance'), self.choice(f, 'draw_distance', 'app', DRAW_DISTANCE),
                  _('How far buildings and details keep their full detail in the open city. Long and Very long '

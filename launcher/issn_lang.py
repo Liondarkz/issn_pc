@@ -771,6 +771,8 @@ EXTRA = {
         '{} download failed: {}': 'Falha ao baixar o {}: {}',
         "XeSS and DLSS use Intel's and NVIDIA's own files, which the port may not include: the launcher downloads them from Intel's and NVIDIA's GitHub releases (XeSS SDK 3.0.2, about 60 MB; Streamline 2.14.16, about 35 MB) when you pick one, and checks each file.": 'O XeSS e o DLSS usam arquivos da própria Intel e da NVIDIA, que o port não pode incluir: o launcher baixa direto dos lançamentos deles no GitHub (XeSS SDK 3.0.2, uns 60 MB; Streamline 2.14.16, uns 35 MB) quando você escolhe um, e confere cada arquivo.',
         'Recommended (best on most PCs)': 'Recomendado (o melhor na maioria dos PCs)',
+        'Frame generation (FSR 3.1, test)': 'Geração de quadros (FSR 3.1, teste)',
+        'Makes a frame between every two of the game: 60 FPS on the screen become 120. Needs FSR 4, XeSS or DLSS as anti-aliasing (Graphics). Adds a little input delay; best with a base of 60 FPS or more, and with Frame pacing at half on fast screens (72 becomes 144 on 144 Hz).': 'Cria um quadro entre cada dois do jogo: 60 FPS na tela viram 120. Precisa de FSR 4, XeSS ou DLSS no anti-aliasing (Gráficos). Aumenta um pouco o atraso dos comandos; fica melhor com 60 FPS ou mais de base e, em telas rápidas, com o Ritmo dos quadros na metade (72 vira 144 em 144 Hz).',
         'Frame pacing: {}': 'Ritmo dos quadros: {}',
         'Shader compilation: in the background': 'Compilação de shaders: em segundo plano',
         'a {} Hz screen shows {} FPS evenly': 'uma tela de {} Hz mostra {} FPS por igual',

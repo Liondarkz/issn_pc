@@ -42,6 +42,7 @@
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
 #include "video_core/renderer_vulkan/issn_fsr4.h"
 #include "video_core/renderer_vulkan/issn_xess.h"
+#include "video_core/renderer_vulkan/issn_framegen.h"
 #include "video_core/renderer_vulkan/vk_dlss.h"
 #include "video_core/renderer_vulkan/vk_dlss_upscale.h"
 #include "video_core/renderer_vulkan/vk_dlss5.h"
@@ -1822,6 +1823,34 @@ void Rasterizer::DlssResolve() {
                  regs.color_buffers[0].Address());
     }
     scheduler.EndRendering();
+    // issn-axy: frame generation (issn_framegen.h) keeps a copy of this frame's depth and motion
+    // vectors for the presenter; the branches below set the layouts they need again.
+    if (FrameGen::Active()) {
+        VideoCore::Image* fg_motion = find(motion_at);
+        VideoCore::Image* fg_depth = find(depth_addr);
+        if (fg_motion && fg_depth && (fg_depth->aspect_mask & vk::ImageAspectFlagBits::eDepth)) {
+            for (VideoCore::Image* image : {fg_motion, fg_depth}) {
+                image->Transit(vk::ImageLayout::eTransferSrcOptimal,
+                               vk::AccessFlagBits2::eTransferRead, {});
+            }
+            float jx = 0.0f, jy = 0.0f;
+            if (dlss_phase_in == 1 || dlss_phase_in == 2) {
+                const float j = dlss_phase_in == 1 ? 0.25f : -0.25f;
+                const u32 combo = Dlss::g_jitter_combo.load(std::memory_order_relaxed);
+                jx = (combo & 1) ? -j : j;
+                jy = (combo & 2) ? -j : j;
+            } else if (dlss_phase_in == 4) {
+                jx = dlss_jitter_in[0];
+                jy = dlss_jitter_in[1];
+            }
+            const auto fg_input = [](VideoCore::Image& image) {
+                return Fsr4Aa::Input{image.GetImage(), vk::ImageView{}, image.info.size.width,
+                                     image.info.size.height, image.info.pixel_format};
+            };
+            FrameGen::Capture(instance, scheduler, scheduler.AcquireCommandBuffer().Handle(),
+                              fg_input(*fg_depth), fg_input(*fg_motion), jx, jy);
+        }
+    }
     bool evaluated = false;
     bool hud_layer = false;
     if (Dlss::OwnUpscaler()) {

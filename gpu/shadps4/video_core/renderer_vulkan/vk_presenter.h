@@ -35,6 +35,9 @@ struct Frame {
     u64 ready_tick;
     bool is_hdr{false};
     u8 id{};
+    /// issn-axy: frame generation (issn_framegen.h) - the frame made between the previous one
+    /// and this, shown first (driver Flip); null without generation.
+    Frame* generated{};
 
 };
 

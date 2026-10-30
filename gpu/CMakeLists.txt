@@ -181,7 +181,8 @@ elseif (NOT WIN32)
 endif()
 # glslang's own CMake package: SPIRV and the default resource limits are separate targets in
 # older releases only.
-target_link_libraries(issngpu PRIVATE glslang::glslang ffx-vulkan::fsr4-v07-vulkan)
+target_link_libraries(issngpu PRIVATE glslang::glslang ffx-vulkan::fsr4-v07-vulkan
+    ffx-vulkan::fsr3-vk-framegeneration-3.1.6) # issn-axy: frame generation (issn_framegen.cpp)
 foreach(glslang_part glslang::SPIRV glslang::glslang-default-resource-limits)
     if (TARGET ${glslang_part})
         target_link_libraries(issngpu PRIVATE ${glslang_part})

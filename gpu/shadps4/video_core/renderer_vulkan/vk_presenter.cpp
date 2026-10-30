@@ -29,6 +29,7 @@
 #include "video_core/renderer_vulkan/vk_memory_budget.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
 #include "video_core/renderer_vulkan/vk_presenter.h"
+#include "video_core/renderer_vulkan/issn_framegen.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
 #include "video_core/texture_cache/image.h"
 
@@ -633,7 +634,10 @@ Presenter::Presenter(Frontend::WindowSDL& window_, AmdGpu::Liverpool* liverpool_
     const u32 num_images = [&] {
         const char* e = std::getenv("SHADPS4_PRESENT_FRAMES");
         const u32 want = e ? static_cast<u32>(std::atoi(e)) : 0u;
-        return std::clamp(want, swapchain.GetImageCount(), 8u);
+        // issn-axy: frame generation takes a second frame per flip for the generated one.
+        const u32 least = FrameGen::Wanted() ? std::min(2 * swapchain.GetImageCount(), 8u)
+                                             : swapchain.GetImageCount();
+        return std::clamp(want, least, 8u);
     }();
     LOG_INFO(Render_Vulkan, "Presenter: {} presentation frames (swapchain images {})", num_images,
              swapchain.GetImageCount());
@@ -667,6 +671,7 @@ Presenter::~Presenter() {
     draw_scheduler.Finish();
     present_scheduler.Finish();
     flip_scheduler.Finish();
+    FrameGen::Shutdown();
     Check(draw_scheduler.AcquireCommandBuffer().Handle().reset());
     Check(present_scheduler.AcquireCommandBuffer().Handle().reset());
     Check(flip_scheduler.AcquireCommandBuffer().Handle().reset());
@@ -928,6 +933,30 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
         const char* e = std::getenv("SHADPS4_PRESENT_ASYNC");
         return e && e[0] == '1';
     }();
+    // issn-axy: frame generation (issn_framegen.h): a second frame for the one made between the
+    // previous frame and this; HDR frames and DLSS 5 video frames are shown alone.
+    Frame* generated = nullptr;
+    if (FrameGen::Active() && !frame->is_hdr && !dlss5_video) {
+        generated = GetRenderFrame();
+        if (generated->width != frame->width || generated->height != frame->height ||
+            generated->is_hdr) {
+            ReleaseFrame(generated);
+            generated = nullptr;
+        }
+    }
+    frame->generated = generated;
+    const auto record_generated = [this, generated, fc = *frame](vk::CommandBuffer cb) {
+        if (generated) {
+            FrameGen::Generate(instance, draw_scheduler, cb, fc.image, generated->image, fc.width,
+                               fc.height);
+        }
+    };
+    const auto finish_generated = [&] {
+        if (generated) {
+            generated->ready_semaphore = frame->ready_semaphore;
+            generated->ready_tick = frame->ready_tick;
+        }
+    };
     if (present_async && capture_game_only_count == 0 &&
         GuestLayout(vk::ImageLayout::eShaderReadOnlyOptimal) ==
             vk::ImageLayout::eShaderReadOnlyOptimal) { // q6b (3)
@@ -937,7 +966,7 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
         // q6b (2): ordered (FsrPass keeps state across flips); the Frame by value.
         draw_scheduler.RecordOrdered([this, pre_barrier, image_view, image_size, fc = *frame,
                                       fsr = fsr_settings, pp = pp_settings, dlss_job, dlss5_video,
-                                      frame_linear](vk::CommandBuffer cb) mutable {
+                                      frame_linear, record_generated](vk::CommandBuffer cb) mutable {
             cb.pipelineBarrier2(vk::DependencyInfo{
                 .imageMemoryBarrierCount = 1,
                 .pImageMemoryBarriers = &pre_barrier,
@@ -945,6 +974,7 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
             if (dlss_job) {
                 Dlss::RecordComposite(cb, *dlss_job);
                 pp_pass.Render(cb, dlss_job->out_view, dlss_job->size, fc, pp);
+                record_generated(cb);
                 return;
             }
             vk::ImageView source = image_view;
@@ -957,11 +987,13 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
             const auto view =
                 fsr_pass.Render(cb, source, image_size, {fc.width, fc.height}, fsr, fc.is_hdr);
             pp_pass.Render(cb, view, image_size, fc, pp);
+            record_generated(cb);
         });
         DebugState.game_resolution = {image_size.width, image_size.height};
         DebugState.output_resolution = {frame->width, frame->height};
         frame->ready_semaphore = draw_scheduler.GetMasterSemaphore()->Handle();
         frame->ready_tick = draw_scheduler.CurrentTick();
+        finish_generated();
         SubmitInfo info{};
         draw_scheduler.Flush(info);
         return frame;
@@ -1008,6 +1040,7 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
                                      {frame->width, frame->height}, fsr_settings, frame->is_hdr);
         pp_pass.Render(cmdbuf, image_view, image_size, *frame, pp_settings);
     }
+    record_generated(cmdbuf);
 
     DebugState.game_resolution = {image_size.width, image_size.height};
     DebugState.output_resolution = {frame->width, frame->height};
@@ -1023,6 +1056,7 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
     // Flush frame creation commands.
     frame->ready_semaphore = draw_scheduler.GetMasterSemaphore()->Handle();
     frame->ready_tick = draw_scheduler.CurrentTick();
+    finish_generated();
     SubmitInfo info{};
     draw_scheduler.Flush(info);
     return frame;

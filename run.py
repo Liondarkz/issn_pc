@@ -424,6 +424,17 @@ def main():
         # issn_pc: the shader seed of this package (packaging/windows/package.sh) is the cache folder.
         if (seed_name := shader_seed_name(PORT, user_dir)):
             env.setdefault('SHADPS4_CACHE_NAME', seed_name)
+        # The cache folder in the log (10-30: a start on an empty CUSA00223 folder compiled every
+        # shader while playing, and nothing in the log said why).
+        try:
+            listed = (PORT / 'shader-seed.txt').read_text().strip()
+        except OSError:
+            listed = ''
+        cache_name = env.get('SHADPS4_CACHE_NAME', 'CUSA00223')
+        others = sorted(p.name for p in (user_dir / 'cache').glob('*') if p.is_dir() and p.name != cache_name)
+        print(f'Shader cache: {cache_name}' + ('' if seed_name else
+              f" (shader-seed.txt {'names ' + listed + ', which is missing' if listed else 'is missing'})")
+              + (f"; other cache folders: {', '.join(others)}" if others else ''), flush=True)
         from save_backup import backup
         try:
             if made := backup(user_dir):

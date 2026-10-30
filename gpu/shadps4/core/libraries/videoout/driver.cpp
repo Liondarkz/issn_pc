@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <thread>
+#include <utility>
 #include "common/assert.h"
 #include "common/debug.h"
 #include "common/fault_monitor.h"
@@ -254,6 +256,23 @@ static bool VoEarlyRelease() {
     return enabled;
 }
 
+// issn-axy: frame generation without frame pacing: the game's frame goes to the screen half of
+// the measured interval between game frames after the generated one (at most 25 ms).
+static void PaceGeneratedFrame(std::chrono::steady_clock::time_point flip_start) {
+    static std::chrono::steady_clock::time_point last_flip{};
+    static double interval_ms = 16.6;
+    const double since = std::chrono::duration<double, std::milli>(flip_start - last_flip).count();
+    last_flip = flip_start;
+    if (since > 2.0 && since < 100.0) {
+        interval_ms = interval_ms * 0.9 + since * 0.1;
+    }
+    const auto target = flip_start + std::chrono::microseconds(
+                                         static_cast<s64>(std::min(interval_ms * 0.5, 25.0) * 1000));
+    if (std::chrono::steady_clock::now() < target) {
+        std::this_thread::sleep_until(target);
+    }
+}
+
 void VideoOutDriver::Flip(const Request& req) {
     // Update HDR status before presenting.
     presenter->SetHDR(req.port->is_hdr);
@@ -266,9 +285,20 @@ void VideoOutDriver::Flip(const Request& req) {
     // free frame and would otherwise draw into it while it is still being shown (review 10-21).
     const u32 divider = Vulkan::VsyncDivider();
     IssnOverlay::NoteGameFrame(); // the FPS readout counts game frames, not the repeats
+    // issn-axy: frame generation (issn_framegen.h): the frame made between the previous one and
+    // this is shown first. With frame pacing it takes one of the frame's screen refreshes (72 FPS
+    // on 144 Hz become 144); without, this frame follows half a frame interval later.
+    const auto flip_clock = std::chrono::steady_clock::now();
+    Vulkan::Frame* const generated = std::exchange(req.frame->generated, nullptr);
+    if (generated) {
+        presenter->Present(generated);
+        if (divider < 2) {
+            PaceGeneratedFrame(flip_clock);
+        }
+    }
     presenter->Present(req.frame, false, divider > 1);
     if (divider > 1) {
-        for (u32 i = 1; i < divider; ++i) {
+        for (u32 i = generated ? 2 : 1; i < divider; ++i) {
             DrawLastFrame();
         }
         presenter->ReleaseFrame(req.frame);
