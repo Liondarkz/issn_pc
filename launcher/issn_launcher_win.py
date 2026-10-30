@@ -1789,13 +1789,17 @@ class Launcher:
         goals.grid(row=2, column=0, columnspan=2, sticky='w', pady=(self.px(12), 0))
         tk.Label(goals, text=_('Set up the graphics for this PC:'), bg=CARD, fg=MUTED, font=(UI_FONT, 9)).pack(
             anchor='w', pady=(0, self.px(6)))
+        # Recommended on a row of its own, the three goals under it (four in one row did not fit
+        # the window in Portuguese).
+        first = tk.Frame(goals, bg=CARD)
+        first.pack(anchor='w')
         buttons = tk.Frame(goals, bg=CARD)
-        buttons.pack(anchor='w')
+        buttons.pack(anchor='w', pady=(self.px(6), 0))
         self.pc_goal_buttons = []
         for goal, label in (('recommended', _('Recommended (best on most PCs)')),
                             ('smooth', _('Smooth (up to 120 FPS)')), ('balanced', _('Balanced (60 FPS, sharpest)')),
                             ('quiet', _('Quiet (60 FPS, lighter on the card)'))):
-            button = ttk.Button(buttons, text=label, state='disabled',
+            button = ttk.Button(first if goal == 'recommended' else buttons, text=label, state='disabled',
                                 style='Card.Accent.TButton' if goal == 'recommended' else 'Card.TButton',
                                 command=lambda g=goal: self.apply_goal(g))
             button.pack(side='left', padx=(0, self.px(6)))
