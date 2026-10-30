@@ -1,0 +1,119 @@
+{
+ "version": "0.3.6.1",
+ "en": {
+  "sub": "PC PORT  /  UPDATE 0.3.6.1",
+  "hero": "STUTTER FIX",
+  "hero_sub": "After updating to 0.3.6 from the launcher, the game could start without its shader seed and compile every shader while playing. 0.3.6.1 puts the seed in place.",
+  "hero_pts": [
+   "Update from the launcher: it fixes itself",
+   "New test: FSR 3.1 frame generation"
+  ],
+  "shot": "PERFORMANCE  ·  FRAME GENERATION",
+  "new": "WHAT'S NEW",
+  "cards": [
+   [
+    "red",
+    "Shader seed after updating",
+    "No more empty cache and heavy stutter."
+   ],
+   [
+    "neon",
+    "Frame generation (test)",
+    "FSR 3.1: a frame between every two of the game."
+   ],
+   [
+    "pink",
+    "FPS counter like MSI",
+    "Frames on screen, with the game's own beside them."
+   ],
+   [
+    "green",
+    "Clearer logs",
+    "The log names the shader cache folder in use."
+   ],
+   [
+    "gold",
+    "Mac version started",
+    "Community work by Sanvtto, experimental, not out yet."
+   ],
+   [
+    "neon",
+    "Launcher tweaks",
+    "Recommended preset on its own row."
+   ]
+  ],
+  "also": "ALSO",
+  "also_pts": [
+   "Frame generation needs FSR 4, XeSS or DLSS",
+   "Best with frame pacing at half"
+  ],
+  "next": "COMING NEXT",
+  "next_tag": "planned for the next updates",
+  "next_pts": [
+   "Frame generation with a sharp HUD",
+   "DLSS Frame Generation (NVIDIA RTX)",
+   "Fewer hitches in combat",
+   "Launcher: guided first start and controller test"
+  ],
+  "disc": "JOIN THE DISCORD",
+  "disc_sub": "News, help and test builds"
+ },
+ "pt": {
+  "sub": "PORT PARA PC  /  ATUALIZAÇÃO 0.3.6.1",
+  "hero": "FIM DAS ENGASGADAS",
+  "hero_sub": "Depois de atualizar para a 0.3.6 pelo launcher, o jogo podia abrir sem a semente de shaders e compilar tudo enquanto você jogava. A 0.3.6.1 coloca a semente no lugar.",
+  "hero_pts": [
+   "Atualize pelo launcher: corrige sozinho",
+   "Novo teste: geração de quadros FSR 3.1"
+  ],
+  "shot": "DESEMPENHO  ·  GERAÇÃO DE QUADROS",
+  "new": "NOVIDADES",
+  "cards": [
+   [
+    "red",
+    "Semente de shaders ao atualizar",
+    "Sem cache vazio e sem engasgos pesados."
+   ],
+   [
+    "neon",
+    "Geração de quadros (teste)",
+    "FSR 3.1: um quadro entre cada dois do jogo."
+   ],
+   [
+    "pink",
+    "Contador de FPS igual ao MSI",
+    "Quadros na tela, com os do jogo ao lado."
+   ],
+   [
+    "green",
+    "Logs mais claros",
+    "O log mostra a pasta de cache em uso."
+   ],
+   [
+    "gold",
+    "Versão para Mac começou",
+    "Trabalho do Sanvtto, experimental, ainda sem lançamento."
+   ],
+   [
+    "neon",
+    "Ajustes no launcher",
+    "Preset Recomendado numa linha própria."
+   ]
+  ],
+  "also": "E MAIS",
+  "also_pts": [
+   "Geração de quadros precisa de FSR 4, XeSS ou DLSS",
+   "Melhor com o ritmo na metade"
+  ],
+  "next": "PRÓXIMA ATUALIZAÇÃO",
+  "next_tag": "planejado para as próximas versões",
+  "next_pts": [
+   "Geração de quadros com HUD nítido",
+   "DLSS Frame Generation (NVIDIA RTX)",
+   "Menos engasgos em combate",
+   "Launcher: primeira abertura guiada e teste do controle"
+  ],
+  "disc": "ENTRE NO DISCORD",
+  "disc_sub": "Novidades, ajuda e builds de teste"
+ }
+}
