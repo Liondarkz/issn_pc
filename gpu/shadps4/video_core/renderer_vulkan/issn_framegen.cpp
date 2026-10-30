@@ -25,7 +25,12 @@ namespace Vulkan::FrameGen {
 namespace {
 
 constexpr vk::Format ColorFormat = vk::Format::eR8G8B8A8Unorm; // FSR 3.1's SDR colour
-constexpr u32 DepthInverted = 1u; // FFX_FRAMEINTERPOLATION_ENABLE_DEPTH_INVERTED
+// FFX_FRAMEINTERPOLATION_ENABLE_DEPTH_INVERTED would match the game's reversed depth, but the
+// bridge embeds only the shader variants of the default (10-30: creating the context with it
+// failed, FFX_ERROR_INVALID_ARGUMENT at the pipeline bindings). The Bloodborne port passes its
+// reversed depth the same way; the interpolation then judges near and far the other way round
+// at object edges only.
+constexpr u32 InterpolationFlags = 0u;
 
 constexpr vk::ImageSubresourceRange ColorRange{
     .aspectMask = vk::ImageAspectFlagBits::eColor,
@@ -255,7 +260,7 @@ struct State {
                 .displayWidth = width,
                 .displayHeight = height,
                 .colorFormat = static_cast<VkFormat>(ColorFormat),
-                .interpolationFlags = DepthInverted,
+                .interpolationFlags = InterpolationFlags,
             };
             if (ffxVkFsr3_3_1_6FrameGenerationContextCreate(&create, &context) !=
                 FFX_VK_FSR3_3_1_6_FRAMEGEN_OK) {
