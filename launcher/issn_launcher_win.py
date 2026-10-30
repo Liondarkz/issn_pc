@@ -2891,6 +2891,27 @@ def latest_release():
     return version, url, release.get('html_url') or RELEASES_PAGE
 
 
+def install_shader_seed(source, target):
+    """The release's shader seed (user/cache/<shader-seed.txt>) into the installation: the update
+    copy skips user/ (saves, the player's caches), so without this an update from the launcher
+    came without its seed and every shader compiled while playing. A folder already there stays."""
+    try:
+        name = (Path(source) / 'shader-seed.txt').read_text().strip()
+    except OSError:
+        return False
+    if not name or not all(c.isalnum() or c in '-_.' for c in name) or name.startswith('.'):
+        return False
+    seed = Path(source) / 'user' / 'cache' / name
+    dest = Path(target) / 'user' / 'cache' / name
+    if not (seed / 'seed-stamp.bin').is_file() or dest.exists():
+        return False
+    part = dest.with_name(name + '.part')
+    shutil.rmtree(part, ignore_errors=True)
+    shutil.copytree(seed, part)
+    part.rename(dest)
+    return True
+
+
 def install_update(target, wait_pid):
     """--install-update TARGET PID, run by the downloaded version from its temporary folder:
     waits for the old launcher to close, copies this version over TARGET (never the saves,
@@ -2905,6 +2926,7 @@ def install_update(target, wait_pid):
     for attempt in range(30):
         try:
             shutil.copytree(PORT_DIR, target, dirs_exist_ok=True, ignore=ignore)
+            install_shader_seed(PORT_DIR, target)
             break
         except OSError:  # a file still in use: the old launcher is closing
             time.sleep(1)

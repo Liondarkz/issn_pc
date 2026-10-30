@@ -31,5 +31,23 @@ class CommunityTest(unittest.TestCase):
         self.assertTrue(launcher.DISCORD_URL.startswith('https://discord.gg/'))
 
 
+
+class UpdateSeedTest(unittest.TestCase):
+    def test_update_brings_the_shader_seed(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            new, old = Path(tmp) / 'new', Path(tmp) / 'old'
+            seed = new / 'user' / 'cache' / 'issn-seed-0.3.6'
+            seed.mkdir(parents=True)
+            (old / 'user' / 'cache').mkdir(parents=True)
+            (new / 'shader-seed.txt').write_text('issn-seed-0.3.6\n')
+            self.assertFalse(launcher.install_shader_seed(new, old))  # no stamp: not a seed
+            (seed / 'seed-stamp.bin').write_bytes(b'SSTP')
+            self.assertTrue(launcher.install_shader_seed(new, old))
+            self.assertTrue((old / 'user' / 'cache' / 'issn-seed-0.3.6' / 'seed-stamp.bin').is_file())
+            self.assertFalse(launcher.install_shader_seed(new, old))  # already there: kept
+
+
 if __name__ == '__main__':
     unittest.main()
