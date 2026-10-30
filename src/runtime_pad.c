@@ -211,10 +211,30 @@ static uint16_t touch_axis(float v, int max) {
  * right source with L1 held is a left click (photo mode on pads without a touchpad). */
 enum { CLICK_LEAD_US=50000, CLICK_HOLD_US=50000, CLICK_TAIL_US=100000 };
 static int key_touch_held; /* issn: the keyboard's touchpad key (R) is down this read */
+/* issn 0.3.6: the mouse as a finger (user 10-29: the engine to pull, the hand scanner): with the
+ * touchpad key held, moving the mouse more than FINGER_START px puts one finger on the touchpad,
+ * at its middle, and moves it with the mouse until the key is let go; the camera stays still
+ * meanwhile, and the finger stays where it was left (it never lifts on its own). Without mouse
+ * motion the key keeps its two thumbs. ISSN_MOUSE_FINGER=0: off. */
+enum { FINGER_START=24 };
+static const float FINGER_SCALE=2.4f; /* touchpad units (1920 x 943) per mouse pixel */
+static struct { int active; float x, y, travel; uint8_t id; } finger={.id=40};
+static int mouse_finger_enabled(void) {
+    static int on=-1;
+    if (on<0) { const char *e=getenv("ISSN_MOUSE_FINGER"); on=!(e && e[0]=='0'); }
+    return on;
+}
 
 static struct { int side; uint64_t pressed, released; } click={-1,0,0};
 static void play_click(PadData *d) {
     const uint64_t now=d->timestamp;
+    if (finger.active) { /* the mouse finger: one touch where the mouse put it, no click */
+        d->buttons&=~(CLICK_LEFT|CLICK_RIGHT|BTN_TOUCHPAD);
+        click.side=-1;
+        if (d->touch_count<2)
+            d->touches[d->touch_count++]=(PadTouch){.x=(uint16_t)finger.x,.y=(uint16_t)finger.y,.id=finger.id};
+        return;
+    }
     uint32_t sources=d->buttons & (CLICK_LEFT|CLICK_RIGHT);
     d->buttons&=~(CLICK_LEFT|CLICK_RIGHT);
     if ((d->buttons & BTN_TOUCHPAD) && !d->touch_count) { /* a replay, or a pad without fingers */
@@ -592,6 +612,22 @@ static void sample_mouse(PadData *d) {
         minus_was=minus; equals_was=equals;
     }
     mouse_dx+=dx; mouse_dy+=dy;
+    if (key_touch_held && !pad_tilted && mouse_finger_enabled()) {
+        if (!finger.active) {
+            finger.travel+=fabsf(dx)+fabsf(dy);
+            if (finger.travel>=FINGER_START) {
+                finger.active=1; finger.x=960.0f; finger.y=471.0f; finger.id=(uint8_t)(finger.id+1)&0x7f;
+                printf("Runtime: pad: mouse finger on the touchpad (R held)\n");
+            }
+        }
+        if (finger.active) {
+            finger.x=fmaxf(0.0f,fminf(1919.0f,finger.x+dx*FINGER_SCALE));
+            finger.y=fmaxf(0.0f,fminf(942.0f,finger.y+dy*FINGER_SCALE));
+        }
+        return; /* the camera stays still while the touchpad key is held */
+    }
+    if (finger.active) printf("Runtime: pad: mouse finger lifted\n");
+    finger.active=0; finger.travel=0.0f;
     if (pad_tilted) return; /* the spray can takes the mouse */
     if (aim_attached && aim_live) { mouse_aim_motion(dx,dy,d->timestamp); return; }
     static float speed;
@@ -923,7 +959,8 @@ static void sample(PadData *d) {
         was_tilted=tilt;
     }
     mouse_dx=mouse_dy=0.0f;
-    if (pad_emulation() || key_touch_held) play_swipe(d); /* the keyboard has no touch surface either */
+    if (!key_touch_held && finger.active) { finger.active=0; finger.travel=0.0f; } /* R let go, mouse still */
+    if ((pad_emulation() || key_touch_held) && !finger.active) play_swipe(d); /* the keyboard has no touch surface either */
     play_click(d);
     if (hold_after_capture) {
         if (d->buttons) d->buttons=0;
