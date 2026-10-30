@@ -30,6 +30,7 @@
 #include "video_core/renderer_vulkan/vk_platform.h"
 #include "video_core/renderer_vulkan/vk_presenter.h"
 #include "video_core/renderer_vulkan/issn_framegen.h"
+#include <cstdio>
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
 #include "video_core/texture_cache/image.h"
 
@@ -639,6 +640,10 @@ Presenter::Presenter(Frontend::WindowSDL& window_, AmdGpu::Liverpool* liverpool_
                                              : swapchain.GetImageCount();
         return std::clamp(want, least, 8u);
     }();
+    if (FrameGen::Wanted()) {
+        std::printf("Frame generation: on (FSR 3.1), %u presentation frames\n", num_images);
+        std::fflush(stdout);
+    }
     LOG_INFO(Render_Vulkan, "Presenter: {} presentation frames (swapchain images {})", num_images,
              swapchain.GetImageCount());
     const vk::Device device = instance.GetDevice();
@@ -942,6 +947,18 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
             generated->is_hdr) {
             ReleaseFrame(generated);
             generated = nullptr;
+        }
+    }
+    if (FrameGen::Wanted()) {
+        static int told = -1; // why a frame goes without generation, once per reason
+        const int why = generated ? 0 : frame->is_hdr ? 1 : dlss5_video ? 2 : !FrameGen::Active() ? 3 : 4;
+        if (why != told) {
+            told = why;
+            static constexpr const char* reasons[] = {
+                "frames are generated", "off while the output is HDR", "off on DLSS 5 video frames",
+                "off after a failure (see above)", "no second frame of the same size"};
+            std::printf("Frame generation: %s\n", reasons[why]);
+            std::fflush(stdout);
         }
     }
     frame->generated = generated;

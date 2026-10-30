@@ -363,6 +363,17 @@ struct State {
         }
         const bool have_capture = captured;
         captured = false;
+        // The log says once whether the inputs arrive (10-30: a test showed no generated frames
+        // and the log said nothing about frame generation).
+        static int told = -1;
+        if (int(have_capture) != told) {
+            told = int(have_capture);
+            std::printf("Frame generation: %s\n",
+                        have_capture ? "depth and motion vectors arrive, interpolating"
+                                     : "no depth / motion capture for this frame (menu, movie, or "
+                                       "the anti-aliasing is not FSR 4 / XeSS / DLSS): shown as is");
+            std::fflush(stdout);
+        }
         // The composed frame (the post pass wrote it) into FSR's colour image.
         Barrier(cmdbuf, frame, vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral);
         Barrier(cmdbuf, out, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
