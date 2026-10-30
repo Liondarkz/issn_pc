@@ -1022,7 +1022,11 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
         .pImageMemoryBarriers = &pre_barrier,
     });
     std::vector<ScreenshotReadback> pending_screenshots;
-    if (capture_game_only_count > 0) {
+    // issn: with the DLSS / FSR 4 / XeSS upscaler the display buffer holds only the HUD layer (the
+    // scene is in the upscaler's image), so F12 saved a black picture with the HUD (tester 10-30,
+    // 1080p and 1440p with DLSS). Then the finished frame is captured after the passes instead.
+    const bool capture_composed = capture_game_only_count > 0 && dlss_job.has_value();
+    if (capture_game_only_count > 0 && !capture_composed) {
         pending_screenshots.reserve(1);
         const bool hdr_encoded =
             attribute.attrib.pixel_format == Libraries::VideoOut::PixelFormat::A2R10G10B10Bt2020Pq;
@@ -1046,6 +1050,29 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
     if (dlss_job) {
         Dlss::RecordComposite(cmdbuf, *dlss_job);
         pp_pass.Render(cmdbuf, dlss_job->out_view, dlss_job->size, *frame, pp_settings);
+        if (capture_composed) {
+            // The frame image (the post pass's target, General layout) at the window size.
+            pending_screenshots.emplace_back(
+                instance, draw_scheduler, ScreenshotKind::GameOnly,
+                BuildScreenshotPaths(ScreenshotKind::GameOnly, capture_game_only_count),
+                frame->width, frame->height, swapchain.GetSurfaceFormat().format, frame->is_hdr);
+            const vk::ImageMemoryBarrier2 to_copy{
+                .srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                .srcAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
+                .dstStageMask = vk::PipelineStageFlagBits2::eTransfer,
+                .dstAccessMask = vk::AccessFlagBits2::eTransferRead,
+                .oldLayout = vk::ImageLayout::eGeneral,
+                .newLayout = vk::ImageLayout::eGeneral,
+                .image = frame->image,
+                .subresourceRange{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1},
+            };
+            cmdbuf.pipelineBarrier2(vk::DependencyInfo{
+                .imageMemoryBarrierCount = 1,
+                .pImageMemoryBarriers = &to_copy,
+            });
+            CopyImageToReadback(cmdbuf, frame->image, vk::ImageLayout::eGeneral,
+                                pending_screenshots.back());
+        }
     } else {
         if (dlss5_video) {
             if (const auto v = Dlss5::ApplyVideo(instance, cmdbuf, image_view, image_size.width,
