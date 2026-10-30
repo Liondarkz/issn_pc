@@ -213,6 +213,14 @@ class ControlMapTest(unittest.TestCase):
         for key in ('display_mode', 'fps_limit', 'render_resolution', 'engine_fps'):
             self.assertIn(key, launcher.INI_DEFAULTS)
 
+    def test_options_moves_to_escape(self):
+        self.assertEqual(dict((b, k) for b, k, _p in launcher.CONTROLS)['options'], 'Escape')
+        old = {'controls': {'key': {'options': 'Return', 'cross': 'Q'}}}
+        migrated = launcher.migrate_settings(old)
+        self.assertEqual(migrated['controls']['key'], {'cross': 'Q'})
+        kept = launcher.migrate_settings({'controls': {'key': {'options': 'P'}}})
+        self.assertEqual(kept['controls']['key'], {'options': 'P'})
+
     def test_frame_pacing_setting(self):
         self.assertNotIn('SHADPS4_VSYNC_DIVIDER', launcher.game_environment({**launcher.APP_DEFAULTS}))
         self.assertEqual(launcher.game_environment({**launcher.APP_DEFAULTS, 'frame_pacing': '2'})

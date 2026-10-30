@@ -164,7 +164,7 @@ Controller
   - WASD moves, IJKL turns the camera. Click in the game window and the mouse aims 1:1 (axylpup's
     camera hook); Y or F7 lets the mouse go and takes it back; - / = change the mouse speed.
   - Space Cross, Left Shift Circle, C Square, F Triangle (numpad 2/6/4/8 too), Q L1, E R1,
-    U L3, O R3, Enter Options, arrows d-pad.
+    U L3, O R3, Esc Options, arrows d-pad.
   - Left click R2 (shoot), right click L2 (aim) while the mouse aims; 1 / 3 also work.
   - R: the touchpad, held with both thumbs (drains, the car on Reggie); G: its left side alone
     (photo mode). R + W/A/S/D (or an arrow): a swipe that way (doors, wreckage, the Mobile Command

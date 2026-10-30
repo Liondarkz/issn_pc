@@ -403,12 +403,13 @@ static ButtonMap pad_map={{
 /* issn: the keyboard layout of axylpup's Second Son build (github.com/axylpup/shadPS4, release
  * 1.0.2 input_config/default.ini): WASD moves, IJKL turns the camera, the arrows are the d-pad,
  * the mouse buttons are L2 (aim) and R2 (shoot), Z tilts the pad (held) or rattles it (a tap), X
- * rattles it while held, Y gives the camera to the mouse (motion_input). */
+ * rattles it while held, Y gives the camera to the mouse (motion_input). issn 0.3.6: Options
+ * (Start) on Escape, not Return (user 10-29). */
 static ButtonMap key_map={{
     {SDL_SCANCODE_SPACE,BTN_CROSS}, {SDL_SCANCODE_LSHIFT,BTN_CIRCLE}, {SDL_SCANCODE_C,BTN_SQUARE},
     {SDL_SCANCODE_F,BTN_TRIANGLE}, {SDL_SCANCODE_Q,BTN_L1}, {SDL_SCANCODE_E,BTN_R1},
     {SDL_SCANCODE_1,BTN_L2}, {SDL_SCANCODE_3,BTN_R2}, {SDL_SCANCODE_U,BTN_L3}, {SDL_SCANCODE_O,BTN_R3},
-    {SDL_SCANCODE_RETURN,BTN_OPTIONS}, {SDL_SCANCODE_R,CLICK_RIGHT}, {SDL_SCANCODE_G,CLICK_LEFT},
+    {SDL_SCANCODE_ESCAPE,BTN_OPTIONS}, {SDL_SCANCODE_R,CLICK_RIGHT}, {SDL_SCANCODE_G,CLICK_LEFT},
     {SDL_SCANCODE_UP,BTN_UP}, {SDL_SCANCODE_DOWN,BTN_DOWN}, {SDL_SCANCODE_LEFT,BTN_LEFT}, {SDL_SCANCODE_RIGHT,BTN_RIGHT},
     {SDL_SCANCODE_KP_2,BTN_CROSS}, {SDL_SCANCODE_KP_6,BTN_CIRCLE}, {SDL_SCANCODE_KP_4,BTN_SQUARE},
     {SDL_SCANCODE_KP_8,BTN_TRIANGLE},

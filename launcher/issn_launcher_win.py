@@ -390,7 +390,7 @@ APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', s
 CONTROLS = [('cross', 'Space', 'a'), ('circle', 'Left Shift', 'b'), ('square', 'C', 'x'),
             ('triangle', 'F', 'y'), ('l1', 'Q', 'leftshoulder'), ('r1', 'E', 'rightshoulder'),
             ('l2', '1', None), ('r2', '3', None), ('l3', 'U', 'leftstick'),
-            ('r3', 'O', 'rightstick'), ('options', 'Return', 'start'),
+            ('r3', 'O', 'rightstick'), ('options', 'Escape', 'start'),
             ('touchpad_left', 'G', None), ('touchpad_right', 'R', 'back'),
             ('up', 'Up', 'dpup'), ('down', 'Down', 'dpdown'), ('left', 'Left', 'dpleft'), ('right', 'Right', 'dpright'),
             # issn: rattles the pad's motion sensor (the spray can); misc1 is the Share button of an
@@ -538,6 +538,14 @@ def migrate_settings(settings):
         heights = [int(value) for value, _text in RESOLUTIONS if value] + [1080]
         nearest = min(heights, key=lambda h: abs(h - lines))
         settings['render_height'] = '' if nearest == 1080 else str(nearest)
+    # 0.3.6: Options (Start) moved from Return to Escape for everyone (user 10-29); a Return saved
+    # by an older launcher was its default, not a choice.
+    controls = settings.get('controls')
+    if isinstance(controls, dict) and isinstance(controls.get('key'), dict):
+        if str(controls['key'].get('options', '')).strip().casefold() in ('return', 'enter'):
+            keys = dict(controls['key'])
+            keys.pop('options')
+            settings['controls'] = {**controls, 'key': keys}
     return settings
 
 

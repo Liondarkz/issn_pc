@@ -25,7 +25,7 @@ from pathlib import Path
 import shutil
 import struct
 
-VERSION = 5  # of the drawing: a change redraws the cached copies
+VERSION = 6  # of the drawing: a change redraws the cached copies
 PACKAGES = 'art/cache'
 FONT_FILE = Path(__file__).resolve().parent.parent / 'launcher' / 'issn_font.ttf'
 
@@ -41,7 +41,7 @@ ICON_BUTTONS = {
 }
 # The port's default keyboard (src/runtime_pad.c): button -> label. L2 / R2 are the mouse buttons.
 KEYBOARD = {'cross': 'SPACE', 'circle': 'SHIFT', 'square': 'C', 'triangle': 'F', 'l1': 'Q', 'r1': 'E',
-            'l2': 'mouse:right', 'r2': 'mouse:left', 'l3': 'U', 'r3': 'O', 'options': 'ENTER',
+            'l2': 'mouse:right', 'r2': 'mouse:left', 'l3': 'U', 'r3': 'O', 'options': 'ESC',
             'touchpad': 'R', 'up': 'arrow:up', 'down': 'arrow:down', 'left': 'arrow:left',
             'right': 'arrow:right', 'dpad': 'arrows', 'lstick': 'WASD', 'rstick': 'mouse:'}
 XBOX = {'cross': ('A', (108, 196, 74)), 'circle': ('B', (232, 72, 66)), 'square': ('X', (66, 142, 232)),
