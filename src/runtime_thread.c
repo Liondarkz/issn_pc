@@ -4,7 +4,9 @@
  * keeps FS. Priorities/affinity are recorded, not enforced by a PS4 scheduler.
  * Windows: GS is the TEB and cannot be moved. The guest TCB lives in a TLS slot of the TEB
  * instead, and the loader rewrites the load to `mov rax, gs:[0x1480+8*slot]` (TlsSlots),
- * the same 9-byte instruction with another displacement. */
+ * the same 9-byte instruction with another displacement.
+ * macOS (x86_64 under Rosetta 2): GS is the thread's TSD array and cannot be moved either.
+ * The guest TCB lives in a pthread key, which macOS stores at gs:[8*key]: same rewrite. */
 #define _GNU_SOURCE
 #include "runtime.h"
 #include <stdio.h>
@@ -17,6 +19,8 @@
 #include <unistd.h>
 #ifdef _WIN32
 #include <windows.h>
+#elif defined(__APPLE__)
+#include <sys/mman.h>
 #else
 #include <sys/syscall.h>
 #include <sys/mman.h>
@@ -85,6 +89,23 @@ static void set_gs(void *base) {
     if (!TlsSetValue(tls_slot,base)) { fprintf(stderr,"STOP: TlsSetValue failed (%lu)\n",GetLastError()); exit(21); }
 }
 #define tls_block_alloc(size) _aligned_malloc(size,64)
+#elif defined(__APPLE__)
+/* pthread_getspecific(key) is `mov rax, gs:[8*key]` on x86_64 macOS: the guest's TCB load
+ * reads the key directly. */
+static pthread_key_t tcb_key;
+static pthread_once_t tcb_key_once=PTHREAD_ONCE_INIT;
+static void create_tcb_key(void) {
+    if (pthread_key_create(&tcb_key,NULL)) { fputs("STOP: pthread_key_create failed\n",stderr); exit(21); }
+}
+uint32_t runtime_thread_tcb_offset(void) {
+    pthread_once(&tcb_key_once,create_tcb_key);
+    return 8*(uint32_t)tcb_key;
+}
+static void set_gs(void *base) {
+    runtime_thread_tcb_offset();
+    if (pthread_setspecific(tcb_key,base)) { fputs("STOP: pthread_setspecific failed\n",stderr); exit(21); }
+}
+#define tls_block_alloc(size) aligned_alloc(64,size)
 #else
 static void set_gs(void *base) {
     if (syscall(SYS_arch_prctl,ARCH_SET_GS,(unsigned long)base)) { perror("STOP: arch_prctl(ARCH_SET_GS)"); exit(21); }

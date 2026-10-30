@@ -634,7 +634,7 @@ static std::pair<VAddr, u64> WidenReadFault(const Buffer& buffer, VAddr device_a
         return {device_addr, size};
     }
     const VAddr begin = std::max(Common::AlignDown(device_addr, window), buffer.CpuAddr());
-    const VAddr end = std::min(Common::AlignUp(device_addr + size, window),
+    const VAddr end = std::min<VAddr>(Common::AlignUp(device_addr + size, window),
                                buffer.CpuAddr() + buffer.SizeBytes());
     return {begin, end - begin};
 }
@@ -1699,7 +1699,7 @@ bool BufferCache::DownloadWindowMultiBuffer(VAddr window_addr, u64 window_size) 
         }
         seen.push_back(id);
         const VAddr lo = std::max(window_addr, buffer.CpuAddr());
-        const VAddr hi = std::min(window_addr + window_size, buffer.CpuAddr() + buffer.SizeBytes());
+        const VAddr hi = std::min<VAddr>(window_addr + window_size, buffer.CpuAddr() + buffer.SizeBytes());
         if (hi <= lo) {
             return;
         }
@@ -2148,7 +2148,7 @@ BufferCache::FaultTicket BufferCache::PrepareFaultDownload(VAddr device_addr, u6
             seen.push_back(id);
             const VAddr lo = std::max(addr, window_buffer.CpuAddr());
             const VAddr hi =
-                std::min(addr + bytes, window_buffer.CpuAddr() + window_buffer.SizeBytes());
+                std::min<VAddr>(addr + bytes, window_buffer.CpuAddr() + window_buffer.SizeBytes());
             if (hi <= lo) {
                 return;
             }
@@ -3258,7 +3258,7 @@ u64 BufferCache::NewestAscWriter(std::span<const FaultCopy> copies, u64 done_bel
     VAddr clo = ~VAddr{0}, chi = 0; // q11e: the copies' bounding box
     for (const FaultCopy& copy : copies) {
         clo = std::min(clo, copy.addr);
-        chi = std::max(chi, copy.addr + copy.size);
+        chi = std::max<VAddr>(chi, copy.addr + copy.size);
     }
     for (u64 v = top; v != 0 && v > done_below && top - v < asc_write_hist.size(); --v) {
         const size_t i = v % asc_write_hist.size();
