@@ -41,6 +41,31 @@ MINGW*|MSYS*)
     exit 0
     ;;
 esac
+# Linux defaults; macOS replaces them below.
+no_pie=(-no-pie) export_dynamic=-rdynamic origin='$ORIGIN' heap=() cmake_platform=()
+# macOS: an x86_64 build that Rosetta 2 runs, Vulkan through MoltenVK. Dependencies come from
+# packaging/macos/build-deps-x86_64.sh (ISSN_MAC_DEPS), never from the arm64 Homebrew.
+if [[ $(uname -s) == Darwin ]]; then
+    deps=${ISSN_MAC_DEPS:-$PWD/out/macos-deps}
+    [[ -f $deps/lib/libMoltenVK.dylib ]] || { echo "macOS dependencies missing: run packaging/macos/build-deps-x86_64.sh" >&2; exit 1; }
+    export MACOSX_DEPLOYMENT_TARGET=13.0 PATH="$deps/bin:$PATH"
+    export PKG_CONFIG_LIBDIR="$deps/lib/pkgconfig:$deps/share/pkgconfig"
+    printf '#!/bin/sh\nexec clang -arch x86_64 -mmacosx-version-min=13.0 "$@"\n' > out/cc-x86_64
+    chmod +x out/cc-x86_64
+    CC=$PWD/out/cc-x86_64
+    # The guest packs pointers into 40 bits: mimalloc, patched to map in 32-64 GiB, replaces
+    # the system malloc (near 128 TiB). It must come first on the link line.
+    no_pie=() export_dynamic=-Wl,-export_dynamic,-rpath,"$deps/lib" origin=@loader_path
+    heap=("$deps/lib/mimalloc-3.5/mimalloc.o" src/compat_mac.c)
+    # shadPS4 points the Vulkan loader at the executable's directory (VK_DRIVER_FILES).
+    printf '{"file_format_version":"1.0.0","ICD":{"library_path":"%s","api_version":"1.4.0","is_portability_driver":true}}\n' \
+        "$deps/lib/libMoltenVK.dylib" > out/MoltenVK_icd.json
+    boost=$(ls -d /opt/homebrew/lib/cmake/Boost-* 2>/dev/null | tail -1)
+    cmake_platform=(-DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
+        -DCMAKE_PREFIX_PATH="$deps" -DCMAKE_IGNORE_PREFIX_PATH=/opt/homebrew
+        -DBoost_DIR="$boost" -DCMAKE_POLICY_VERSION_MINIMUM=3.5)
+    ISSN_PGO=${ISSN_PGO:-off} ISSN_LTO=${ISSN_LTO:-OFF}
+fi
 if [[ -z ${CC:-} ]]; then
     CC=$(command -v cc || command -v gcc || true)
     if [[ -z $CC ]]; then
@@ -86,7 +111,7 @@ for patch in gpu/patches/fsr-vulkan/*.patch; do
     fi
 done
 cmake -S gpu -B out/gpu -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DISSN_PGO="$pgo" \
-    -DISSN_LTO="${ISSN_LTO:-ON}" -DISSN_PGO_DIR="$PWD/pgo" >/dev/null
+    -DISSN_LTO="${ISSN_LTO:-ON}" -DISSN_PGO_DIR="$PWD/pgo" ${cmake_platform[@]+"${cmake_platform[@]}"} >/dev/null
 echo "GPU library: PGO $pgo, LTO ${ISSN_LTO:-ON}"
 # A failed GPU build must stop here: an older libissngpu.so would otherwise be used silently.
 if ! ninja -C out/gpu issngpu > out/gpu-build.log 2>&1; then
@@ -94,7 +119,7 @@ if ! ninja -C out/gpu issngpu > out/gpu-build.log 2>&1; then
     echo 'GPU library build failed (full log: out/gpu-build.log)' >&2; exit 1
 fi
 # $ORIGIN/gpu: packaged copies keep the library next to the binary without patching it.
-gpu=(-Lout/gpu -lissngpu -Wl,-rpath,'$ORIGIN/gpu' -Wl,-rpath,"$PWD/out/gpu" -rdynamic)
+gpu=(-Lout/gpu -lissngpu -Wl,-rpath,"$origin/gpu" -Wl,-rpath,"$PWD/out/gpu" "$export_dynamic")
 runtime=(src/runtime*.c)
 # Third-party decoders: compiled once, without this project's -Werror policy.
 atrac9=(third_party/LibAtrac9/C/src/*.c)
@@ -105,10 +130,10 @@ if [[ ! -f out/libatrac9.a || -n $(find third_party/LibAtrac9/C/src -newer out/l
 fi
 # isa_emulate runs inside guest code: no XMM/YMM.
 "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -mgeneral-regs-only -c src/isa_emulate.c -o out/isa_emulate.o
-"$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread -no-pie "${includes[@]}" -I. -Isrc src/probe.c "${runtime[@]}" src/cpu_check.c src/vulkan_smoke.c out/isa_emulate.o src/isa_rewrite.c out/libatrac9.a -lm "${gpu[@]}" "${libraries[@]}" -o out/issn-probe
+"$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread ${no_pie[@]+"${no_pie[@]}"} "${includes[@]}" -I. -Isrc ${heap[@]+"${heap[@]}"} src/probe.c "${runtime[@]}" src/cpu_check.c src/vulkan_smoke.c out/isa_emulate.o src/isa_rewrite.c out/libatrac9.a -lm "${gpu[@]}" "${libraries[@]}" -o out/issn-probe
 echo "Built $PWD/out/issn-probe"
 # GPU check for run.sh (live_resolution=auto): links only the Vulkan loader.
-"$CC" -std=c11 -O2 -Wall -Wextra -Werror -Igpu/shadps4 tools/gpu_capabilities.c "${libraries[@]}" -o out/issn-gpu-capabilities
+"$CC" -std=c11 -O2 -Wall -Wextra -Werror "${includes[@]}" -Igpu/shadps4 tools/gpu_capabilities.c "${libraries[@]}" -o out/issn-gpu-capabilities
 if [[ ${1:-} == --test ]]; then
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread "${includes[@]}" -I. -Isrc tests/test_pad.c "${libraries[@]}" -lm -o out/pad-test
     out/pad-test

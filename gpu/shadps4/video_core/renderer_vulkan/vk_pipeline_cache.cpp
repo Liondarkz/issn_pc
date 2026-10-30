@@ -41,6 +41,7 @@
 #include "video_core/renderer_vulkan/vk_pipeline_compile_pool.h"
 #include "video_core/renderer_vulkan/vk_pipeline_serialization.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
+#include <immintrin.h> // _mm_pause
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
 

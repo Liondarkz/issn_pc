@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vulkan/vulkan.h>
+#ifdef __APPLE__
+#include <limits.h>
+#include <mach-o/dyld.h>
+#endif
 
 #include "video_core/amdgpu/issn_msaa_default.h"
 
@@ -73,8 +77,27 @@ int main(int argc, char **argv) {
         .pApplicationName = "issn scene scaling probe",
         .apiVersion = VK_API_VERSION_1_3,
     };
+#ifdef __APPLE__
+    /* As the GPU library does: the MoltenVK ICD file sits next to the executable, and the
+       loader only lists a portability driver when the instance asks for it. */
+    char path[PATH_MAX];
+    uint32_t length = sizeof path;
+    if (!getenv("VK_DRIVER_FILES") && !_NSGetExecutablePath(path, &length)) {
+        char *slash = strrchr(path, '/');
+        if (slash) {
+            *slash = 0;
+            setenv("VK_DRIVER_FILES", path, 1);
+        }
+    }
+    const char *portability = VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
+#endif
     const VkInstanceCreateInfo create = {
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+#ifdef __APPLE__
+        .flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR,
+        .enabledExtensionCount = 1,
+        .ppEnabledExtensionNames = &portability,
+#endif
         .pApplicationInfo = &app,
     };
     VkInstance instance = VK_NULL_HANDLE;

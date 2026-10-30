@@ -21,7 +21,11 @@
 
 #ifndef _WIN64
 #include <sys/mman.h>
+#ifdef __APPLE__
+#include <sys/ucontext.h>
+#else
 #include <ucontext.h>
+#endif
 #include "common/adaptive_mutex.h"
 #ifdef ENABLE_USERFAULTFD
 #include <thread>
@@ -212,7 +216,11 @@ static bool ReadFaultRipEnabled() {
 static void SnapshotReadFaultPage(VAddr) {}
 static void LogReadFaultRip(void*, VAddr) {}
 static u64 FaultRip(void* context) {
+#ifdef __APPLE__
+    return static_cast<u64>(static_cast<ucontext_t*>(context)->uc_mcontext->__ss.__rip);
+#else
     return static_cast<u64>(static_cast<ucontext_t*>(context)->uc_mcontext.gregs[REG_RIP]);
+#endif
 }
 #endif
 

@@ -1,0 +1,38 @@
+diff --git a/src/prim/unix/prim.c b/src/prim/unix/prim.c
+index 25c2ade..d5fa76c 100644
+--- a/src/prim/unix/prim.c
++++ b/src/prim/unix/prim.c
+@@ -305,7 +305,33 @@ static int unix_madvise(void* addr, size_t size, int advice) {
+   #endif
+ }
+ 
++#if defined(MI_OS_WINDOW_START) && defined(MI_OS_WINDOW_END)
++// Optional address window: every non-fixed OS allocation is placed in
++// [MI_OS_WINDOW_START, MI_OS_WINDOW_END). issn_pc builds mimalloc with a window below 1 TiB on
++// macOS, where the system heap lives near 128 TiB: heap pointers then stay small, like a Linux
++// brk heap (its PS4 guest code packs pointers into 40 bits).
++static uintptr_t mi_os_window_next = MI_OS_WINDOW_START;
++static void* unix_mmap_window(size_t size, int protect_flags, int flags, int fd) {
++  const uintptr_t align = (uintptr_t)64 << 20;  // 64 MiB covers the arena and page alignments
++  for (;;) {
++    uintptr_t at = __atomic_load_n(&mi_os_window_next, __ATOMIC_RELAXED);
++    const uintptr_t start = (at + align - 1) & ~(align - 1);
++    if (start + size > (uintptr_t)MI_OS_WINDOW_END || start + size < start) { errno = ENOMEM; return MAP_FAILED; }
++    if (!__atomic_compare_exchange_n(&mi_os_window_next, &at, start + size, true, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) continue;
++    void* p = mmap((void*)start, size, protect_flags, flags, fd, 0);
++    if (p == (void*)start) return p;
++    if (p != MAP_FAILED) munmap(p, size);  // that range is taken: the kernel placed it elsewhere
++  }
++}
++#endif
++
+ static void* unix_mmap_prim(void* addr, size_t size, int protect_flags, int flags, int fd) {
++  #if defined(MI_OS_WINDOW_START) && defined(MI_OS_WINDOW_END)
++  if ((flags & MAP_FIXED) == 0 &&
++      ((uintptr_t)addr < (uintptr_t)MI_OS_WINDOW_START || (uintptr_t)addr >= (uintptr_t)MI_OS_WINDOW_END)) {
++    return unix_mmap_window(size, protect_flags, flags, fd);
++  }
++  #endif
+   void* p = mmap(addr, size, protect_flags, flags, fd, 0 /* offset */);
+   #if defined(__linux__) && defined(PR_SET_VMA)
+   if (p!=MAP_FAILED && p!=NULL) {

@@ -10,6 +10,9 @@ typedef issn_jmp_buf sigjmp_buf;
 #define sigsetjmp(buffer, save) issn_setjmp(buffer)
 #else
 #include <setjmp.h>
+#ifdef __APPLE__
+#include "compat_mac.h"
+#endif
 #endif
 /* Recovery point for speculative guest memory reads on this thread (probe.c fault handler). */
 extern __thread sigjmp_buf *runtime_fault_recover;

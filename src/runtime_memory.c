@@ -762,7 +762,13 @@ void *runtime_low_map(size_t size, int prot) {
 #else
     void *p=MAP_FAILED;
     while (low_next+size<=USER_MIN) {
+#ifdef __APPLE__
+        /* No MAP_FIXED_NOREPLACE: map with the address as a hint and keep it only there. */
+        p=mmap((void *)low_next,size,prot,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+        if (p!=MAP_FAILED && p!=(void *)low_next) { munmap(p,size); p=MAP_FAILED; }
+#else
         p=mmap((void *)low_next,size,prot,MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED_NOREPLACE,-1,0);
+#endif
         low_next+=size+PAGE; /* unmapped gap catches overruns */
         if (p!=MAP_FAILED) break;
     }

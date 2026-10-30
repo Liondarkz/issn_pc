@@ -5,6 +5,9 @@
 #include <cstring>
 #include <string>
 #include <SDL3/SDL.h>
+#ifdef __APPLE__
+#include <SDL3/SDL_metal.h>
+#endif
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -115,6 +118,12 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}
     if (driver && !std::strcmp(driver, "windows")) {
         window_info.type = WindowSystemType::Windows;
         window_info.render_surface = SDL_GetPointerProperty(wp, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
+    } else
+#elif defined(__APPLE__)
+    // port: MoltenVK draws into the CAMetalLayer of an SDL Metal view.
+    if (driver && !std::strcmp(driver, "cocoa")) {
+        window_info.type = WindowSystemType::Metal;
+        window_info.render_surface = SDL_Metal_GetLayer(SDL_Metal_CreateView(window));
     } else
 #endif
     if (driver && !std::strcmp(driver, "x11")) {

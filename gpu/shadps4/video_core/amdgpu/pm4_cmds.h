@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <cstdint>
+#include <type_traits>
+
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
@@ -780,7 +783,11 @@ struct PM4CmdWriteData {
 
     template <typename T>
     T Address() const {
-        return reinterpret_cast<T>(addr64);
+        if constexpr (std::is_integral_v<T>) {
+            return static_cast<T>(addr64);
+        } else {
+            return reinterpret_cast<T>(static_cast<uintptr_t>(addr64));
+        }
     }
 };
 
@@ -811,7 +818,12 @@ struct PM4CmdEventWriteEos {
 
     template <typename T = u32*>
     T Address() const {
-        return reinterpret_cast<T>(address_lo | u64(address_hi) << 32);
+        const u64 address = address_lo | u64(address_hi) << 32;
+        if constexpr (std::is_integral_v<T>) {
+            return static_cast<T>(address);
+        } else {
+            return reinterpret_cast<T>(static_cast<uintptr_t>(address));
+        }
     }
 
     u32 DataDWord() const {

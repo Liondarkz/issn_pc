@@ -41,6 +41,18 @@ asm(".section .rdata,\"dr\"\n"
     ".global issn_font_ttf_end\n"
     "issn_font_ttf_end:\n"
     ".text\n");
+#elif defined(__APPLE__)
+// Mach-O: C symbols carry a leading underscore, read-only data is __TEXT,__const.
+asm(".section __TEXT,__const\n"
+    ".p2align 4\n"
+    ".private_extern _issn_font_ttf\n"
+    ".globl _issn_font_ttf\n"
+    "_issn_font_ttf:\n"
+    ".incbin \"" ISSN_FONT_PATH "\"\n"
+    ".private_extern _issn_font_ttf_end\n"
+    ".globl _issn_font_ttf_end\n"
+    "_issn_font_ttf_end:\n"
+    ".text\n");
 #else
 asm(".section .rodata\n"
     ".balign 16\n"

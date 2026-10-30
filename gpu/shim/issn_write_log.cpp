@@ -9,6 +9,10 @@
 #ifdef _WIN32
 #include <windows.h>
 #undef near
+#elif defined(__APPLE__)
+#include <pthread.h>
+#include <sys/ucontext.h>
+#include <unistd.h>
 #else
 #include <ucontext.h>
 #include <unistd.h>
@@ -61,7 +65,15 @@ void Note(std::uint64_t address, const void* data, std::uint64_t size, Source so
 }
 
 void Record(std::uint64_t address, const void* data, std::uint64_t size, Source source) {
+#ifdef __APPLE__
+    static thread_local const std::uint32_t tid = [] {
+        std::uint64_t id = 0;
+        pthread_threadid_np(nullptr, &id);
+        return static_cast<std::uint32_t>(id);
+    }();
+#else
     static thread_local const std::uint32_t tid = static_cast<std::uint32_t>(gettid());
+#endif
     Entry e{address, size, 0, __rdtsc(), source, tid};
     std::memcpy(&e.first, data, size < 8 ? size : 8);
     Push(ring, head, e);
@@ -93,6 +105,9 @@ extern "C" void issngpu_dump_guest_writes(void* ucontext) {
     // The loader passes EXCEPTION_POINTERS (see signal_context.cpp).
     const CONTEXT* c = static_cast<const EXCEPTION_POINTERS*>(ucontext)->ContextRecord;
     const std::uint64_t regs[] = {c->Rax, c->Rbx, c->Rcx, c->Rdx, c->Rsi, c->Rdi, c->R14, c->R15};
+#elif defined(__APPLE__)
+    const auto& s = static_cast<const ucontext_t*>(ucontext)->uc_mcontext->__ss;
+    const std::uint64_t regs[] = {s.__rax, s.__rbx, s.__rcx, s.__rdx, s.__rsi, s.__rdi, s.__r14, s.__r15};
 #else
     const auto* uc = static_cast<const ucontext_t*>(ucontext);
     const auto* g = uc->uc_mcontext.gregs;

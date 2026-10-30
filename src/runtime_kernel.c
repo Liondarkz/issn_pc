@@ -12,6 +12,11 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/time.h>
+#ifdef __APPLE__
+#include <mach/mach_init.h>
+#include <mach/mach_port.h>
+#include <mach/thread_act.h>
+#endif
 #include <x86intrin.h>
 #ifndef _WIN32
 #include <sys/random.h>
@@ -245,6 +250,22 @@ static ABI int32_t guest_getrusage(int who,GuestRusage *out) {
     compat_cpu_times(who,&user,&kernel);
     out->utime=(GuestTimeval){user/1000000,user%1000000};
     out->stime=(GuestTimeval){kernel/1000000,kernel%1000000};
+#elif defined(__APPLE__)
+    if (who==0) {
+        struct rusage r;
+        getrusage(RUSAGE_SELF,&r);
+        out->utime=(GuestTimeval){r.ru_utime.tv_sec,r.ru_utime.tv_usec};
+        out->stime=(GuestTimeval){r.ru_stime.tv_sec,r.ru_stime.tv_usec};
+    } else { /* no RUSAGE_THREAD: the calling thread's times come from Mach */
+        thread_basic_info_data_t info;
+        mach_msg_type_number_t count=THREAD_BASIC_INFO_COUNT;
+        mach_port_t self=mach_thread_self();
+        if (thread_info(self,THREAD_BASIC_INFO,(thread_info_t)&info,&count)==KERN_SUCCESS) {
+            out->utime=(GuestTimeval){info.user_time.seconds,info.user_time.microseconds};
+            out->stime=(GuestTimeval){info.system_time.seconds,info.system_time.microseconds};
+        }
+        mach_port_deallocate(mach_task_self(),self);
+    }
 #else
     struct rusage r;
     getrusage(who==0 ? RUSAGE_SELF : RUSAGE_THREAD,&r);
@@ -260,6 +281,8 @@ static ABI int32_t guest_sysctl(const int32_t *name,uint32_t namelen,void *old,u
         if (!old || !oldlen) return fail_posix(EINVAL);
 #ifdef _WIN32
         if (compat_random(old,(size_t)*oldlen)) return fail_posix(EIO);
+#elif defined(__APPLE__)
+        arc4random_buf(old,(size_t)*oldlen);
 #else
         if (getrandom(old,(size_t)*oldlen,0)<0) return fail_posix(errno);
 #endif

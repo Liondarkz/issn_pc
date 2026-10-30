@@ -34,8 +34,8 @@ static Flag *flags;
 static uint64_t next_id=1;
 static size_t created, waits, timeouts;
 
-/* As runtime_sema.c: winpthreads condition variables accept only CLOCK_REALTIME. */
-#ifdef _WIN32
+/* As runtime_sema.c: winpthreads and macOS condition variables accept only CLOCK_REALTIME. */
+#if defined(_WIN32) || defined(__APPLE__)
 #define WAIT_CLOCK CLOCK_REALTIME
 #else
 #define WAIT_CLOCK CLOCK_MONOTONIC

@@ -283,6 +283,11 @@ bool Instance::CreateDevice() {
         return false;
     };
 
+#ifdef __APPLE__
+    // port: MoltenVK is a portability implementation, which must have this enabled when it
+    // offers it (the name is a beta extension's, so spelled out).
+    add_extension("VK_KHR_portability_subset");
+#endif
     // Required
     ASSERT_MSG(add_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
                "Required Vulkan extension unavailable: {}", VK_KHR_SWAPCHAIN_EXTENSION_NAME);

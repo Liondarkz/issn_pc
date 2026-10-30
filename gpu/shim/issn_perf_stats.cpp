@@ -7,7 +7,11 @@
 #include <vector>
 #include "video_core/renderer_vulkan/vk_instance.h"
 
-#ifndef _WIN32
+#ifdef __APPLE__
+#include <mach/mach.h>
+#include <sys/resource.h>
+#include <sys/sysctl.h>
+#elif !defined(_WIN32)
 #include <cstring>
 #include <dlfcn.h>
 #include <sys/sysinfo.h>
@@ -116,6 +120,52 @@ void Run(const Vulkan::Instance* instance) {
             s.vram_total_gb = double(instance->GetTotalMemoryBudget()) / GiB;
         }
         s.gpu_percent = gpu.Percent();
+        {
+            std::scoped_lock lock{mutex};
+            latest = std::move(s);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+}
+#elif defined(__APPLE__)
+// port: macOS measurements. CPU from getrusage, RAM from the Mach task and hw.memsize, VRAM from
+// VK_EXT_memory_budget (MoltenVK); GPU load stays "n/a".
+uint64_t ProcessMicros() { // user + system time of the whole process
+    rusage r{};
+    if (getrusage(RUSAGE_SELF, &r) != 0) return 0;
+    return uint64_t(r.ru_utime.tv_sec + r.ru_stime.tv_sec) * 1000000u +
+           uint64_t(r.ru_utime.tv_usec + r.ru_stime.tv_usec);
+}
+
+void Run(const Vulkan::Instance* instance) {
+    const unsigned cores = std::max(1u, std::thread::hardware_concurrency());
+    constexpr double GiB = 1024.0 * 1024.0 * 1024.0;
+    uint64_t ram_total = 0;
+    size_t length = sizeof(ram_total);
+    if (sysctlbyname("hw.memsize", &ram_total, &length, nullptr, 0) != 0) ram_total = 0;
+    uint64_t last_process = 0;
+    auto last_wall = std::chrono::steady_clock::now();
+    while (true) {
+        Sample s;
+        s.gpu_name = std::string(instance->GetModelName());
+        const uint64_t process = ProcessMicros();
+        const auto wall = std::chrono::steady_clock::now();
+        if (last_process) {
+            const uint64_t wall_us = uint64_t(std::chrono::duration<double, std::micro>(wall - last_wall).count());
+            s.cpu_percent = CpuPercent(process - last_process, wall_us, cores);
+        }
+        last_process = process;
+        last_wall = wall;
+        mach_task_basic_info_data_t task{};
+        mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+        if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, reinterpret_cast<task_info_t>(&task), &count) == KERN_SUCCESS)
+            s.ram_used_gb = double(task.resident_size) / GiB;
+        if (ram_total) s.ram_total_gb = double(ram_total) / GiB;
+        if (instance->CanReportMemoryUsage()) {
+            s.vram_used_gb = double(instance->GetDeviceMemoryUsage()) / GiB;
+            s.vram_total_gb = double(instance->GetTotalMemoryBudget()) / GiB;
+        }
+        s.gpu_percent = -1.0f;
         {
             std::scoped_lock lock{mutex};
             latest = std::move(s);
