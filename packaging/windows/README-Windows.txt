@@ -17,6 +17,32 @@ XeSS runs on Intel Arc, Radeon RX 5000 and later and GeForce GTX 10 and later; D
 NVIDIA RTX card. XeSS needs the Visual C++ 2015-2022 runtime (vc_redist.x64). Without the files
 the game keeps its own anti-aliasing.
 
+What's new in 0.3.6
+- XeSS (Intel) as anti-aliasing / upscaler: Graphics > Anti-aliasing > XeSS. It runs on Intel Arc,
+  Radeon RX 5000 and later and GeForce GTX 10 and later, so cards without FSR 4 or DLSS get a
+  modern anti-aliasing too (about 1 ms per frame on a Radeon RX 9060 XT).
+- XeSS and DLSS files download by themselves: pick one and the launcher fetches Intel's and
+  NVIDIA's files from their GitHub releases and checks them. No more copying DLLs by hand.
+- Graphics > Your PC: the launcher finds your graphics card, processor and memory, says what to
+  expect in the city and sets the graphics for a goal. Recommended is the testers' pick for most
+  PCs: Balanced performance mode, original detail, shaders in the background and, on a 100 Hz or
+  faster screen, even frame pacing at half the refresh rate.
+- Performance > Frame pacing: half or a third of the screen's refresh rate with every frame shown
+  for the same time, so motion is smooth without G-Sync / FreeSync. The FPS counter now shows the
+  game's real frame rate in this mode (it showed the screen's refresh rate).
+- Faster Windows build (link-time and profile-guided optimisation from a training run): about
+  100 FPS in the city on a Ryzen 7 3700X in our tests.
+- Fewer hitches while the city streams in: file reads into memory the graphics card uses no
+  longer fault page by page.
+- In-game menu (Insert / R3+L2) > Controls: change any key by pressing the new one, live.
+- Keyboard: Options (Start) is Escape for everyone; R held with the mouse moved is a finger on the
+  touchpad (hand scanner, engine pull) - G is still the touchpad's left side.
+- Game > Skip the intro logos.
+- Launcher: a new look (side bar with the pages, rounded buttons and switches), a What's new page
+  with the release notes, a Help page that checks the installation and the last game log and
+  says how to fix what it finds, Resolution on the Home page, and the Discord link. Updating from
+  the launcher keeps the shader seed of the new release.
+
 What's new in 0.3.5.1
 - Fixed: the picture staying dark at night (only lights and glow visible) on some PCs. The
   launcher's Graphics > Effects at Light or Off kept the game from reading its light metering back
