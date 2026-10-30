@@ -33,6 +33,7 @@ extern "C" const char* runtime_pad_key_name(const char* button);
 #include "imgui_impl_vulkan.h"
 #include "video_core/renderdoc.h"
 #include "video_core/renderer_vulkan/vk_dlss.h"
+#include "video_core/renderer_vulkan/issn_framegen.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 
@@ -325,6 +326,21 @@ std::string OverlayText() {
     sample.fps = present_ms_avg > 0.0f ? 1000.0f / present_ms_avg : 0.0f;
     sample.frame_ms = present_ms_avg;
     sample.game_fps = frame_ms_avg > 0.0f ? 1000.0f / frame_ms_avg : 0.0f;
+    {
+        // Generated frames per second over about a second (issn_framegen.h).
+        static auto window_start = std::chrono::steady_clock::now();
+        static u64 window_count = Vulkan::FrameGen::GeneratedCount();
+        static float generated_fps = 0.0f;
+        const auto now = std::chrono::steady_clock::now();
+        const float seconds = std::chrono::duration<float>(now - window_start).count();
+        if (seconds >= 1.0f) {
+            const u64 count = Vulkan::FrameGen::GeneratedCount();
+            generated_fps = float(count - window_count) / seconds;
+            window_count = count;
+            window_start = now;
+        }
+        sample.generated_fps = generated_fps;
+    }
     sample.upscaler = UpscalerLabel(s.upscaler);
     unsigned shown = items;
     if (const int mode = Vulkan::Dlss::Mode(); mode == 1 || Vulkan::Dlss::OwnUpscaler()) {

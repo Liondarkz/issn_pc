@@ -44,6 +44,7 @@ constexpr vk::ImageUsageFlags Usage = vk::ImageUsageFlagBits::eSampled |
                                       vk::ImageUsageFlagBits::eTransferDst;
 
 std::atomic<bool> g_failed{false};
+std::atomic<u64> g_generated{0}; ///< GeneratedCount
 
 struct Owned {
     VideoCore::UniqueImage image;
@@ -390,6 +391,9 @@ struct State {
         }
         Barrier(cmdbuf, out, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eGeneral);
         ++(generated ? this->generated : copied);
+        if (generated) {
+            g_generated.fetch_add(1, std::memory_order_relaxed);
+        }
         if (((this->generated + copied) & 4095) == 0) {
             LOG_INFO(Render_Vulkan, "Frame generation: {} frames generated, {} shown twice",
                      this->generated, copied);
@@ -439,6 +443,10 @@ bool Generate(const Instance& instance, Scheduler& scheduler, vk::CommandBuffer 
     State& state = Get(instance, scheduler);
     std::scoped_lock lock{state.mutex};
     return state.Generate(cmdbuf, frame, out, width, height);
+}
+
+u64 GeneratedCount() {
+    return g_generated.load(std::memory_order_relaxed);
 }
 
 void Shutdown() {

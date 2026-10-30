@@ -45,6 +45,10 @@ void Capture(const Instance& instance, Scheduler& scheduler, vk::CommandBuffer c
 bool Generate(const Instance& instance, Scheduler& scheduler, vk::CommandBuffer cmdbuf,
               vk::Image frame, vk::Image out, u32 width, u32 height);
 
+/// Frames really generated so far (not the copies of frames without a capture): the overlay
+/// shows their rate next to the game's ("100 FPS (game 50 + FG 50)").
+u64 GeneratedCount();
+
 /// Frees the context and images (the device is idle).
 void Shutdown();
 

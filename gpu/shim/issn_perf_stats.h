@@ -36,6 +36,8 @@ struct Sample {
     /// pacing repeats and generated frames included); game_fps: frames the game made, shown
     /// next to it when the two differ (0 = not known).
     float fps = 0.0f, frame_ms = 0.0f, game_fps = 0.0f;
+    /// Frames made by frame generation per second (0 = none).
+    float generated_fps = 0.0f;
     std::string upscaler;
     std::string gpu_name;
     float gpu_percent = -1.0f, cpu_percent = -1.0f;
@@ -70,7 +72,10 @@ inline std::string Format(const Sample& s, unsigned mask, bool row) {
         }
     };
     if (mask & Fps) {
-        if (s.game_fps > 0.0f && std::abs(s.game_fps - s.fps) > 0.05f * s.fps) {
+        if (s.generated_fps >= 1.0f && s.game_fps > 0.0f) {
+            std::snprintf(part, sizeof(part), "%.0f FPS (game %.0f + FG %.0f)", s.fps, s.game_fps,
+                          s.generated_fps);
+        } else if (s.game_fps > 0.0f && std::abs(s.game_fps - s.fps) > 0.05f * s.fps) {
             std::snprintf(part, sizeof(part), "%.0f FPS (game %.0f)", s.fps, s.game_fps);
         } else {
             std::snprintf(part, sizeof(part), "%.0f FPS", s.fps);
