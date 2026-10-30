@@ -189,6 +189,7 @@ def list_gpus():
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import button_icons  # noqa: E402
 import issn_hardware  # noqa: E402
+import issn_help  # noqa: E402
 import issn_lang  # noqa: E402
 
 LANG = 'en'
@@ -371,8 +372,8 @@ FRAME_PACING = [('', ('Normal: a new frame at every refresh it is ready (default
                 ('3', ('A third of the refresh rate, even (48 FPS on 144 Hz, 80 on 240 Hz)',))]
 FPS_LIMITS = [('30', ('30',)), ('60', ('60',)), ('120', ('120',)), ('240', ('240',)), ('0', ('Unlimited',))]
 # The sidebar's pages, top to bottom, and the methods that refresh a page's lists when it is shown.
-PAGES = ('home', 'news', 'graphics', 'performance', 'game', 'advanced')
-PAGE_REFRESH = {'home': ('refresh_status',), 'news': ('refresh_news',), 'game': ('refresh_lists', 'refresh_game_patches')}
+PAGES = ('home', 'news', 'graphics', 'performance', 'game', 'advanced', 'help')
+PAGE_REFRESH = {'home': ('refresh_status',), 'news': ('refresh_news',), 'help': ('run_help',), 'game': ('refresh_lists', 'refresh_game_patches')}
 APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', str(PORT_DIR.parent / 'CUSA00004') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
                 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False, 'frame_pacing': '', 'seed_any_profile': False,
@@ -1413,7 +1414,7 @@ class Launcher:
         self.nav, self.current_page = {}, None
         titles = {'home': _('Home'), 'news': _("What's new", 'Что нового'), 'graphics': _('Graphics', 'Графика'),
                   'performance': _('Performance'),
-                  'game': _('Game', 'Игра'), 'advanced': _('Advanced', 'Дополнительно')}
+                  'game': _('Game', 'Игра'), 'advanced': _('Advanced', 'Дополнительно'), 'help': _('Help', 'Помощь')}
         tabs = tk.Frame(header, bg=BG)
         tabs.pack(side='left', fill='y')
         for name in PAGES:
@@ -1464,6 +1465,7 @@ class Launcher:
         self.build_performance()
         self.build_game()
         self.build_advanced()
+        self.build_help()
         self.root.bind_all('<MouseWheel>', self.wheel)
         if not WINDOWS:  # X11 (Tk 8.6): the wheel arrives as buttons 4 and 5; on Windows those are side buttons
             self.root.bind_all('<Button-4>', self.wheel)
@@ -1563,6 +1565,63 @@ class Launcher:
                     r['version'], r['zip'], r['page'])).pack(side='left', padx=(0, 6))
             ttk.Button(buttons, text=_('Open on GitHub'), command=lambda u=release['page']: open_url(u)).pack(
                 side='left')
+
+    def build_help(self):
+        """Help: the installation and the last game log checked for the problems the launcher knows
+        (issn_help), each with what it means and the steps that fix it."""
+        tk, ttk = self.tk, self.ttk
+        f = self.scrolled_page('help', _('Help', 'Помощь'),
+                               _('Checks your installation and the last game log, and shows how to fix what it finds.'))
+        bar = ttk.Frame(f)
+        bar.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(4, 0))
+        ttk.Button(bar, text=_('Check again'), command=self.run_help).pack(side='left')
+        ttk.Button(bar, text=_('Save a bug report'), command=self.bug_report).pack(side='left', padx=6)
+        ttk.Button(bar, text=_('Open the log'), command=lambda: self.open_path(run_log_path(self.app))).pack(side='left')
+        ttk.Button(bar, text=_('Ask on the Discord'), command=lambda: open_url(DISCORD_URL)).pack(side='left', padx=6)
+        self.help_body = ttk.Frame(f)
+        self.help_body.grid(row=self.next_row(f), column=0, columnspan=2, sticky='we', pady=(6, 0))
+        self.help_body.columnconfigure(0, weight=1)
+
+    def run_help(self):
+        try:
+            log = run_log_path(self.app).read_text(errors='replace')
+        except OSError:
+            log = ''
+        topics = issn_help.check(PORT_DIR, self.var('game_dir', 'app').get(), self.var('update_dir', 'app').get(), log)
+        self.help_topics = topics
+        self.show_help(topics, issn_help.crash_line(log) if 'crash' in topics else '')
+
+    def show_help(self, topics, crash=''):
+        tk = self.tk
+        for child in self.help_body.winfo_children():
+            child.destroy()
+        if not topics:
+            box = tk.Frame(self.help_body, bg=CARD, padx=self.px(18), pady=self.px(14))
+            box.grid(row=0, column=0, sticky='we', pady=(self.px(10), 0))
+            tk.Frame(box, bg=NEON, width=self.px(4)).pack(side='left', fill='y', padx=(0, self.px(14)))
+            tk.Label(box, text=_('No problem found in the installation or the last game log.'), bg=CARD, fg=TEXT,
+                     font=(UI_FONT, 11, 'bold'), anchor='w', justify='left').pack(anchor='w')
+            tk.Label(box, text=_('Something still wrong? Save a bug report and send it on the Discord.'), bg=CARD,
+                     fg=MUTED, font=(UI_FONT, 9), anchor='w', justify='left').pack(anchor='w', pady=(self.px(4), 0))
+            return
+        for index, topic in enumerate(topics):
+            title, meaning, steps = issn_help.TOPICS[topic]
+            box = tk.Frame(self.help_body, bg=CARD, padx=self.px(18), pady=self.px(14))
+            box.grid(row=index, column=0, sticky='we', pady=(self.px(10), 0))
+            box.columnconfigure(1, weight=1)
+            tk.Frame(box, bg=ACCENT, width=self.px(4)).grid(row=0, column=0, rowspan=4, sticky='nsw',
+                                                            padx=(0, self.px(14)))
+            tk.Label(box, text=_(title), bg=CARD, fg=TEXT, font=(UI_FONT, 11, 'bold'), anchor='w',
+                     justify='left').grid(row=0, column=1, sticky='w')
+            tk.Label(box, text=_(meaning), bg=CARD, fg=MUTED, font=(UI_FONT, 10), anchor='w', justify='left',
+                     wraplength=self.px(680)).grid(row=1, column=1, sticky='w', pady=(self.px(4), 0))
+            if topic == 'crash' and crash:
+                tk.Label(box, text=crash, bg=CARD, fg=ACCENT_HI, font=('Consolas' if WINDOWS else 'monospace', 9),
+                         anchor='w', justify='left', wraplength=self.px(680)).grid(row=2, column=1, sticky='w',
+                                                                                    pady=(self.px(6), 0))
+            text = '\n'.join(f'{n}. {_(step)}' for n, step in enumerate(steps, 1))
+            tk.Label(box, text=text, bg=CARD, fg=TEXT, font=(UI_FONT, 10), anchor='w', justify='left',
+                     wraplength=self.px(680)).grid(row=3, column=1, sticky='w', pady=(self.px(8), 0))
 
     def build_home(self):
         tk, ttk = self.tk, self.ttk
@@ -2658,6 +2717,8 @@ class Launcher:
                     if self.job:
                         self.job.close()
                     self.refresh_status()
+                    if item[0] not in (0, None):
+                        self.root.after(800, self.after_failed_run)
                 else:
                     if 'Entering original x86-64 code' in item:
                         self.status.configure(text=_('The game is running.', 'Игра запущена.'), fg=TEXT)
@@ -2667,6 +2728,15 @@ class Launcher:
         except queue.Empty:
             pass
         self.root.after(100, self.drain_output)
+
+    def after_failed_run(self):
+        """The game ended with an error: the Help page reads its log and opens when it names a cause."""
+        if self.process:
+            return
+        self.run_help()
+        if self.help_topics:
+            self.show('help')
+            self.status.configure(text=_('The game ended with an error: Help shows what the log says.'), fg=ACCENT_HI)
 
     def append(self, text):
         self.log.configure(state='normal')
