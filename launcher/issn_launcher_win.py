@@ -3376,11 +3376,33 @@ def install_shader_seed(source, target):
     dest = Path(target) / 'user' / 'cache' / name
     if not (seed / 'seed-stamp.bin').is_file() or dest.exists():
         return False
-    part = dest.with_name(name + '.part')
-    shutil.rmtree(part, ignore_errors=True)
-    shutil.copytree(seed, part)
-    part.rename(dest)
-    return True
+    return place_shader_seed(seed, dest)
+
+
+def place_shader_seed(seed, dest, tries=20, pause=0.5):
+    """Copies the seed folder to `dest` through `dest`.part and a rename. Never raises.
+    10-30: on Windows the rename failed right after the copy (an antivirus scanning the new files
+    holds them), the update went on, and the player's game started on an empty cache folder with
+    only issn-seed-<version>.part left: every shader compiled while playing. The rename is tried
+    again for a while, then the seed is copied straight under its own name."""
+    dest = Path(dest)
+    part = dest.with_name(dest.name + '.part')
+    try:
+        shutil.rmtree(part, ignore_errors=True)
+        shutil.copytree(seed, part, dirs_exist_ok=True)
+        for attempt in range(tries):
+            try:
+                part.rename(dest)
+                return True
+            except OSError:
+                if attempt + 1 < tries:
+                    time.sleep(pause)
+        shutil.copytree(seed, dest, dirs_exist_ok=True)
+        shutil.rmtree(part, ignore_errors=True)
+        return True
+    except OSError as error:
+        print(f'Shader seed: could not place it in {dest.parent} ({error})', flush=True)
+        return False
 
 
 def install_update(target, wait_pid):

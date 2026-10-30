@@ -48,6 +48,25 @@ class UpdateSeedTest(unittest.TestCase):
             self.assertTrue((old / 'user' / 'cache' / 'issn-seed-0.3.6' / 'seed-stamp.bin').is_file())
             self.assertFalse(launcher.install_shader_seed(new, old))  # already there: kept
 
+    def test_a_held_rename_still_places_the_seed(self):
+        # 10-30: the rename right after the copy failed on Windows (files held), leaving only
+        # issn-seed-0.3.6.part and an empty cache. The seed must still end up under its name.
+        import tempfile
+        import unittest.mock
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            seed = Path(tmp) / 'seed'
+            seed.mkdir()
+            (seed / 'seed-stamp.bin').write_bytes(b'SSTP')
+            (seed / 'a.key').write_bytes(b'k')
+            dest = Path(tmp) / 'cache' / 'issn-seed-0.3.6'
+            dest.parent.mkdir()
+            with unittest.mock.patch.object(Path, 'rename', side_effect=PermissionError('held')):
+                self.assertTrue(launcher.place_shader_seed(seed, dest, tries=3, pause=0))
+            self.assertTrue((dest / 'seed-stamp.bin').is_file())
+            self.assertTrue((dest / 'a.key').is_file())
+            self.assertFalse(dest.with_name('issn-seed-0.3.6.part').exists())
+
 
 
 class ReleaseNotesTest(unittest.TestCase):

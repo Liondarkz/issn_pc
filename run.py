@@ -43,8 +43,19 @@ def shader_seed_name(port, user_dir):
         part = target.with_name(name + '.part')
         try:
             shutil.rmtree(part, ignore_errors=True)
-            shutil.copytree(shipped, part)
-            part.rename(target)
+            shutil.copytree(shipped, part, dirs_exist_ok=True)
+            # 10-30: the rename can fail right after the copy (an antivirus holds the new files):
+            # tried again for a while, then the seed is copied under its own name.
+            for attempt in range(20):
+                try:
+                    part.rename(target)
+                    break
+                except OSError:
+                    if attempt == 19:
+                        shutil.copytree(shipped, target, dirs_exist_ok=True)
+                        shutil.rmtree(part, ignore_errors=True)
+                    else:
+                        time.sleep(0.5)
             print(f'Shader seed {name} copied to {target.parent}', flush=True)
         except OSError as error:
             print(f'Shader seed: could not copy it to {target.parent} ({error})', flush=True)
