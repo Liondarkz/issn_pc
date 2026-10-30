@@ -962,11 +962,46 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
         }
     }
     frame->generated = generated;
-    const auto record_generated = [this, generated, fc = *frame](vk::CommandBuffer cb) {
-        if (generated) {
-            FrameGen::Generate(instance, draw_scheduler, cb, fc.image, generated->image, fc.width,
-                               fc.height);
+    // With the upscaler's HUD layer (dlss_job; vk_dlss_upscale.cpp keeps it on while frame
+    // generation is) the scene is interpolated alone and this frame's HUD laid over the result,
+    // through the same composite and post pass as the frame itself: the HUD stays sharp. Without
+    // it the whole finished frame is interpolated (or copied, when nothing was captured).
+    const auto record_generated = [this, generated, fc = *frame](
+                                      vk::CommandBuffer cb,
+                                      const std::optional<Dlss::CompositeJob>& job,
+                                      const HostPasses::PostProcessingPass::Settings& pp) {
+        if (!generated) {
+            return;
         }
+        if (job) {
+            if (const auto scene = FrameGen::GenerateScene(instance, draw_scheduler, cb,
+                                                           job->scene_image, job->size.width,
+                                                           job->size.height)) {
+                Dlss::CompositeJob composite = *job;
+                composite.scene_view = scene->scene;
+                composite.out_image = scene->composite_image;
+                composite.out_view = scene->composite_view;
+                Dlss::RecordComposite(cb, composite);
+                const vk::ImageMemoryBarrier2 to_draw{
+                    .srcStageMask = vk::PipelineStageFlagBits2::eAllCommands,
+                    .srcAccessMask = vk::AccessFlagBits2::eMemoryRead,
+                    .dstStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                    .dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
+                    .oldLayout = vk::ImageLayout::eUndefined,
+                    .newLayout = vk::ImageLayout::eColorAttachmentOptimal,
+                    .image = generated->image,
+                    .subresourceRange{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1},
+                };
+                cb.pipelineBarrier2(vk::DependencyInfo{
+                    .imageMemoryBarrierCount = 1,
+                    .pImageMemoryBarriers = &to_draw,
+                });
+                pp_pass.Render(cb, composite.out_view, composite.size, *generated, pp);
+                return;
+            }
+        }
+        FrameGen::Generate(instance, draw_scheduler, cb, fc.image, generated->image, fc.width,
+                           fc.height);
     };
     const auto finish_generated = [&] {
         if (generated) {
@@ -991,7 +1026,7 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
             if (dlss_job) {
                 Dlss::RecordComposite(cb, *dlss_job);
                 pp_pass.Render(cb, dlss_job->out_view, dlss_job->size, fc, pp);
-                record_generated(cb);
+                record_generated(cb, dlss_job, pp);
                 return;
             }
             vk::ImageView source = image_view;
@@ -1004,7 +1039,7 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
             const auto view =
                 fsr_pass.Render(cb, source, image_size, {fc.width, fc.height}, fsr, fc.is_hdr);
             pp_pass.Render(cb, view, image_size, fc, pp);
-            record_generated(cb);
+            record_generated(cb, std::nullopt, pp);
         });
         DebugState.game_resolution = {image_size.width, image_size.height};
         DebugState.output_resolution = {frame->width, frame->height};
@@ -1084,7 +1119,7 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
                                      {frame->width, frame->height}, fsr_settings, frame->is_hdr);
         pp_pass.Render(cmdbuf, image_view, image_size, *frame, pp_settings);
     }
-    record_generated(cmdbuf);
+    record_generated(cmdbuf, dlss_job, pp_settings);
 
     DebugState.game_resolution = {image_size.width, image_size.height};
     DebugState.output_resolution = {frame->width, frame->height};

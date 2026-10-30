@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <deque>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -17,6 +18,7 @@
 #include "ffx_vk_fsr3_3_1_5_bridge.h"
 #include "video_core/buffer_cache/buffer.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
+#include "video_core/renderer_vulkan/vk_platform.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/texture_cache/image.h"
 
@@ -53,6 +55,7 @@ std::atomic<u64> g_generated{0}; ///< GeneratedCount
 
 struct Owned {
     VideoCore::UniqueImage image;
+    vk::UniqueImageView view; ///< destroyed before the image (declared after it)
     vk::ImageLayout layout = vk::ImageLayout::eUndefined;
     vk::Format format = vk::Format::eUndefined;
     u32 width = 0, height = 0;
@@ -109,6 +112,7 @@ struct State {
     std::mutex mutex;
     Owned depth, motion;  ///< this frame's capture (render size)
     Owned color, output;  ///< the finished frame and the generated one (display size)
+    Owned composite;      ///< the generated scene with the HUD over it (HUD-free path)
     std::unique_ptr<VideoCore::UniqueBuffer> depth_buffer;
     u64 depth_buffer_size = 0;
     std::deque<std::pair<u64, Owned>> retired_images;
@@ -146,6 +150,13 @@ struct State {
             .usage = Usage,
             .initialLayout = vk::ImageLayout::eUndefined,
         });
+        owned.view = Check<"create frame generation view">(
+            instance.GetDevice().createImageViewUnique(vk::ImageViewCreateInfo{
+                .image = owned.image,
+                .viewType = vk::ImageViewType::e2D,
+                .format = format,
+                .subresourceRange = ColorRange,
+            }));
         owned.layout = vk::ImageLayout::eUndefined;
         owned.format = format;
         owned.width = width;
@@ -357,28 +368,86 @@ struct State {
         return true;
     }
 
-    bool Generate(vk::CommandBuffer cmdbuf, vk::Image frame, vk::Image out, u32 width,
-                  u32 height) {
-        Retire();
+    float FrameMs() {
         const auto now = std::chrono::steady_clock::now();
         float frame_ms = std::chrono::duration<float, std::milli>(now - last_generate).count();
         last_generate = now;
-        if (!(frame_ms > 1.0f && frame_ms < 200.0f)) {
-            frame_ms = 16.6f;
-        }
-        const bool have_capture = captured;
-        captured = false;
+        return frame_ms > 1.0f && frame_ms < 200.0f ? frame_ms : 16.6f;
+    }
+
+    void Tell(bool have_capture, bool hudless) {
         // The log says once whether the inputs arrive (10-30: a test showed no generated frames
-        // and the log said nothing about frame generation).
+        // and the log said nothing about frame generation) and which path the frames take.
         static int told = -1;
-        if (int(have_capture) != told) {
-            told = int(have_capture);
+        const int now = have_capture ? (hudless ? 2 : 1) : 0;
+        if (now != told) {
+            told = now;
             std::printf("Frame generation: %s\n",
-                        have_capture ? "depth and motion vectors arrive, interpolating"
-                                     : "no depth / motion capture for this frame (menu, movie, or "
-                                       "the anti-aliasing is not FSR 4 / XeSS / DLSS): shown as is");
+                        now == 2   ? "depth and motion vectors arrive, interpolating the scene "
+                                     "(the HUD is laid over it sharp)"
+                        : now == 1 ? "depth and motion vectors arrive, interpolating the whole "
+                                     "frame (no HUD layer: the HUD can break up in motion)"
+                                   : "no depth / motion capture for this frame (menu, movie, or "
+                                     "the anti-aliasing is not FSR 4 / XeSS / DLSS): shown as is");
             std::fflush(stdout);
         }
+    }
+
+    void Count(bool generated) {
+        ++(generated ? this->generated : copied);
+        if (generated) {
+            g_generated.fetch_add(1, std::memory_order_relaxed);
+        }
+        if (((this->generated + copied) & 4095) == 0) {
+            LOG_INFO(Render_Vulkan, "Frame generation: {} frames generated, {} shown twice",
+                     this->generated, copied);
+        }
+    }
+
+    std::optional<SceneFrame> GenerateScene(vk::CommandBuffer cmdbuf, vk::Image scene, u32 width,
+                                            u32 height) {
+        if (!captured || g_failed.load(std::memory_order_relaxed)) {
+            return std::nullopt; // Generate copies the finished frame (and says why)
+        }
+        Retire();
+        const float frame_ms = FrameMs();
+        captured = false;
+        Tell(true, true);
+        Ensure(color, ColorFormat, width, height);
+        Ensure(output, ColorFormat, width, height);
+        Ensure(composite, vk::Format::eR16G16B16A16Sfloat, width, height);
+        // The scene (the upscaler's output, this frame's HUD not in it) into FSR's colour image;
+        // the scene goes back to the layout the upscaler keeps track of.
+        Barrier(cmdbuf, scene, vk::ImageLayout::eShaderReadOnlyOptimal,
+                vk::ImageLayout::eTransferSrcOptimal);
+        To(cmdbuf, color, vk::ImageLayout::eTransferDstOptimal);
+        Blit(cmdbuf, scene, vk::ImageLayout::eTransferSrcOptimal, width, height, color.image, width,
+             height);
+        Barrier(cmdbuf, scene, vk::ImageLayout::eTransferSrcOptimal,
+                vk::ImageLayout::eShaderReadOnlyOptimal);
+        To(cmdbuf, color, vk::ImageLayout::eGeneral);
+        To(cmdbuf, output, vk::ImageLayout::eGeneral);
+        if (!Interpolate(cmdbuf, width, height, frame_ms)) {
+            reset = true;
+            return std::nullopt;
+        }
+        reset = false;
+        To(cmdbuf, output, vk::ImageLayout::eShaderReadOnlyOptimal);
+        Count(true);
+        return SceneFrame{
+            .scene = *output.view,
+            .composite_image = composite.image,
+            .composite_view = *composite.view,
+        };
+    }
+
+    bool Generate(vk::CommandBuffer cmdbuf, vk::Image frame, vk::Image out, u32 width,
+                  u32 height) {
+        Retire();
+        const float frame_ms = FrameMs();
+        const bool have_capture = captured;
+        captured = false;
+        Tell(have_capture, false);
         // The composed frame (the post pass wrote it) into FSR's colour image.
         Barrier(cmdbuf, frame, vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral);
         Barrier(cmdbuf, out, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
@@ -406,14 +475,7 @@ struct State {
             Blit(cmdbuf, frame, vk::ImageLayout::eGeneral, width, height, out, width, height);
         }
         Barrier(cmdbuf, out, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eGeneral);
-        ++(generated ? this->generated : copied);
-        if (generated) {
-            g_generated.fetch_add(1, std::memory_order_relaxed);
-        }
-        if (((this->generated + copied) & 4095) == 0) {
-            LOG_INFO(Render_Vulkan, "Frame generation: {} frames generated, {} shown twice",
-                     this->generated, copied);
-        }
+        Count(generated);
         return generated;
     }
 };
@@ -459,6 +521,14 @@ bool Generate(const Instance& instance, Scheduler& scheduler, vk::CommandBuffer 
     State& state = Get(instance, scheduler);
     std::scoped_lock lock{state.mutex};
     return state.Generate(cmdbuf, frame, out, width, height);
+}
+
+std::optional<SceneFrame> GenerateScene(const Instance& instance, Scheduler& scheduler,
+                                        vk::CommandBuffer cmdbuf, vk::Image scene, u32 width,
+                                        u32 height) {
+    State& state = Get(instance, scheduler);
+    std::scoped_lock lock{state.mutex};
+    return state.GenerateScene(cmdbuf, scene, width, height);
 }
 
 u64 GeneratedCount() {

@@ -63,6 +63,7 @@ struct CompositeJob {
     vk::PipelineLayout layout;
     vk::ImageView hud_view;  ///< the HUD layer (game resolution), shader-read layout
     vk::ImageView scene_view; ///< DLSS output, shader-read layout
+    vk::Image scene_image;    ///< its image (frame generation interpolates the HUD-free scene)
     vk::Image out_image;
     vk::ImageView out_view;
     vk::Extent2D size;

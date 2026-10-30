@@ -13,6 +13,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include "common/types.h"
 #include "video_core/renderer_vulkan/issn_fsr4.h"
 #include "video_core/renderer_vulkan/vk_common.h"
@@ -44,6 +45,21 @@ void Capture(const Instance& instance, Scheduler& scheduler, vk::CommandBuffer c
 /// was generated.
 bool Generate(const Instance& instance, Scheduler& scheduler, vk::CommandBuffer cmdbuf,
               vk::Image frame, vk::Image out, u32 width, u32 height);
+
+/// The HUD-free path (the HUD layer of vk_dlss_upscale.h is on while frame generation is): the
+/// upscaler's scene image (`scene`, RGBA8 UNORM, `width` x `height`, ShaderReadOnlyOptimal and
+/// left so) is interpolated alone. On success the presenter composites this frame's HUD over
+/// `scene` into `composite` (an image of frame generation's own, RGBA16F) and runs the post pass
+/// from it into the generated frame: the HUD stays sharp instead of being interpolated. Nothing
+/// when no frame was generated (no capture, a failure): then Generate copies the finished frame.
+struct SceneFrame {
+    vk::ImageView scene;       ///< the generated scene, ShaderReadOnlyOptimal
+    vk::Image composite_image; ///< for Dlss::CompositeJob::out_image
+    vk::ImageView composite_view;
+};
+std::optional<SceneFrame> GenerateScene(const Instance& instance, Scheduler& scheduler,
+                                        vk::CommandBuffer cmdbuf, vk::Image scene, u32 width,
+                                        u32 height);
 
 /// Frames really generated so far (not the copies of frames without a capture): the overlay
 /// shows their rate next to the game's ("100 FPS (game 50 + FG 50)").

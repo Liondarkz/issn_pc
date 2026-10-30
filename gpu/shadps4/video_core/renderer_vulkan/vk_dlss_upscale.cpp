@@ -8,6 +8,7 @@
 #include "common/logging/log.h"
 #include "video_core/host_shaders/dlss_composite_comp.h"
 #include "video_core/renderer_vulkan/vk_dlss_upscale.h"
+#include "video_core/renderer_vulkan/issn_framegen.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
@@ -145,8 +146,11 @@ void Upscaler::SetOutputSize(u32 width, u32 height) {
     const u32 fit_h = std::max<u32>(game_h, static_cast<u32>(out_h * fit));
     output_size = force ? vk::Extent2D{game_w, game_h} : vk::Extent2D{fit_w, fit_h};
     // DLSS needs an output larger than its input; smaller windows keep DLAA in place.
-    const bool on = (force || (width > game_w && height > game_h)) && g_ready.load() &&
-                    instance.IsDynamicColorWriteMaskSupported();
+    // issn-axy: frame generation keeps the HUD layer at any size: it interpolates the scene
+    // alone and lays the newest HUD over the frame it makes (the HUD broke up in fast motion
+    // when the whole frame was interpolated, 10-30).
+    const bool on = (force || FrameGen::Active() || (width > game_w && height > game_h)) &&
+                    g_ready.load() && instance.IsDynamicColorWriteMaskSupported();
     if (on != g_hud_layer.load(std::memory_order_relaxed)) {
         // issn-axy: a warning (the port's log level), and FSR 4 named when it is the upscaler.
         LOG_WARNING(Render_Vulkan, "{} upscale: {} (game {}x{}, output {}x{}{})",
@@ -260,6 +264,7 @@ CompositeJob Upscaler::TakeJob(vk::ImageView hud_view) {
         .layout = pipeline_layout.get(),
         .hud_view = hud_view,
         .scene_view = scene->view.get(),
+        .scene_image = scene->image,
         .out_image = out->image,
         .out_view = out->view.get(),
         .size = image_size,
