@@ -1655,9 +1655,10 @@ class Launcher:
         quick.pack(fill='x', side='bottom')
         inner = ttk.Frame(quick, padding=(32, 12, 32, 14))
         inner.pack(fill='x')
-        items = ((_('Anti-aliasing'), 'anti_aliasing', 'app', ANTI_ALIASING),
+        # issn 0.3.6 (user 10-30): Resolution on Home too; draw distance stays on Performance.
+        items = ((_('Resolution'), 'render_height', 'app', RESOLUTIONS),
+                 (_('Anti-aliasing'), 'anti_aliasing', 'app', ANTI_ALIASING),
                  (_('Frame rate limit'), 'fps_limit', 'ini', FPS_LIMITS),
-                 (_('Draw distance'), 'draw_distance', 'app', DRAW_DISTANCE),
                  (_('Display mode'), 'display_mode', 'ini', DISPLAY_MODES))
         for index, (title, key, store, options) in enumerate(items):
             cell = ttk.Frame(inner)
