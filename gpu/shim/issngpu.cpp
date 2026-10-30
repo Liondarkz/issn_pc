@@ -712,7 +712,25 @@ extern "C" int issngpu_text_input_poll(char* out, uint64_t size) {
     return state;
 }
 
-// issn: ISSN_WRITE_MERGE was the old core's; the new one has no merge path (writes fault normally).
-extern "C" int issngpu_cpu_write(void*, const void*, int, uint64_t) {
-    return 0;
+// issn 0.3.6: a file read copied into GPU-tracked memory (src/runtime_file.c bounce_read). The
+// game streams its city blocks this way, 10-30 MB at a time; page by page that was one write
+// fault per 4 KB page (João's hitch lines 10-29: 4,000-7,600 faults and 50-170 ms in the frames
+// that read a block). The whole chunk is now marked CPU-written first, exactly as its faults
+// would have done (GuestWriteFault: GPU-written pages are read back, the rest unprotected), then
+// copied without faulting. Small reads keep the fault path. ISSN_READ_INVALIDATE=0: off.
+extern "C" int issngpu_cpu_write(void* dst, const void* src, int, uint64_t size) {
+    static const bool enabled = [] {
+        const char* v = std::getenv("ISSN_READ_INVALIDATE");
+        return !(v && v[0] == '0');
+    }();
+    if (!enabled || size < (64u << 10)) {
+        return 0;
+    }
+    auto* rasterizer = Core::Memory::Instance()->GetRasterizer();
+    if (!rasterizer) {
+        return 0;
+    }
+    rasterizer->InvalidateMemory(reinterpret_cast<VAddr>(dst), size, VideoCore::InvalidateOrigin::GuestWriteFault);
+    std::memcpy(dst, src, size);
+    return 1;
 }
