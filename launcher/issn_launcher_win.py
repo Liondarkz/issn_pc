@@ -221,6 +221,7 @@ def pick_fonts(families):
     """Windows fonts first, then the DejaVu family that most Linux desktops ship."""
     global UI_FONT, MONO_FONT, SERIF_FONT
     available = set(families)
+    FONT_FAMILIES.update(available)
     pick = lambda names: next((name for name in names if name in available), names[-1])
     UI_FONT = pick(('Segoe UI', 'Noto Sans', 'DejaVu Sans'))
     MONO_FONT = pick(('Consolas', 'Noto Sans Mono', 'DejaVu Sans Mono'))
@@ -1043,6 +1044,11 @@ BG, PANEL, CARD, LINE = '#09090c', '#101116', '#181a21', '#262935'
 TEXT, MUTED, ACCENT, ACCENT_HI = '#f2f2f4', '#8c90a0', '#e2263b', '#ff4359'
 NEON, HOVER = '#24d3f2', '#15171e'
 NEON_PINK = '#ff3ea5'
+NAV_ACTIVE, NAV_HOVER = '#16181f', '#111319'  # side bar rows: the page shown, under the mouse
+# Segoe Fluent Icons / Segoe MDL2 Assets code points for the side bar (Windows only).
+NAV_ICONS = {'home': '\ue80f', 'news': '\ue789', 'graphics': '\ue7f4', 'performance': '\uec4a',
+             'game': '\ue7fc', 'advanced': '\ue713', 'help': '\ue897'}
+FONT_FAMILIES = set()  # filled once the window exists (pick_fonts)
 # issn_theme's colours (rounded widgets): fields, hovers and borders between PANEL and TEXT.
 THEME_COLORS = {'bg': '#09090c', 'panel': '#101116', 'card': '#181a21', 'field': '#14161d', 'card_hover': '#1d2029',
                 'hover': '#242836', 'border': '#262935', 'border_strong': '#323645', 'border_hover': '#454b60',
@@ -1206,14 +1212,14 @@ class Launcher:
             boost = max(1.0, min(width / 1920, height / 1080, 2.0)) * 1.25
             self.dpi *= boost
             root.tk.call('tk', 'scaling', root.winfo_fpixels('1i') / 72.0 * boost)
-        window_width, window_height = self.px(1120), self.px(740)
+        window_width, window_height = self.px(1280), self.px(760)  # the side bar takes 232 px
         if width:
             window_width, window_height = min(window_width, int(width * 0.9)), min(window_height, int(height * 0.9))
             root.geometry(f'{window_width}x{window_height}+{left + (width - window_width) // 2}'
                           f'+{top + (height - window_height) // 2}')
         else:
             root.geometry(f'{window_width}x{window_height}')
-        root.minsize(min(self.px(980), window_width), min(self.px(660), window_height))
+        root.minsize(min(self.px(1100), window_width), min(self.px(660), window_height))
         self.set_icon()
         self.style()
         self.build()
@@ -1397,48 +1403,60 @@ class Launcher:
     # ---- layout ------------------------------------------------------------------------------
     def build(self):
         tk, ttk = self.tk, self.ttk
-        header = tk.Frame(self.root, bg=BG, height=self.px(86))
-        header.pack(fill='x', side='top')
-        header.pack_propagate(False)
-        brand = tk.Frame(header, bg=BG)
-        brand.pack(side='left', padx=(self.px(28), self.px(36)))
-        tk.Label(brand, text='INFAMOUS', bg=BG, fg=TEXT, font=heading_font(32, UI_FONT, every_language=True),
-                 bd=0, pady=0).pack(anchor='w', pady=(self.px(10), 0))
+        # issn 0.3.6: a side bar (the brand, the pages with their icons, the hints and links at the
+        # bottom) instead of tabs across the top: seven pages fit, and the content gets the height.
+        side = tk.Frame(self.root, bg=BG, width=self.px(232))
+        side.pack(side='left', fill='y')
+        side.pack_propagate(False)
+        brand = tk.Frame(side, bg=BG)
+        brand.pack(anchor='w', padx=self.px(24), pady=(self.px(20), self.px(18)))
+        tk.Label(brand, text='INFAMOUS', bg=BG, fg=TEXT, font=heading_font(30, UI_FONT, every_language=True),
+                 bd=0, pady=0).pack(anchor='w')
         tk.Label(brand, text=f'SECOND SON  /  PC  ·  v{VERSION}', bg=BG, fg=ACCENT_HI,
-                 font=heading_font(14, UI_FONT, every_language=True), bd=0, pady=0).pack(anchor='w')
+                 font=heading_font(12, UI_FONT, every_language=True), bd=0, pady=0).pack(anchor='w')
         self.nav, self.current_page = {}, None
         titles = {'home': _('Home'), 'news': _("What's new", 'Что нового'), 'graphics': _('Graphics', 'Графика'),
                   'performance': _('Performance'),
                   'game': _('Game', 'Игра'), 'advanced': _('Advanced', 'Дополнительно'), 'help': _('Help', 'Помощь')}
-        tabs = tk.Frame(header, bg=BG)
-        tabs.pack(side='left', fill='y')
+        icon_font = ('Segoe Fluent Icons' if 'Segoe Fluent Icons' in FONT_FAMILIES else 'Segoe MDL2 Assets', 12)
         for name in PAGES:
-            column = tk.Frame(tabs, bg=BG)
-            column.pack(side='left', fill='y', padx=self.px(12))
-            label = tk.Label(column, text=heading_text(titles[name].upper()), bg=BG, fg=MUTED,
-                             font=heading_font(19, UI_FONT), cursor='hand2', bd=0)
-            label.pack(side='top', expand=True)
-            underline = tk.Frame(column, bg=BG, height=self.px(3))
-            underline.pack(side='bottom', fill='x', pady=(0, self.px(14)))
-            for widget in (column, label):
+            row = tk.Frame(side, bg=BG, cursor='hand2', height=self.px(42))
+            row.pack(fill='x', padx=(0, self.px(14)), pady=1)
+            row.pack_propagate(False)
+            marker = tk.Frame(row, bg=BG, width=self.px(3))
+            marker.pack(side='left', fill='y')
+            widgets = [row]
+            if WINDOWS and NAV_ICONS.get(name):
+                icon = tk.Label(row, text=NAV_ICONS[name], bg=BG, fg=MUTED, font=icon_font, width=2)
+                icon.pack(side='left', padx=(self.px(18), self.px(8)))
+                widgets.append(icon)
+            label = tk.Label(row, text=titles[name], bg=BG, fg=MUTED, font=(UI_FONT, 11), anchor='w')
+            label.pack(side='left', padx=(0 if len(widgets) > 1 else self.px(22), 0), fill='x', expand=True)
+            widgets.append(label)
+            for widget in widgets:
                 widget.bind('<Button-1>', lambda _e, n=name: self.show(n))
-                widget.bind('<Enter>', lambda _e, n=name: n != self.current_page and self.nav[n][0].configure(fg=NEON))
-                widget.bind('<Leave>', lambda _e, n=name: n != self.current_page and self.nav[n][0].configure(fg=MUTED))
-            self.nav[name] = (label, underline)
-        self.side_note = tk.Label(header, text=_("In the game: Insert or R3+L2\nopens the port's menu."),
-                                  bg=BG, fg=MUTED, font=(UI_FONT, 9), justify='right')
-        self.side_note.pack(side='right', padx=self.px(26))
-        # A two-colour neon line under the header: smoke red into neon cyan.
-        line = tk.Frame(self.root, bg=BG, height=2)
+                widget.bind('<Enter>', lambda _e, n=name: self.paint_nav(n, hover=True))
+                widget.bind('<Leave>', lambda _e, n=name: self.paint_nav(n, hover=False))
+            self.nav[name] = (row, marker, widgets[1:])
+        foot = tk.Frame(side, bg=BG)
+        foot.pack(side='bottom', fill='x', padx=self.px(24), pady=self.px(18))
+        self.side_note = tk.Label(foot, text=_("In the game: Insert or R3+L2\nopens the port's menu."),
+                                  bg=BG, fg=MUTED, font=(UI_FONT, 9), justify='left', anchor='w')
+        self.side_note.pack(anchor='w')
+        main = tk.Frame(self.root, bg=PANEL)
+        main.pack(side='left', fill='both', expand=True)
+        # A thin neon line over the content: smoke red into neon cyan.
+        line = tk.Frame(main, bg=BG, height=2)
         line.pack(fill='x')
         tk.Frame(line, bg=ACCENT, height=2).place(relx=0, rely=0, relwidth=0.62, relheight=1)
         tk.Frame(line, bg=NEON_PINK, height=2).place(relx=0.62, rely=0, relwidth=0.2, relheight=1)
         tk.Frame(line, bg=NEON, height=2).place(relx=0.82, rely=0, relwidth=0.18, relheight=1)
-        # Notices (an available update) appear here, under the header.
-        self.notice = tk.Frame(self.root, bg=BG)
+        # Notices (an available update) appear here, under the line.
+        self.notice = tk.Frame(main, bg=BG)
+        self.notice_anchor = line
         self.update_box = None
 
-        right = tk.Frame(self.root, bg=PANEL)
+        right = tk.Frame(main, bg=PANEL)
         right.pack(side='top', fill='both', expand=True)
         bar = tk.Frame(right, bg=BG, height=self.px(78))
         bar.pack(fill='x', side='bottom')
@@ -1474,14 +1492,23 @@ class Launcher:
                 and 'popdown' not in str(event.widget):
             page.scroll({4: -1, 5: 1}.get(event.num) or int(-event.delta / 120))
 
+    def paint_nav(self, name, hover=False):
+        """A side bar row: the page shown has the red marker and a lighter row; hover lights it."""
+        row, marker, widgets = self.nav[name]
+        current = name == self.current_page
+        bg = NAV_ACTIVE if current else NAV_HOVER if hover else BG
+        row.configure(bg=bg)
+        marker.configure(bg=ACCENT if current else bg)
+        for widget in widgets:
+            widget.configure(bg=bg, fg=TEXT if current or hover else MUTED)
+
     def show(self, name):
         for page in self.pages.values():
             page.pack_forget()
         self.pages[name].pack(fill='both', expand=True)
         self.current_page = name
-        for n, (label, underline) in self.nav.items():
-            label.configure(fg=TEXT if n == name else MUTED)
-            underline.configure(bg=ACCENT if n == name else BG)
+        for n in self.nav:
+            self.paint_nav(n)
         for method in PAGE_REFRESH.get(name, ()):
             getattr(self, method)()
 
@@ -1634,9 +1661,10 @@ class Launcher:
                  (_('Display mode'), 'display_mode', 'ini', DISPLAY_MODES))
         for index, (title, key, store, options) in enumerate(items):
             cell = ttk.Frame(inner)
-            cell.grid(row=0, column=index, sticky='w', padx=(0, self.px(26)))
+            cell.grid(row=0, column=index, sticky='we', padx=(0, self.px(18) if index < len(items) - 1 else 0))
+            inner.columnconfigure(index, weight=1, uniform='tile')
             ttk.Label(cell, text=heading_text(title.upper()), style='Tile.TLabel').pack(anchor='w')
-            self.choice(cell, key, store, options, width=24 if index == 0 else 17).pack(anchor='w', pady=(2, 0))
+            self.choice(cell, key, store, options, width=12).pack(fill='x', pady=(2, 0))
         self.banner_key = self.banner_photo = None
         self.banner = tk.Canvas(page, bg=BG, highlightthickness=0, bd=0)
         self.banner.pack(fill='both', expand=True)
@@ -1708,11 +1736,13 @@ class Launcher:
         goals = tk.Frame(card, bg=CARD)
         goals.grid(row=2, column=0, columnspan=2, sticky='w', pady=(self.px(12), 0))
         tk.Label(goals, text=_('Set up the graphics for this PC:'), bg=CARD, fg=MUTED, font=(UI_FONT, 9)).pack(
-            side='left', padx=(0, self.px(10)))
+            anchor='w', pady=(0, self.px(6)))
+        buttons = tk.Frame(goals, bg=CARD)
+        buttons.pack(anchor='w')
         self.pc_goal_buttons = []
         for goal, label in (('smooth', _('Smooth (up to 120 FPS)')), ('balanced', _('Balanced (60 FPS, sharpest)')),
                             ('quiet', _('Quiet (60 FPS, lighter on the card)'))):
-            button = ttk.Button(goals, text=label, state='disabled', style='Card.TButton',
+            button = ttk.Button(buttons, text=label, state='disabled', style='Card.TButton',
                                 command=lambda g=goal: self.apply_goal(g))
             button.pack(side='left', padx=(0, self.px(6)))
             self.pc_goal_buttons.append(button)
@@ -2830,7 +2860,7 @@ class Launcher:
         ttk.Button(box, text=_("What's new", 'Что нового'), style='Card.TButton', command=lambda: self.show('news')).pack(
             side='right', padx=(0, self.px(8)), pady=self.px(6))
         box.pack(fill='x')
-        self.notice.pack(fill='x', after=self.notice.master.winfo_children()[1])
+        self.notice.pack(fill='x', after=self.notice_anchor)
         self.update_box = box
         self.pending_update = (version, url, page)
         if not self.process:
