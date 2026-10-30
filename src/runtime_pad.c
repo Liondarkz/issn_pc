@@ -779,8 +779,25 @@ static void sample_host(PadData *d) {
         for (size_t i=0;i<pad_map.count;++i)
             if (SDL_GetGamepadButton(g,(SDL_GamepadButton)pad_map.entries[i].source)) d->buttons|=pad_map.entries[i].ps;
         const uint32_t mapped=d->buttons;
-        d->left_x=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_LEFTX)); d->left_y=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_LEFTY));
-        d->right_x=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_RIGHTX)); d->right_y=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_RIGHTY));
+        const int16_t raw[4]={SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_LEFTX),SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_LEFTY),
+                              SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_RIGHTX),SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_RIGHTY)};
+        d->left_x=axis(raw[0]); d->left_y=axis(raw[1]);
+        d->right_x=axis(raw[2]); d->right_y=axis(raw[3]);
+        {   /* issn 10-30 (two Xbox One pads "pull to the right"): the sticks' raw values in the log
+             * every 10 s for the first two minutes, so a stick resting off center shows how far
+             * (a value past the dead zone, in percent, moves Delsin or the camera). */
+            static uint64_t next_report;
+            static int reports;
+            const uint64_t t=d->timestamp;
+            if (reports<12 && t>=next_report) {
+                next_report=t+10000000u;
+                ++reports;
+                printf("Runtime: pad sticks (percent of full): left %+.0f %+.0f, right %+.0f %+.0f; dead zone %.0f%%\n",
+                       raw[0]*100.0/32767.0,raw[1]*100.0/32767.0,raw[2]*100.0/32767.0,raw[3]*100.0/32767.0,
+                       stick_deadzone()*100.0);
+                fflush(stdout);
+            }
+        }
         d->l2=trigger(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_LEFT_TRIGGER)); d->r2=trigger(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_RIGHT_TRIGGER));
         if (d->l2>30) d->buttons|=BTN_L2;
         if (d->r2>30) d->buttons|=BTN_R2;
