@@ -78,6 +78,11 @@ TOPICS = {
         'DLSS needs NVIDIA\'s Streamline files (not included) of the exact version the port uses.',
         ['Graphics > Open the DLSS folder, and copy the five files from Streamline SDK 2.14.16 (bin\\x64).',
          'A newer Streamline crashed the game for a tester: use 2.14.16.']),
+    'xess_files': (
+        'XeSS could not start',
+        'XeSS needs Intel\'s libxess.dll (not included), and a graphics card with the Vulkan features it uses.',
+        ['Graphics > Open the XeSS folder, and copy libxess.dll from the XeSS SDK zip (folder bin).',
+         'Update the graphics driver. If XeSS still does not start, pick FSR 4 or the game\'s own.']),
     'location': (
         'The port is in a folder that causes problems',
         'Inside a zip or temporary folder, Program Files or a synced folder (OneDrive) the port cannot write '
@@ -96,9 +101,10 @@ LOG_HINTS = [
     (r'CacheRebuild: no valid seed-stamp\.bin', 'no_seed'),
     (r'Skipping frame! \((?:[6-9]\d{2}|\d{4,}) in a row', 'skipping_frames'),
     (r'sl\.interposer.*(not found|missing)|Streamline.*(failed to initialize|not supported)', 'dlss_files'),
+    (r'XeSS: .*libxess\.(dll|so) not found|XeSS: not available|XeSS unavailable: ', 'xess_files'),
 ]
 TOPIC_ORDER = ['location', 'no_game', 'game_incomplete', 'version', 'cpu', 'memory', 'crash', 'freeze',
-               'device_lost', 'skipping_frames', 'no_seed', 'dlss_files']
+               'device_lost', 'skipping_frames', 'no_seed', 'dlss_files', 'xess_files']
 
 
 def hints_in_log(text):

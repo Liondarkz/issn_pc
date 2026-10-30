@@ -585,14 +585,17 @@ SCREEN_SHAPES = [('', ('Automatic: the shape of the window / monitor (default)',
 SHADER_COMPILE = [('', ('In the background: no stutter, new things can appear a moment later (default)',)),
                   ('frame', ('In the frame: the original, the game stutters while new shaders compile',))]
 # issn-axy: what replaces the game's own temporal anti-aliasing (SMAA T2x). FSR 4 ships with the
-# port (third_party/fsr4); DLSS needs NVIDIA's Streamline files in dlss_folder().
+# port (third_party/fsr4); DLSS needs NVIDIA's Streamline files in dlss_folder(), XeSS Intel's
+# libxess.dll in xess_folder().
 ANTI_ALIASING = [('game', ("The game's own (SMAA T2x)",)), ('fsr4', ('FSR 4 (AMD Radeon RX 7000 / 9000)',)),
-                 ('dlss', ('DLSS (NVIDIA RTX)',))]
-# NVIDIA's Streamline (DLSS) is Windows only: on Linux the choice is not offered.
+                 ('xess', ('XeSS (Intel; also Radeon and GeForce)',)), ('dlss', ('DLSS (NVIDIA RTX)',))]
+# NVIDIA's Streamline (DLSS) and Intel's libxess.dll are Windows only: on Linux they are not offered.
 if not WINDOWS:
-    ANTI_ALIASING = [option for option in ANTI_ALIASING if option[0] != 'dlss']
+    ANTI_ALIASING = [option for option in ANTI_ALIASING if option[0] not in ('dlss', 'xess')]
 DLSS_FILES = ('sl.interposer.dll', 'sl.common.dll', 'sl.dlss.dll', 'sl.pcl.dll', 'nvngx_dlss.dll')
 STREAMLINE_PAGE = 'https://github.com/NVIDIA-RTX/Streamline/releases/tag/v2.14.16'
+XESS_FILES = ('libxess.dll',)
+XESS_PAGE = 'https://github.com/intel/xess/releases'
 # ISSN_NO_MSAA: '' leaves the game's own default, off on AMD's and Intel's Windows drivers
 # (video_core/amdgpu/issn_msaa_default.h); no_msaa_options names the chosen card in Automatic.
 NO_MSAA = [('', ('Automatic',)), ('1', ('Off (fixes black lines)',)), ('0', ('On',))]
@@ -618,6 +621,17 @@ def dlss_missing():
     """NVIDIA's files not yet in dlss_folder()."""
     folder = dlss_folder()
     return [name for name in DLSS_FILES if not (folder / name).is_file()]
+
+
+def xess_folder():
+    """Where the GPU library looks for Intel's libxess.dll: xess beside issn-probe.exe."""
+    return dlss_folder().parent / 'xess'
+
+
+def xess_missing():
+    """Intel's files not yet in xess_folder()."""
+    folder = xess_folder()
+    return [name for name in XESS_FILES if not (folder / name).is_file()]
 
 
 def fsr4_folder():
@@ -948,11 +962,13 @@ def game_environment(s):
     if s['user_dir']:
         env['ISSN_USER_DIR'] = s['user_dir']
     # issn-axy: the anti-aliasing choice (ANTI_ALIASING); an inherited switch never mixes them.
-    for name in ('SHADPS4_DLSS', 'SHADPS4_DLSS_UPSCALE', 'ISSN_FSR4'):
+    for name in ('SHADPS4_DLSS', 'SHADPS4_DLSS_UPSCALE', 'ISSN_FSR4', 'ISSN_XESS'):
         env.pop(name, None)
     anti_aliasing = s.get('anti_aliasing', 'game')
     if anti_aliasing == 'fsr4':
         env['ISSN_FSR4'] = '1'
+    elif anti_aliasing == 'xess' and WINDOWS:
+        env['ISSN_XESS'] = '1'
     elif anti_aliasing == 'dlss' and WINDOWS:
         env['SHADPS4_DLSS'] = '1'
         env['SHADPS4_DLSS_UPSCALE'] = '1'  # the game's 1080p up to the window (DLAA at 1080p)
@@ -1832,8 +1848,8 @@ class Launcher:
                    'more memory, given by itself). The picture is then fitted to the window, and the HUD keeps '
                    'its layout. On wider screens the width grows with the shape.'), restart=True)
         self.row(f, _('FSR 4 / DLSS quality'), self.choice(f, 'upscale_quality', 'app', UPSCALE_QUALITY, width=44),
-                 _('With FSR 4 or DLSS (Anti-aliasing below): the game draws smaller than the window and the '
-                   'upscaler rebuilds a sharp picture at the window size. Quality looks closest to native, '
+                 _('With FSR 4, XeSS or DLSS (Anti-aliasing below): the game draws smaller than the window and '
+                   'the upscaler rebuilds a sharp picture at the window size. Quality looks closest to native, '
                    'Ultra Performance is the fastest. When not Off it decides the size instead of Resolution.'),
                  restart=True)
         self.row(f, _('Texture filtering'), self.choice(f, 'aniso', 'app', ANISO, width=44),
@@ -1842,7 +1858,8 @@ class Launcher:
         self.section(f, _('Anti-aliasing'))
         self.row(f, _('Anti-aliasing'), self.choice(f, 'anti_aliasing', 'app', ANTI_ALIASING, width=44),
                  _("Replaces the game's own temporal anti-aliasing. FSR 4 (included) needs a Radeon RX 7000 or "
-                   "9000; DLSS needs an NVIDIA RTX card and NVIDIA's files (below). Without what they need the "
+                   "9000; XeSS runs on most recent cards (Arc, Radeon RX 5000+, GeForce GTX 10+) with Intel's "
+                   "file; DLSS needs an NVIDIA RTX card and NVIDIA's files (below). Without what they need the "
                    "game keeps its own.") if WINDOWS else
                  _("Replaces the game's own temporal anti-aliasing. FSR 4 (included) needs a Radeon RX 7000 or "
                    "9000 and a recent Mesa (RADV); without it the game keeps its own."), restart=True)
@@ -1861,6 +1878,14 @@ class Launcher:
         self.dlss_state.pack(side='left', padx=10)
         self.note(f, _('DLSS: from the Streamline SDK 2.14.16 zip, folder bin\\x64, copy {} into the DLSS folder.')
                   .format(', '.join(DLSS_FILES)), top=6)
+        holder = ttk.Frame(f)
+        holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
+        ttk.Button(holder, text=_('Open the XeSS folder'), command=self.open_xess_folder).pack(side='left')
+        ttk.Button(holder, text=_('Download page (XeSS SDK)'),
+                   command=lambda: open_url(XESS_PAGE)).pack(side='left', padx=6)
+        self.xess_state = ttk.Label(holder, text='', style='Muted.TLabel')
+        self.xess_state.pack(side='left', padx=10)
+        self.note(f, _('XeSS: from the XeSS SDK zip, folder bin, copy libxess.dll into the XeSS folder.'), top=6)
         self.section(f, _('Overlay'))
         self.check(f, 'show_fps', 'ini', _('Show performance overlay'),
                    _('Items, size and corner: in-game menu (Insert / R3+L2) > Overlay.'))
@@ -1871,6 +1896,19 @@ class Launcher:
         missing = dlss_missing()
         self.dlss_state.configure(text=_('DLSS files: ready') if not missing else
                                   _('DLSS files missing: {}').format(', '.join(missing)))
+        if getattr(self, 'xess_state', None) is not None:
+            self.xess_state.configure(text=_('XeSS file: ready') if not xess_missing() else
+                                      _('XeSS file missing: libxess.dll'))
+
+    def open_xess_folder(self):
+        folder = xess_folder()
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            self.messagebox.showerror(APP_NAME, str(error))
+            return
+        self.open_path(folder)
+        self.refresh_dlss_state()
 
     def open_dlss_folder(self):
         folder = dlss_folder()

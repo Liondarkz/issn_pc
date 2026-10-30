@@ -38,6 +38,9 @@ namespace Vulkan {
 namespace Fsr4Aa {
 class Upscaler;
 }
+namespace Xess {
+class Upscaler;
+}
 
 class Scheduler;
 class RenderState;
@@ -348,6 +351,7 @@ public:
     u64 dlss_delta_searches{};
     u64 dlss_last_resolve_ns{}; ///< a gap (Home off, menus, loads) restarts FSR's history    ///< the colour input differs in format from the target (blit, no copy)
     std::unique_ptr<Fsr4Aa::Upscaler> fsr4; ///< ISSN_FSR4 (issn_fsr4.h), made at the first resolve
+    std::unique_ptr<Xess::Upscaler> xess; ///< ISSN_XESS (issn_xess.h), made at the first resolve
     struct NeoIdDerive;
     std::shared_ptr<NeoIdDerive> neo_id_derive;
     VAddr neo_depth_addr{};

@@ -41,6 +41,7 @@
 #include "video_core/amdgpu/mtb_census.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
 #include "video_core/renderer_vulkan/issn_fsr4.h"
+#include "video_core/renderer_vulkan/issn_xess.h"
 #include "video_core/renderer_vulkan/vk_dlss.h"
 #include "video_core/renderer_vulkan/vk_dlss_upscale.h"
 #include "video_core/renderer_vulkan/vk_dlss5.h"
@@ -1687,7 +1688,7 @@ void Rasterizer::DlssResolve() {
             address, out.info.size.width, out.info.size.height);
         return id ? &texture_cache.GetImage(id) : nullptr;
     };
-    const bool fsr4_mode = Dlss::Mode() == 3;
+    const bool fsr4_mode = Dlss::OwnUpscaler(); // FSR 4 or XeSS (one path)
     // issn-axy: axylpup's 1.1 learns the inputs from this frame's SMAA draws (above). Where
     // they hold no colour image of the target's format, the offset search of 0.3.0: the colour
     // and the motion vectors move together between game builds (CUSA00223 1.07: +0x2c0000), and
@@ -1745,16 +1746,17 @@ void Rasterizer::DlssResolve() {
         const bool steady = fsr4_fail_streak == 120;
         if (fsr4_misses <= 4 || steady || (fsr4_misses & 1023) == 0) {
             LOG_WARNING(Render_Vulkan,
-                        "FSR 4: not run ({}; {} of {} resolves) - target {:#x} {} {}x{}; at "
+                        "{}: not run ({}; {} of {} resolves) - target {:#x} {} {}x{}; at "
                         "{:#x}: {}; motion {:#x}: {}; depth {:#x}: {}",
-                        why, fsr4_misses, dlss_calls, regs.color_buffers[0].Address(),
+                        Dlss::ModeName(), why, fsr4_misses, dlss_calls, regs.color_buffers[0].Address(),
                         vk::to_string(out.info.pixel_format), out.info.size.width,
                         out.info.size.height, colour_addr,
                         texture_cache.DescribeImagesAt(colour_addr), motion_at,
                         texture_cache.DescribeImagesAt(motion_at), depth_addr,
                         texture_cache.DescribeImagesAt(depth_addr));
             if (fsr4_misses <= 2 || steady) {
-                LOG_WARNING(Render_Vulkan, "FSR 4: recent {}x{} images: {}", out.info.size.width,
+                LOG_WARNING(Render_Vulkan, "{}: recent {}x{} images: {}", Dlss::ModeName(),
+                            out.info.size.width,
                             out.info.size.height,
                             texture_cache.DescribeRecentImages(out.info.size.width,
                                                                out.info.size.height, 24));
@@ -1764,10 +1766,10 @@ void Rasterizer::DlssResolve() {
         constexpr u32 FSR4_GIVE_UP = 300;
         if (fsr4_fail_streak == FSR4_GIVE_UP) {
             Dlss::g_ready.store(false, std::memory_order_relaxed);
-            LOG_WARNING(Render_Vulkan, "FSR 4: off ({}) - the game's own anti-aliasing is back",
-                        why);
-            std::printf("FSR 4: off (%.*s) - the game's own anti-aliasing is back\n",
-                        int(why.size()), why.data());
+            LOG_WARNING(Render_Vulkan, "{}: off ({}) - the game's own anti-aliasing is back",
+                        Dlss::ModeName(), why);
+            std::printf("%s: off (%.*s) - the game's own anti-aliasing is back\n",
+                        Dlss::ModeName(), int(why.size()), why.data());
             std::fflush(stdout);
         }
     };
@@ -1822,12 +1824,14 @@ void Rasterizer::DlssResolve() {
     scheduler.EndRendering();
     bool evaluated = false;
     bool hud_layer = false;
-    if (Dlss::Mode() == 3) {
-        // issn-axy: ISSN_FSR4 - FSR 4 Native AA from the same inputs (issn_fsr4.h).
+    if (Dlss::OwnUpscaler()) {
+        // issn-axy: ISSN_FSR4 - FSR 4 Native AA from the same inputs (issn_fsr4.h); ISSN_XESS -
+        // Intel XeSS the same way (issn_xess.h).
+        const bool use_xess = Dlss::Mode() == 4;
         VideoCore::Image* motion = find(motion_at);
         VideoCore::Image* depth = find(depth_addr);
         if (motion && depth) [[likely]] {
-            // FSR 4 copies them into images of its own (issn_fsr4.cpp CopyInputs).
+            // FSR 4 / XeSS copy them into images of their own (CopyInputs).
             for (VideoCore::Image* image : {in, motion, depth}) {
                 image->Transit(vk::ImageLayout::eTransferSrcOptimal, vk::AccessFlagBits2::eTransferRead,
                                {});
@@ -1854,7 +1858,9 @@ void Rasterizer::DlssResolve() {
                 jx = (combo & 1) ? -j : j;
                 jy = (combo & 2) ? -j : j;
             }
-            if (!fsr4) {
+            if (use_xess && !xess) {
+                xess = std::make_unique<Xess::Upscaler>(instance, scheduler);
+            } else if (!use_xess && !fsr4) {
                 fsr4 = std::make_unique<Fsr4Aa::Upscaler>(instance, scheduler);
             }
             const auto cmdbuf = scheduler.AcquireCommandBuffer().Handle();
@@ -1870,8 +1876,10 @@ void Rasterizer::DlssResolve() {
                 const Dlss::EvalImage scene = upscaler->SceneTarget(cmdbuf);
                 target = {scene.image, scene.format, scene.layout, scene.width, scene.height};
             }
-            evaluated = fsr4->Record(cmdbuf, input(*in), input(*motion), input(*depth), target,
-                                     jx, jy, dlss_reset_pending);
+            evaluated = use_xess ? xess->Record(cmdbuf, input(*in), input(*motion), input(*depth),
+                                                target, jx, jy, dlss_reset_pending)
+                                 : fsr4->Record(cmdbuf, input(*in), input(*motion), input(*depth),
+                                                target, jx, jy, dlss_reset_pending);
             dlss_reset_pending = false;
             if (upscaler && evaluated) {
                 upscaler->SceneWritten(cmdbuf);
@@ -1880,11 +1888,12 @@ void Rasterizer::DlssResolve() {
             scheduler.GetDynamicState().Invalidate();
             GraphicsBindTracker::Invalidate();
             scheduler.InvalidateNativeHeaps();
-            if (!evaluated && !Fsr4Aa::DeviceSupported()) {
+            const std::string& problem = use_xess ? xess->Problem() : fsr4->Problem();
+            if (!evaluated &&
+                !(use_xess ? Xess::DeviceSupported() : Fsr4Aa::DeviceSupported())) {
                 Dlss::g_ready.store(false, std::memory_order_relaxed);
             }
-            if (!evaluated && !fsr4->Problem().empty() &&
-                fsr4->Problem().starts_with("missing")) {
+            if (!evaluated && !problem.empty() && problem.starts_with("missing")) {
                 // Assets missing: from the next frame on the game's own T2x runs again.
                 Dlss::g_ready.store(false, std::memory_order_relaxed);
             }
@@ -1892,15 +1901,18 @@ void Rasterizer::DlssResolve() {
         if (evaluated) {
             fsr4_fail_streak = 0;
             if (dlss_evaluated == 0) {
-                LOG_WARNING(Render_Vulkan, "FSR 4: first frame resolved (colour {} {}x{} into {})",
-                            vk::to_string(in->info.pixel_format), in->info.size.width,
+                LOG_WARNING(Render_Vulkan, "{}: first frame resolved (colour {} {}x{} into {})",
+                            Dlss::ModeName(), vk::to_string(in->info.pixel_format), in->info.size.width,
                             in->info.size.height, vk::to_string(out.info.pixel_format));
             }
         } else {
             fsr4_missed(!motion  ? "no motion vectors"
                         : !depth ? "no depth"
-                                 : (fsr4 && !fsr4->Problem().empty() ? fsr4->Problem().c_str()
-                                                                     : "FSR did not record"));
+                                 : (use_xess && xess && !xess->Problem().empty()
+                                        ? xess->Problem().c_str()
+                                    : !use_xess && fsr4 && !fsr4->Problem().empty()
+                                        ? fsr4->Problem().c_str()
+                                        : "the upscaler did not record"));
         }
     } else if (Dlss::Mode() == 1) {
         VideoCore::Image* motion = find(motion_at);
@@ -2041,8 +2053,8 @@ void Rasterizer::DlssResolve() {
     out.flags |= VideoCore::ImageFlagBits::GpuModified;
     out.flags &= ~VideoCore::ImageFlagBits::Dirty;
     if (fsr4_mode && (dlss_calls & 4095) == 0) {
-        LOG_WARNING(Render_Vulkan, "FSR 4: {} of {} resolves done by FSR, {} not run",
-                    dlss_evaluated, dlss_calls, fsr4_misses);
+        LOG_WARNING(Render_Vulkan, "{}: {} of {} resolves done by it, {} not run",
+                    Dlss::ModeName(), dlss_evaluated, dlss_calls, fsr4_misses);
     }
     if ((dlss_calls & 1023) == 1) {
         LOG_INFO(Render_Vulkan,

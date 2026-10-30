@@ -61,6 +61,17 @@ class ControlMapTest(unittest.TestCase):
         self.assertNotIn('SHADPS4_DLSS', env)
         if not launcher.WINDOWS:
             self.assertNotIn('dlss', [value for value, _text in launcher.ANTI_ALIASING])
+        with unittest.mock.patch.object(launcher, 'WINDOWS', True):
+            env = launcher.game_environment({**base, 'anti_aliasing': 'xess', 'ui_language': 'en'})
+        self.assertEqual(env['ISSN_XESS'], '1')
+        self.assertNotIn('ISSN_FSR4', env)
+        self.assertNotIn('SHADPS4_DLSS', env)
+        # Linux: Intel's libxess.dll is Windows only.
+        with unittest.mock.patch.object(launcher, 'WINDOWS', False):
+            self.assertNotIn('ISSN_XESS', launcher.game_environment({**base, 'anti_aliasing': 'xess'}))
+        if not launcher.WINDOWS:
+            self.assertNotIn('xess', [value for value, _text in launcher.ANTI_ALIASING])
+        self.assertEqual(launcher.xess_folder().name, 'xess')
         with __import__('unittest').mock.patch.dict(__import__('os').environ, {'ISSN_FSR4': '1'}):
             self.assertNotIn('ISSN_FSR4', launcher.game_environment(base))  # never mixed with a stale one
 

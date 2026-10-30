@@ -39,6 +39,7 @@
 #undef Bool
 #endif
 #include "video_core/renderer_vulkan/vk_dlss.h"
+#include "video_core/renderer_vulkan/issn_xess.h"
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
@@ -223,6 +224,8 @@ std::vector<const char*> GetInstanceExtensions(Frontend::WindowSystemType window
 
     // SHADPS4_DLSS=1: Streamline starts here, before vkCreateInstance, and adds what it needs.
     Dlss::AddInstanceExtensions(extensions);
+    // issn-axy: ISSN_XESS=1 - libxess loads here and adds what it needs (issn_xess.h).
+    Xess::AddInstanceExtensions(extensions);
 
     // Sanitize extension list
     std::erase_if(extensions, [&](const char* extension) -> bool {

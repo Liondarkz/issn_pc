@@ -22,6 +22,7 @@
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_memory_budget.h"
 #include "video_core/renderer_vulkan/issn_fsr4.h"
+#include "video_core/renderer_vulkan/issn_xess.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
 
 #include <vk_mem_alloc.h>
@@ -456,6 +457,23 @@ bool Instance::CreateDevice() {
         }
     }
 
+    // issn-axy: ISSN_XESS=1 (issn_xess.h) - the device extensions XeSS asked for on this GPU.
+    bool xess_device = false;
+    if (Dlss::Mode() == 4) {
+        std::vector<const char*> xess_exts;
+        xess_device = Xess::DeviceExtensions(*instance, physical_device, xess_exts);
+        for (const char* ext : xess_exts) {
+            if (std::ranges::any_of(enabled_extensions,
+                                    [ext](const char* e) { return std::strcmp(e, ext) == 0; })) {
+                continue;
+            }
+            if (enabled_extensions.size() == enabled_extensions.capacity() || !add_extension(ext)) {
+                xess_device = false;
+            }
+        }
+        LOG_INFO(Render_Vulkan, "XeSS: device extensions {}", xess_device ? "enabled" : "missing");
+    }
+
     // Opt-in descriptor heap experiment. Nothing below is touched unless
     // SHADPS4_NATIVE_BINDINGS=1 and the device passes every capability check.
     bool native_bindings = QueryNativeBindings();
@@ -643,7 +661,8 @@ bool Instance::CreateDevice() {
             .subgroupSizeControl = vk13_features.subgroupSizeControl,
             .synchronization2 = vk13_features.synchronization2,
             .dynamicRendering = vk13_features.dynamicRendering,
-            .shaderIntegerDotProduct = Fsr4Aa::Wanted() && vk13_features.shaderIntegerDotProduct,
+            .shaderIntegerDotProduct =
+                (Fsr4Aa::Wanted() || xess_device) && vk13_features.shaderIntegerDotProduct,
             .maintenance4 = vk13_features.maintenance4,
         },
         // Extensions
@@ -804,6 +823,19 @@ bool Instance::CreateDevice() {
                          vk12_features.shaderInt8 && features.shaderInt16 &&
                          vk13_features.shaderIntegerDotProduct &&
                          features.shaderStorageImageExtendedFormats;
+    // issn-axy: ISSN_XESS - XeSS's features merged into the chain (its mutable descriptor type
+    // structure spliced like the ones above).
+    if (xess_device) {
+        xess_device = Xess::AddDeviceFeatures(
+            *instance, physical_device,
+            Xess::FeatureTargets{
+                .create_info = &device_chain.get<vk::DeviceCreateInfo>(),
+                .core = &device_chain.get<vk::PhysicalDeviceFeatures2>().features,
+                .v11 = &device_chain.get<vk::PhysicalDeviceVulkan11Features>(),
+                .v12 = &device_chain.get<vk::PhysicalDeviceVulkan12Features>(),
+                .v13 = &device_chain.get<vk::PhysicalDeviceVulkan13Features>(),
+            });
+    }
     // SHADPS4_ADDR_BIND_REPORT: the same splice.
     vk::PhysicalDeviceAddressBindingReportFeaturesEXT bind_report_features = {
         .reportAddressBinding = true,
@@ -924,6 +956,15 @@ bool Instance::CreateDevice() {
                                                        "game's T2x)"
                                                      : "the GPU lacks INT8 dot products / compute "
                                                        "derivatives - the game's AA stays");
+    }
+    if (Dlss::Mode() == 4) {
+        // ISSN_XESS: the T2x resolve is replaced once the device has what XeSS needs.
+        Xess::SetDeviceSupported(xess_device);
+        Dlss::g_ready.store(xess_device, std::memory_order_relaxed);
+        LOG_INFO(Render_Vulkan, "XeSS: {}", xess_device ? "device ready (in place of the game's T2x)"
+                                                        : "not available - the game's AA stays");
+        std::printf("XeSS: %s\n", xess_device ? "device ready" : "not available - the game's AA stays");
+        std::fflush(stdout);
     }
     if (dlss_device && Dlss::g_ready.load(std::memory_order_relaxed)) {
         Dlss5::DeviceCreated(*instance, physical_device, *device);

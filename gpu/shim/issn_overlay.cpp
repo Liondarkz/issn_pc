@@ -308,11 +308,12 @@ std::string OverlayText() {
     sample.frame_ms = frame_ms_avg;
     sample.upscaler = UpscalerLabel(s.upscaler);
     unsigned shown = items;
-    if (const int mode = Vulkan::Dlss::Mode(); mode == 1 || mode == 3) {
-        // issn-axy: the anti-aliasing in use (Home switches it), always shown with FSR 4 / DLSS.
+    if (const int mode = Vulkan::Dlss::Mode(); mode == 1 || Vulkan::Dlss::OwnUpscaler()) {
+        // issn-axy: the anti-aliasing in use (Home switches it), always shown with FSR 4 / XeSS /
+        // DLSS.
         const bool on = Vulkan::Dlss::g_ready.load(std::memory_order_relaxed) &&
                         Vulkan::Dlss::g_user_on.load(std::memory_order_relaxed);
-        sample.upscaler = on ? (mode == 3 ? "FSR 4" : "DLSS") : "Game AA";
+        sample.upscaler = on ? Vulkan::Dlss::ModeName() : "Game AA";
         shown |= P::Upscaler;
     }
     return P::Format(sample, shown, s.overlay_layout == 0);
@@ -529,6 +530,10 @@ const char* AntiAliasingName() {
     const char* fsr4 = std::getenv("ISSN_FSR4");
     if (fsr4 && fsr4[0] == '1') {
         return "FSR 4 Native AA (AMD)";
+    }
+    const char* xess = std::getenv("ISSN_XESS");
+    if (xess && xess[0] == '1') {
+        return "XeSS (Intel)";
     }
     return "The game's own (SMAA T2x)";
 }
@@ -1099,13 +1104,13 @@ bool HandleEvent(const SDL_Event& event) {
             return true;
         }
         if (down && !event.key.repeat && event.key.key == SDLK_HOME && !is_open &&
-            (Vulkan::Dlss::Mode() == 1 || Vulkan::Dlss::Mode() == 3)) {
+            (Vulkan::Dlss::Mode() == 1 || Vulkan::Dlss::OwnUpscaler())) {
             // issn-axy: Home switches FSR 4 / DLSS and the game's own AA live (axylpup's key),
             // to compare the picture and the frame rate in one spot (tester 2026-10-22).
             const bool on = !Vulkan::Dlss::g_user_on.load(std::memory_order_relaxed);
             Vulkan::Dlss::g_user_on.store(on, std::memory_order_relaxed);
             std::printf("Anti-aliasing: %s (Home)\n",
-                        on ? (Vulkan::Dlss::Mode() == 3 ? "FSR 4" : "DLSS") : "the game's own");
+                        on ? Vulkan::Dlss::ModeName() : "the game's own");
             std::fflush(stdout);
             return true;
         }

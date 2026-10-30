@@ -16,6 +16,12 @@ Graphics > Open the DLSS folder): sl.interposer.dll, sl.common.dll, sl.dlss.dll,
 nvngx_dlss.dll. Then choose DLSS in Graphics > Anti-aliasing. Untested by us (no NVIDIA card):
 please report how it goes. Without the files the game keeps its own anti-aliasing.
 
+XeSS (optional, Intel Arc, Radeon RX 5000+, GeForce GTX 10+)
+Intel's libxess.dll is not included. Download the XeSS SDK from https://github.com/intel/xess/releases
+and copy libxess.dll from its bin folder into bin\xess next to issn-probe.exe (launcher: Graphics >
+Open the XeSS folder). Then choose XeSS in Graphics > Anti-aliasing. It needs the Visual C++
+2015-2022 runtime (vc_redist.x64). Without the file the game keeps its own anti-aliasing.
+
 What's new in 0.3.5.1
 - Fixed: the picture staying dark at night (only lights and glow visible) on some PCs. The
   launcher's Graphics > Effects at Light or Off kept the game from reading its light metering back

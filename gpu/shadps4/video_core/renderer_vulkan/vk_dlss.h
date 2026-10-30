@@ -42,12 +42,32 @@ inline int Mode() {
         }
         // issn-axy: ISSN_FSR4=1 - FSR 4 Native AA in the same slot (issn_fsr4.h).
         const char* fsr4 = std::getenv("ISSN_FSR4");
-        return fsr4 && fsr4[0] == '1' ? 3 : 0;
+        if (fsr4 && fsr4[0] == '1') {
+            return 3;
+        }
+        // issn-axy: ISSN_XESS=1 - Intel XeSS in the same slot (issn_xess.h).
+        const char* xess = std::getenv("ISSN_XESS");
+        return xess && xess[0] == '1' ? 4 : 0;
     }();
     return mode;
 }
 inline bool Enabled() {
     return Mode() != 0;
+}
+/// FSR 4 or XeSS: the port's own upscalers, which share one path in the rasterizer.
+inline bool OwnUpscaler() {
+    return Mode() == 3 || Mode() == 4;
+}
+/// The name players see for the running mode.
+inline const char* ModeName() {
+    switch (Mode()) {
+    case 3:
+        return "FSR 4";
+    case 4:
+        return "XeSS";
+    default:
+        return "DLSS";
+    }
 }
 
 /// Streamline is up and the feature exists on this device (=1), or the diagnostic copy (=2).

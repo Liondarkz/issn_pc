@@ -169,7 +169,7 @@ target_compile_definitions(issngpu PRIVATE IMGUI_IMPL_VULKAN_NO_PROTOTYPES
 set_source_files_properties(shim/issn_overlay.cpp PROPERTIES
     OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans.ttf)
 target_include_directories(issngpu PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include third_party/half/include
-    third_party/streamline-sdk/include third_party/stb)
+    third_party/streamline-sdk/include third_party/xess-sdk/include third_party/stb)
 target_compile_definitions(issngpu PRIVATE BOOST_ASIO_STANDALONE NDEBUG)
 target_compile_options(issngpu PRIVATE -Wno-deprecated-declarations -Wno-missing-field-initializers)
 # Runtime symbols (runtime_memory_*, runtime_process_*) resolve against issn-probe.
