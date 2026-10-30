@@ -1134,6 +1134,19 @@ EXTRA = {
         'Restore': 'Restaurar',
         'Replace the current saves with the backup {}? The current saves are backed up first.': 'Substituir os saves atuais pelo backup {}? Os saves atuais passam por backup antes.',
         'Saves restored from {}.': 'Saves restaurados de {}.',
+        'Import saves': 'Importar saves',
+        'Import from another port…': 'Importar de outro port…',
+        "Brings your progress from another PC port of the game (HayatoG's iss_pc, or an older folder of this one): pick its folder. The current saves are backed up first.":
+            'Traz seu progresso de outro port do jogo para PC (o iss_pc do HayatoG, ou uma pasta antiga deste): escolha a pasta dele. Os saves atuais passam por backup antes.',
+        'Close the game before importing saves.': 'Feche o jogo antes de importar saves.',
+        'Saves of another port were found in {}. Import them?': 'Saves de outro port foram encontrados em {}. Importar?',
+        "Choose the other port's folder (or its user / savedata folder)": 'Escolha a pasta do outro port (ou a pasta user / savedata dele)',
+        "No inFAMOUS Second Son saves in {}. Choose the other port's folder, or its user or savedata folder.":
+            'Nenhum save de inFAMOUS Second Son em {}. Escolha a pasta do outro port, ou a pasta user ou savedata dele.',
+        'Replace the current saves with the ones in {}? The current saves are backed up first.':
+            'Substituir os saves atuais pelos de {}? Os saves atuais passam por backup antes.',
+        'Could not import: {}': 'Não foi possível importar: {}',
+        '{} saves imported from {}.': '{} saves importados de {}.',
         'Reset to defaults': 'Restaurar padrões',
         '⚠ {} file(s) replaced by more than one mod (the last one wins):': '⚠ {} arquivo(s) substituído(s) por mais de um mod (vale o último):',
         '   … and {} more': '   … e mais {}',
@@ -1325,6 +1338,19 @@ EXTRA = {
         'Replace the current saves with the backup {}? The current saves are backed up first.':
             '¿Reemplazar las partidas actuales por la copia {}? Antes se hace una copia de las partidas actuales.',
         'Saves restored from {}.': 'Partidas restauradas desde {}.',
+        'Import saves': 'Importar partidas',
+        'Import from another port…': 'Importar de otro port…',
+        "Brings your progress from another PC port of the game (HayatoG's iss_pc, or an older folder of this one): pick its folder. The current saves are backed up first.":
+            'Trae tu progreso de otro port del juego para PC (el iss_pc de HayatoG, o una carpeta antigua de este): elige su carpeta. Antes se hace una copia de las partidas actuales.',
+        'Close the game before importing saves.': 'Cierra el juego antes de importar partidas.',
+        'Saves of another port were found in {}. Import them?': 'Se encontraron partidas de otro port en {}. ¿Importarlas?',
+        "Choose the other port's folder (or its user / savedata folder)": 'Elige la carpeta del otro port (o su carpeta user / savedata)',
+        "No inFAMOUS Second Son saves in {}. Choose the other port's folder, or its user or savedata folder.":
+            'No hay partidas de inFAMOUS Second Son en {}. Elige la carpeta del otro port, o su carpeta user o savedata.',
+        'Replace the current saves with the ones in {}? The current saves are backed up first.':
+            '¿Reemplazar las partidas actuales por las de {}? Antes se hace una copia de las actuales.',
+        'Could not import: {}': 'No se pudo importar: {}',
+        '{} saves imported from {}.': '{} partidas importadas desde {}.',
         'Reset to defaults': 'Restablecer valores predeterminados',
         '⚠ {} file(s) replaced by more than one mod (the last one wins):':
             '⚠ {} archivo(s) reemplazado(s) por más de un mod (gana el último):',

@@ -2115,6 +2115,10 @@ class Launcher:
         self.row(f, _('Save backups', 'Резервные копии'), holder,
                  _('Made before every start, newest first; the last {} are kept. Restoring backs up the '
                    'current saves first.').format(save_backup.KEEP))
+        self.row(f, _('Import saves'),
+                 ttk.Button(f, text=_('Import from another port…'), command=self.import_saves),
+                 _('Brings your progress from another PC port of the game (HayatoG\'s iss_pc, or an older '
+                   'folder of this one): pick its folder. The current saves are backed up first.'))
         self.refresh_backups()
 
     def refresh_backups(self):
@@ -2140,6 +2144,40 @@ class Launcher:
         self.refresh_backups()
         self.refresh_status()
         self.messagebox.showinfo(APP_NAME, _('Saves restored from {}.').format(name) +
+                                 (_(' Previous saves: {}.').format(safety.name) if safety else ''))
+
+    def import_saves(self):
+        """Saves from another port of the game (same layout, scripts/save_backup.py): its launcher's
+        data folder when it can be found, otherwise the folder the player picks."""
+        if self.process:
+            self.messagebox.showwarning(APP_NAME, _('Close the game before importing saves.'))
+            return
+        source = None
+        for found in save_backup.other_port_dirs():
+            if self.messagebox.askyesno(APP_NAME, _('Saves of another port were found in {}. Import them?').format(found)):
+                source = found
+                break
+        if source is None:
+            picked = self.filedialog.askdirectory(
+                title=_('Choose the other port\'s folder (or its user / savedata folder)'), initialdir=str(Path.home()))
+            if not picked:
+                return
+            source = Path(picked)
+            if not save_backup.import_source(source):
+                self.messagebox.showerror(APP_NAME, _('No inFAMOUS Second Son saves in {}. Choose the other port\'s '
+                                                      'folder, or its user or savedata folder.').format(source))
+                return
+            if not self.messagebox.askyesno(APP_NAME, _('Replace the current saves with the ones in {}? '
+                                                        'The current saves are backed up first.').format(source)):
+                return
+        try:
+            safety, slots = save_backup.import_saves(self.user_dir(), source)
+        except (OSError, ValueError) as error:
+            self.messagebox.showerror(APP_NAME, _('Could not import: {}').format(error))
+            return
+        self.refresh_backups()
+        self.refresh_status()
+        self.messagebox.showinfo(APP_NAME, _('{} saves imported from {}.').format(slots, source) +
                                  (_(' Previous saves: {}.').format(safety.name) if safety else ''))
 
     def build_patches(self, f):

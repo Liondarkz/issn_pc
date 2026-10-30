@@ -82,5 +82,60 @@ class SaveBackupTest(unittest.TestCase):
         self.assertEqual(self.save.read_text(), 'v')
 
 
+class SaveImportTest(unittest.TestCase):
+    """Saves from another port of the game (HayatoG's iss_pc): same layout, copied as they are."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        root = Path(self.temp.name)
+        self.ours = root / 'issn-windows' / 'user'
+        self.other = root / 'iss_pc'
+        title = self.other / 'user' / 'savedata' / '1' / 'CUSA00223'
+        write(title / 'SAVE0' / 'data.sav', 'theirs')
+        write(title / 'SAVE0.sce_sys' / 'param.bin', 'param')
+        write(title / 'SAVE1' / 'data.sav', 'theirs 2')
+        write(title.with_name('CUSA00223.memory') / 'memory.dat', 'memory')
+        self.clock = datetime.datetime(2026, 10, 30, 13, 0, 0)
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_any_level_of_the_other_port_folder_is_found(self):
+        savedata = self.other / 'user' / 'savedata'
+        for folder in (self.other, self.other / 'user', savedata, savedata / '1', savedata / '1' / 'CUSA00223'):
+            found = save_backup.import_source(folder)
+            self.assertEqual(sorted(p.name for p in found['1']), ['CUSA00223', 'CUSA00223.memory'], folder)
+        self.assertEqual(save_backup.import_source(Path(self.temp.name) / 'nothing'), {})
+
+    def test_import_replaces_and_backs_up_the_current_saves(self):
+        mine = self.ours / 'savedata' / '1' / 'CUSA00223' / 'SAVE0' / 'data.sav'
+        write(mine, 'mine')
+        safety, slots = save_backup.import_saves(self.ours, self.other, now=self.clock)
+        self.assertEqual(slots, 2)
+        self.assertEqual(mine.read_text(), 'theirs')
+        self.assertEqual((self.ours / 'savedata' / '1' / 'CUSA00223.memory' / 'memory.dat').read_text(), 'memory')
+        self.assertEqual((self.ours / 'savedata' / '1' / 'CUSA00223' / 'SAVE0.sce_sys' / 'param.bin').read_text(), 'param')
+        self.assertEqual((safety / '1' / 'CUSA00223' / 'SAVE0' / 'data.sav').read_text(), 'mine')
+        self.assertFalse(list((self.ours / 'savedata' / '1').glob('*.importing')))
+
+    def test_import_into_an_empty_port_needs_no_backup(self):
+        safety, slots = save_backup.import_saves(self.ours, self.other / 'user', now=self.clock)
+        self.assertIsNone(safety)
+        self.assertEqual(slots, 2)
+
+    def test_refuses_nothing_or_its_own_saves(self):
+        with self.assertRaises(ValueError):
+            save_backup.import_saves(self.ours, Path(self.temp.name) / 'nothing')
+        write(self.ours / 'savedata' / '1' / 'CUSA00223' / 'S' / 'd', 'mine')
+        with self.assertRaises(ValueError):
+            save_backup.import_saves(self.ours, self.ours)
+
+    def test_finds_the_other_launcher_data_folder(self):
+        appdata = Path(self.temp.name) / 'appdata'
+        write(appdata / 'inFAMOUS-PC' / 'launcher.json', '{"user_dir": "%s"}' % (self.other / 'user').as_posix())
+        self.assertEqual(save_backup.other_port_dirs({'APPDATA': str(appdata)}, nt=True), [self.other / 'user'])
+        self.assertEqual(save_backup.other_port_dirs({'APPDATA': str(appdata / 'x')}, nt=True), [])
+
+
 if __name__ == '__main__':
     unittest.main()
