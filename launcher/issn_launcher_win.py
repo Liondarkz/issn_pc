@@ -190,6 +190,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import button_icons  # noqa: E402
 import issn_hardware  # noqa: E402
 import issn_help  # noqa: E402
+import issn_theme  # noqa: E402
 import issn_lang  # noqa: E402
 
 LANG = 'en'
@@ -1021,6 +1022,11 @@ BG, PANEL, CARD, LINE = '#09090c', '#101116', '#181a21', '#262935'
 TEXT, MUTED, ACCENT, ACCENT_HI = '#f2f2f4', '#8c90a0', '#e2263b', '#ff4359'
 NEON, HOVER = '#24d3f2', '#15171e'
 NEON_PINK = '#ff3ea5'
+# issn_theme's colours (rounded widgets): fields, hovers and borders between PANEL and TEXT.
+THEME_COLORS = {'bg': '#09090c', 'panel': '#101116', 'card': '#181a21', 'field': '#14161d', 'card_hover': '#1d2029',
+                'hover': '#242836', 'border': '#262935', 'border_strong': '#323645', 'border_hover': '#454b60',
+                'text': '#f2f2f4', 'muted': '#8c90a0', 'accent': '#e2263b', 'accent_hi': '#ff4359',
+                'accent_dark': '#a8172a', 'neon': '#24d3f2'}
 DISCORD_BLUE = '#8c9bff'  # Discord's blurple, lightened for the dark page
 RESOLUTION_CHOICES = [('native', ('Native (1080p)',)), ('480p', ('480p',)), ('720p', ('720p',)),
                       ('1440p', ('1440p',)), ('1800p', ('1800p',)), ('4K', ('4K',))]
@@ -1211,46 +1217,22 @@ class Launcher:
                                 CONFIG_DIR / 'game_icon.ico')
 
     # ---- look --------------------------------------------------------------------------------
-    def check_images(self):
-        """16 px (DPI-scaled) check box images: the clam theme draws a cross."""
-        tk = self.tk
-        n = max(14, int(16 * self.dpi))
-        images = []
-        for checked in (False, True):
-            image = tk.PhotoImage(width=n + self.px(8), height=n)  # unset pixels stay transparent
-            fill = ACCENT if checked else CARD
-            image.put(ACCENT_HI if checked else '#3a4250', to=(0, 0, n, n))
-            image.put(fill, to=(1, 1, n - 1, n - 1))
-            if checked:
-                # Tick: down from (0.22n, 0.52n) to (0.42n, 0.72n), up to (0.78n, 0.30n).
-                pts = []
-                x0, y0, x1, y1, x2, y2 = .22 * n, .52 * n, .42 * n, .72 * n, .78 * n, .28 * n
-                for t in range(40):
-                    f = t / 39
-                    pts.append((x0 + (x1 - x0) * f, y0 + (y1 - y0) * f))
-                    pts.append((x1 + (x2 - x1) * f, y1 + (y2 - y1) * f))
-                width = max(1, round(n / 9))
-                for x, y in pts:
-                    image.put('#f4ece0', to=(int(x), int(y), int(x) + width, int(y) + width))
-            images.append(image)
-        self.check_off, self.check_on = images
-
     def style(self):
         ttk = self.ttk
         s = ttk.Style(self.root)
         s.theme_use('clam')
-        if not hasattr(self, 'check_on'):  # once: a rebuilt window keeps the element and its images
-            self.check_images()
-            s.element_create('Bb.indicator', 'image', self.check_off, ('selected', self.check_on), sticky='')
-        s.layout('TCheckbutton', [('Checkbutton.padding', {'sticky': 'nswe', 'children': [
-            ('Bb.indicator', {'side': 'left', 'sticky': ''}),
-            ('Checkbutton.focus', {'side': 'left', 'sticky': 'w', 'children': [
-                ('Checkbutton.label', {'sticky': 'nswe'})]})]})])
         base = (UI_FONT, 10)
+        # issn 0.3.6: rounded buttons, fields, switches and a slim scroll bar drawn by Pillow
+        # (issn_theme), once: a rebuilt window keeps the elements and their images.
+        if not hasattr(self, 'theme'):
+            self.theme = issn_theme.Theme(self.root, self.dpi, THEME_COLORS)
+            self.theme.style(s, {'': PANEL, 'Card.': CARD, 'Bar.': BG}, (UI_FONT, heading_font(17, UI_FONT)))
         self.root.option_add('*TCombobox*Listbox.background', CARD)
         self.root.option_add('*TCombobox*Listbox.foreground', TEXT)
         self.root.option_add('*TCombobox*Listbox.selectBackground', ACCENT)
         self.root.option_add('*TCombobox*Listbox.font', base)
+        self.root.option_add('*TCombobox*Listbox.borderWidth', 0)
+        self.root.option_add('*TCombobox*Listbox.relief', 'flat')
         s.configure('.', background=PANEL, foreground=TEXT, fieldbackground=CARD, bordercolor=LINE,
                     lightcolor=LINE, darkcolor=LINE, troughcolor=CARD, focuscolor=ACCENT, font=base)
         s.configure('TFrame', background=PANEL)
@@ -1260,24 +1242,15 @@ class Launcher:
         s.configure('Section.TLabel', background=PANEL, foreground=TEXT, font=heading_font(19, UI_FONT))
         s.configure('Slash.TLabel', background=PANEL, foreground=ACCENT, font=heading_font(19, UI_FONT))
         s.configure('Tile.TLabel', background=PANEL, foreground=MUTED, font=heading_font(14, UI_FONT))
-        s.configure('TCheckbutton', background=PANEL, foreground=TEXT, padding=(0, 3))
-        s.map('TCheckbutton', background=[('active', PANEL)], foreground=[('disabled', MUTED)])
         s.configure('TRadiobutton', background=PANEL, foreground=TEXT, indicatorcolor=CARD)
         s.map('TRadiobutton', background=[('active', PANEL)], indicatorcolor=[('selected', ACCENT)])
         s.configure('Warning.TLabel', background='#2a1414', foreground='#e0a0a0', padding=(10, 6))
-        s.configure('TCombobox', arrowcolor=MUTED, foreground=TEXT, padding=4)
-        s.map('TCombobox', fieldbackground=[('readonly', CARD)], foreground=[('readonly', TEXT)],
-              selectbackground=[('readonly', CARD)], selectforeground=[('readonly', TEXT)])
-        s.configure('TEntry', foreground=TEXT, insertcolor=TEXT, padding=4)
         s.configure('TSpinbox', foreground=TEXT, arrowcolor=MUTED, insertcolor=TEXT, padding=4)
-        s.configure('TButton', background=CARD, foreground=TEXT, padding=(12, 6), borderwidth=1)
-        s.map('TButton', background=[('active', LINE), ('disabled', PANEL)], foreground=[('disabled', MUTED)])
         s.configure('Play.TButton', background=ACCENT, foreground='#f4ece0', font=(*heading_font(15), 'bold'),
                     padding=(36, 10), borderwidth=0)
         s.map('Play.TButton', background=[('active', ACCENT_HI), ('disabled', '#1c222e')],
               foreground=[('disabled', '#8a7a78')])
         s.configure('Horizontal.TProgressbar', background=ACCENT, troughcolor=CARD, bordercolor=LINE)
-        s.configure('Vertical.TScrollbar', background=CARD, arrowcolor=MUTED, troughcolor=PANEL, bordercolor=PANEL)
 
     # ---- widget helpers ----------------------------------------------------------------------
     def var(self, key, store):
@@ -1453,7 +1426,8 @@ class Launcher:
         self.play_button = PlayButton(self, bar, self.play, self.px(230), self.px(54))
         self.play_button.configure(text=heading_text(_('PLAY', 'ИГРАТЬ')))
         self.play_button.pack(side='right', padx=(self.px(12), self.px(28)), pady=self.px(12))
-        self.save_button = ttk.Button(bar, text=_('Save', 'Сохранить'), command=self.save, state='disabled')
+        self.save_button = ttk.Button(bar, text=_('Save', 'Сохранить'), command=self.save, state='disabled',
+                                      style='Bar.TButton')
         self.save_button.pack(side='right', pady=self.px(12))
         self.content = tk.Frame(right, bg=PANEL)
         self.content.pack(fill='both', expand=True)
@@ -1561,10 +1535,11 @@ class Launcher:
             buttons = tk.Frame(box, bg=CARD)
             buttons.grid(row=3, column=1, sticky='w', pady=(self.px(10), 0))
             if index == 0 and newer and release['zip'] and WINDOWS:
-                ttk.Button(buttons, text=_('Update', 'Обновить'), command=lambda r=release: self.install_update(
-                    r['version'], r['zip'], r['page'])).pack(side='left', padx=(0, 6))
-            ttk.Button(buttons, text=_('Open on GitHub'), command=lambda u=release['page']: open_url(u)).pack(
-                side='left')
+                ttk.Button(buttons, text=_('Update', 'Обновить'), style='Card.Accent.TButton',
+                           command=lambda r=release: self.install_update(r['version'], r['zip'], r['page'])).pack(
+                    side='left', padx=(0, 6))
+            ttk.Button(buttons, text=_('Open on GitHub'), style='Card.TButton',
+                       command=lambda u=release['page']: open_url(u)).pack(side='left')
 
     def build_help(self):
         """Help: the installation and the last game log checked for the problems the launcher knows
@@ -1715,7 +1690,8 @@ class Launcher:
         self.pc_goal_buttons = []
         for goal, label in (('smooth', _('Smooth (up to 120 FPS)')), ('balanced', _('Balanced (60 FPS, sharpest)')),
                             ('quiet', _('Quiet (60 FPS, lighter on the card)'))):
-            button = ttk.Button(goals, text=label, state='disabled', command=lambda g=goal: self.apply_goal(g))
+            button = ttk.Button(goals, text=label, state='disabled', style='Card.TButton',
+                                command=lambda g=goal: self.apply_goal(g))
             button.pack(side='left', padx=(0, self.px(6)))
             self.pc_goal_buttons.append(button)
         self.pc_applied = tk.Label(card, text='', bg=CARD, fg=MUTED, font=(UI_FONT, 9), justify='left', anchor='w',
@@ -2200,7 +2176,7 @@ class Launcher:
             return box
 
         def copier(parent, label, text):
-            button = ttk.Button(parent, text=label)
+            button = ttk.Button(parent, text=label, style='Card.TButton')
 
             def copy():
                 self.root.clipboard_clear()
@@ -2229,7 +2205,7 @@ class Launcher:
         tk.Label(world, text=_('Card or PayPal, in any currency, no account needed.'), bg=CARD, fg=MUTED,
                  font=(UI_FONT, 10), wraplength=self.px(240), justify='left').pack(anchor='w', pady=(8, 10))
         for label, url in SUPPORT_LINKS:
-            ttk.Button(world, text=label, command=lambda u=url: open_url(u)).pack(anchor='w', pady=(0, 6))
+            ttk.Button(world, text=label, style='Card.TButton', command=lambda u=url: open_url(u)).pack(anchor='w', pady=(0, 6))
 
     def show_support(self):
         self.show('advanced')
@@ -2822,10 +2798,10 @@ class Launcher:
         tk.Frame(box, bg=NEON, width=self.px(4)).pack(side='left', fill='y')
         self.update_label = tk.Label(box, text=text, bg=CARD, fg=TEXT, font=(UI_FONT, 10, 'bold'), justify='left')
         self.update_label.pack(side='left', padx=self.px(14), pady=self.px(8))
-        self.update_button = ttk.Button(box, text=_('Update', 'Обновить'),
+        self.update_button = ttk.Button(box, text=_('Update', 'Обновить'), style='Card.Accent.TButton',
                                         command=lambda: self.install_update(version, url, page))
         self.update_button.pack(side='right', padx=(0, self.px(14)), pady=self.px(6))
-        ttk.Button(box, text=_("What's new", 'Что нового'), command=lambda: self.show('news')).pack(
+        ttk.Button(box, text=_("What's new", 'Что нового'), style='Card.TButton', command=lambda: self.show('news')).pack(
             side='right', padx=(0, self.px(8)), pady=self.px(6))
         box.pack(fill='x')
         self.notice.pack(fill='x', after=self.notice.master.winfo_children()[1])
