@@ -189,6 +189,7 @@ def list_gpus():
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import button_icons  # noqa: E402
 import issn_hardware  # noqa: E402
+import issn_downloads  # noqa: E402
 import issn_help  # noqa: E402
 import issn_theme  # noqa: E402
 import issn_lang  # noqa: E402
@@ -596,6 +597,8 @@ DLSS_FILES = ('sl.interposer.dll', 'sl.common.dll', 'sl.dlss.dll', 'sl.pcl.dll',
 STREAMLINE_PAGE = 'https://github.com/NVIDIA-RTX/Streamline/releases/tag/v2.14.16'
 XESS_FILES = ('libxess.dll',)
 XESS_PAGE = 'https://github.com/intel/xess/releases'
+# What the launcher downloads for XeSS / DLSS (issn_downloads: the vendors' release zips).
+UPSCALER_PACKAGES = {'xess': issn_downloads.XESS, 'dlss': issn_downloads.DLSS}
 # ISSN_NO_MSAA: '' leaves the game's own default, off on AMD's and Intel's Windows drivers
 # (video_core/amdgpu/issn_msaa_default.h); no_msaa_options names the chosen card in Automatic.
 NO_MSAA = [('', ('Automatic',)), ('1', ('Off (fixes black lines)',)), ('0', ('On',))]
@@ -621,6 +624,36 @@ def dlss_missing():
     """NVIDIA's files not yet in dlss_folder()."""
     folder = dlss_folder()
     return [name for name in DLSS_FILES if not (folder / name).is_file()]
+
+
+def screen_refresh_rate():
+    """The main screen's refresh rate in Hz (60 when it cannot be read)."""
+    if WINDOWS:
+        try:
+            import ctypes
+            user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
+            dc = user32.GetDC(0)
+            try:
+                hz = gdi32.GetDeviceCaps(dc, 116)  # VREFRESH
+            finally:
+                user32.ReleaseDC(0, dc)
+            return hz if hz > 1 else 60
+        except (AttributeError, OSError):
+            return 60
+    try:
+        out = subprocess.run(['xrandr', '--current'], capture_output=True, text=True, timeout=3).stdout
+        rates = re.findall(r'(\d+(?:\.\d+)?)\*', out)
+        return round(float(rates[0])) if rates else 60
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return 60
+
+
+def upscaler_folder(key):
+    return xess_folder() if key == 'xess' else dlss_folder()
+
+
+def upscaler_missing(key):
+    return issn_downloads.missing(UPSCALER_PACKAGES[key], upscaler_folder(key))
 
 
 def xess_folder():
@@ -1211,6 +1244,8 @@ class Launcher:
         self.output = queue.Queue()
         self.banner_key = self.banner_photo = None
         self.ui_calls = queue.Queue()  # work for the Tk thread from helper threads
+        self.upscaler_downloads = set()  # XeSS / DLSS files being fetched (download_upscaler)
+        self.upscaler_tried = set()  # fetched once before Play this session
         self.mod_order, self.mod_vars, self.patch_vars = [], {}, {}
         self.pending_update = None  # (version, url, page) once offered
         root.title(f'{APP_NAME} (PC)')
@@ -1757,9 +1792,11 @@ class Launcher:
         buttons = tk.Frame(goals, bg=CARD)
         buttons.pack(anchor='w')
         self.pc_goal_buttons = []
-        for goal, label in (('smooth', _('Smooth (up to 120 FPS)')), ('balanced', _('Balanced (60 FPS, sharpest)')),
+        for goal, label in (('recommended', _('Recommended (best on most PCs)')),
+                            ('smooth', _('Smooth (up to 120 FPS)')), ('balanced', _('Balanced (60 FPS, sharpest)')),
                             ('quiet', _('Quiet (60 FPS, lighter on the card)'))):
-            button = ttk.Button(buttons, text=label, state='disabled', style='Card.TButton',
+            button = ttk.Button(buttons, text=label, state='disabled',
+                                style='Card.Accent.TButton' if goal == 'recommended' else 'Card.TButton',
                                 command=lambda g=goal: self.apply_goal(g))
             button.pack(side='left', padx=(0, self.px(6)))
             self.pc_goal_buttons.append(button)
@@ -1805,7 +1842,8 @@ class Launcher:
         if self.pc is None:
             return
         screen = self.root.winfo_screenheight()
-        chosen, reasons = issn_hardware.settings_for(self.pc, goal, screen_height=max(screen, 1080))
+        chosen, reasons = issn_hardware.settings_for(self.pc, goal, screen_height=max(screen, 1080),
+                                                     refresh_hz=screen_refresh_rate())
         for store, values in (('app', chosen['app']), ('ini', chosen['ini'])):
             for key, value in values.items():
                 if store == 'app' and key not in APP_DEFAULTS or store == 'ini' and key not in INI_DEFAULTS:
@@ -1815,13 +1853,21 @@ class Launcher:
         app = chosen['app']
         resolution = next((_(*text) for value, text in RESOLUTIONS if value == app['render_height']), app['render_height'])
         notes = [_('Resolution: {}').format(resolution),
-                 _('Frame rate limit: {}').format(chosen['ini']['fps_limit']),
+                 _('Frame rate limit: {}').format(next((_(*text) for value, text in FPS_LIMITS
+                                                         if value == chosen['ini']['fps_limit']),
+                                                        chosen['ini']['fps_limit'])),
                  _('Anti-aliasing: {}').format('FSR 4' if app['anti_aliasing'] == 'fsr4' else _("the game's own")),
                  _('Performance mode: {}').format({'': _('off'), 'low': _('Balanced'), 'office': _('Maximum')}[app['perf_mode']]),
                  _('Texture filtering: {}x').format(app['aniso'])]
+        if goal == 'recommended':
+            notes.append(_('Frame pacing: {}').format(
+                next((_(*text) for value, text in FRAME_PACING if value == app['frame_pacing']), '')))
+            notes.append(_('Shader compilation: in the background'))
         why = []
         for kind, value in reasons:
-            if kind == 'cpu':
+            if kind == 'paced':
+                why.append(_('a {} Hz screen shows {} FPS evenly').format(*value))
+            elif kind == 'cpu':
                 why.append(_('the processor holds about {} FPS in the city').format(value))
             elif kind == 'ram':
                 why.append(_('{} GB of memory').format(value))
@@ -1869,23 +1915,23 @@ class Launcher:
                        _('Items, size and corner: in-game menu (Insert / R3+L2) > Overlay.'))
             self.note(f, _('Screenshots: F12 (saved in the user/screenshots folder).'), top=10)
             return
-        holder = ttk.Frame(f)
-        holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
-        ttk.Button(holder, text=_('Open the DLSS folder'), command=self.open_dlss_folder).pack(side='left')
-        ttk.Button(holder, text=_('Download page (Streamline 2.14.16)'),
-                   command=lambda: open_url(STREAMLINE_PAGE)).pack(side='left', padx=6)
-        self.dlss_state = ttk.Label(holder, text='', style='Muted.TLabel')
-        self.dlss_state.pack(side='left', padx=10)
-        self.note(f, _('DLSS: from the Streamline SDK 2.14.16 zip, folder bin\\x64, copy {} into the DLSS folder.')
-                  .format(', '.join(DLSS_FILES)), top=6)
-        holder = ttk.Frame(f)
-        holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
-        ttk.Button(holder, text=_('Open the XeSS folder'), command=self.open_xess_folder).pack(side='left')
-        ttk.Button(holder, text=_('Download page (XeSS SDK)'),
-                   command=lambda: open_url(XESS_PAGE)).pack(side='left', padx=6)
-        self.xess_state = ttk.Label(holder, text='', style='Muted.TLabel')
-        self.xess_state.pack(side='left', padx=10)
-        self.note(f, _('XeSS: from the XeSS SDK zip, folder bin, copy libxess.dll into the XeSS folder.'), top=6)
+        self.vendor_state = {}
+        for key, open_folder in (('xess', self.open_xess_folder), ('dlss', self.open_dlss_folder)):
+            package = UPSCALER_PACKAGES[key]
+            holder = ttk.Frame(f)
+            holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
+            ttk.Button(holder, text=_('Download {} now').format(package.name),
+                       command=lambda k=key: self.download_upscaler(k)).pack(side='left')
+            ttk.Button(holder, text=_('Open the {} folder').format(package.name),
+                       command=open_folder).pack(side='left', padx=6)
+            self.vendor_state[key] = ttk.Label(holder, text='', style='Muted.TLabel')
+            self.vendor_state[key].pack(side='left', padx=10)
+        self.dlss_state = self.vendor_state['dlss']
+        self.xess_state = self.vendor_state['xess']
+        self.note(f, _("XeSS and DLSS use Intel's and NVIDIA's own files, which the port may not include: the "
+                       "launcher downloads them from Intel's and NVIDIA's GitHub releases (XeSS SDK 3.0.2, about "
+                       "60 MB; Streamline 2.14.16, about 35 MB) when you pick one, and checks each file."), top=6)
+        self.var('anti_aliasing', 'app').trace_add('write', lambda *_a: self.anti_aliasing_picked())
         self.section(f, _('Overlay'))
         self.check(f, 'show_fps', 'ini', _('Show performance overlay'),
                    _('Items, size and corner: in-game menu (Insert / R3+L2) > Overlay.'))
@@ -1893,12 +1939,62 @@ class Launcher:
         self.refresh_dlss_state()
 
     def refresh_dlss_state(self):
-        missing = dlss_missing()
-        self.dlss_state.configure(text=_('DLSS files: ready') if not missing else
-                                  _('DLSS files missing: {}').format(', '.join(missing)))
-        if getattr(self, 'xess_state', None) is not None:
-            self.xess_state.configure(text=_('XeSS file: ready') if not xess_missing() else
-                                      _('XeSS file missing: libxess.dll'))
+        for key, label in getattr(self, 'vendor_state', {}).items():
+            if key in self.upscaler_downloads:
+                continue  # the download shows its progress there
+            missing = upscaler_missing(key)
+            name = UPSCALER_PACKAGES[key].name
+            label.configure(text=_('{} files: ready').format(name) if not missing else
+                            _('{} files: not downloaded yet').format(name))
+
+    def anti_aliasing_picked(self):
+        """XeSS or DLSS chosen: their files download at once (not at Play)."""
+        key = self.var('anti_aliasing', 'app').get()
+        if key in UPSCALER_PACKAGES and WINDOWS and upscaler_missing(key):
+            self.download_upscaler(key)
+
+    def download_upscaler(self, key, then=None):
+        """Fetches XeSS's or DLSS's files from the vendor's release in the background; `then` runs on
+        the UI thread afterwards (success or not)."""
+        if key in self.upscaler_downloads:
+            return
+        package = UPSCALER_PACKAGES[key]
+        folder = upscaler_folder(key)
+        self.upscaler_downloads.add(key)
+        label = getattr(self, 'vendor_state', {}).get(key)
+
+        def show(text):
+            if label is not None:
+                label.configure(text=text)
+            if not self.process:
+                self.status.configure(text=text, fg=TEXT)
+
+        def progress(done, total):
+            percent = done * 100 // total if total else 0
+            if percent != progress.shown:
+                progress.shown = percent
+                self.ui_calls.put(lambda p=percent: show(_('Downloading {} files… {}%').format(package.name, p)))
+        progress.shown = -1
+
+        def finish(error=None):
+            self.upscaler_downloads.discard(key)
+            self.refresh_dlss_state()
+            if error:
+                show(_('{} download failed: {}').format(package.name, error))
+            else:
+                show(_('{} files: ready').format(package.name))
+            if then:
+                then()
+
+        def work():
+            try:
+                issn_downloads.fetch(package, folder, progress)
+            except (OSError, zipfile.BadZipFile, ValueError) as error:
+                self.ui_calls.put(lambda e=error: finish(e))
+                return
+            self.ui_calls.put(finish)
+        show(_('Downloading {} files…').format(package.name))
+        threading.Thread(target=work, daemon=True).start()
 
     def open_xess_folder(self):
         folder = xess_folder()
@@ -2702,6 +2798,14 @@ class Launcher:
             self.show('game')
             return
         if not self.offer_system_files():
+            return
+        # XeSS / DLSS chosen without their files: fetched first, then the game starts (with the
+        # game's own anti-aliasing if the download failed: the GPU library falls back).
+        upscaler = self.app.get('anti_aliasing')
+        if WINDOWS and upscaler in UPSCALER_PACKAGES and upscaler_missing(upscaler) \
+                and upscaler not in self.upscaler_tried:
+            self.upscaler_tried.add(upscaler)
+            self.download_upscaler(upscaler, then=self.play)
             return
         missing = missing_game_files(self.app['game_dir'])
         if missing:

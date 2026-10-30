@@ -224,12 +224,45 @@ def tier(pc):
 GOALS = ('smooth', 'balanced', 'quiet')
 
 
-def settings_for(pc, goal, screen_height=1080):
+def paced_rate(refresh_hz, cpu_fps):
+    """(divider, frame rate) for the even frame pacing on a fast screen: half the refresh rate, or
+    a third when the processor cannot hold half in the city; (1, 0) on a 60-75 Hz screen."""
+    if not refresh_hz or refresh_hz < 100:
+        return 1, 0
+    for divider in (2, 3, 4):
+        rate = refresh_hz / divider
+        if rate <= max(cpu_fps, 40) or divider == 4:
+            return divider, round(rate)
+    return 1, 0
+
+
+def settings_for(pc, goal, screen_height=1080, refresh_hz=60):
     """The launcher settings (app keys and issn.ini keys) for the goal on this PC, and the reasons,
-    as (settings, reasons). smooth: the highest frame rate up to 120; balanced: 60 FPS with the
-    sharpest picture the card holds; quiet: 60 FPS with less work for the card."""
+    as (settings, reasons). recommended: what plays best on most PCs (the testers' pick, 10-30):
+    the game's Balanced performance mode, original detail, shaders in the background and, on a
+    screen of 100 Hz or more, every frame shown for the same time (half the refresh rate);
+    smooth: the highest frame rate up to 120; balanced: 60 FPS with the sharpest picture the card
+    holds; quiet: 60 FPS with less work for the card."""
     app, ini, reasons = {}, {}, []
     cpu = city_fps(pc) or 60
+    if goal == 'recommended':
+        divider, rate = paced_rate(refresh_hz, cpu)
+        chosen, reasons = settings_for(pc, 'balanced', screen_height)
+        app, ini = chosen['app'], chosen['ini']
+        if app['perf_mode'] == '':
+            app['perf_mode'] = 'low'
+        app['draw_distance'] = ''
+        app['shader_compile'] = ''
+        ini['vsync'] = '1'
+        if divider > 1:
+            # The pacing holds the rate; the limit stays out of its way.
+            app['frame_pacing'] = str(divider)
+            ini['fps_limit'] = '0'
+            reasons.append(('paced', (refresh_hz, rate)))
+        else:
+            app['frame_pacing'] = ''
+            ini['fps_limit'] = '60'
+        return {'app': app, 'ini': ini}, reasons
     heights = [h for h in ('720', '900', '', '1440', '1800', '2160')
                if (int(h) if h else 1080) <= max(screen_height, 1080)]
     target = 120 if goal == 'smooth' else 60

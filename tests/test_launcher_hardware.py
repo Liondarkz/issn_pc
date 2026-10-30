@@ -55,6 +55,20 @@ class HardwareTest(unittest.TestCase):
         s, _r = hw.settings_for(big, 'balanced', screen_height=2160)
         self.assertEqual(s['app']['render_height'], '2160')
 
+    def test_recommended(self):
+        joao = pc('AMD Radeon RX 9060 XT', 'AMD Ryzen 7 3700X 8-Core Processor')
+        s, reasons = hw.settings_for(joao, 'recommended', refresh_hz=144)
+        self.assertEqual((s['app']['frame_pacing'], s['ini']['fps_limit'], s['ini']['vsync']), ('2', '0', '1'))
+        self.assertEqual((s['app']['perf_mode'], s['app']['draw_distance'], s['app']['shader_compile']),
+                         ('low', '', ''))
+        self.assertIn(('paced', (144, 72)), reasons)
+        # 240 Hz: half is 120, more than this processor holds in the city - a third, 80.
+        s, _r = hw.settings_for(joao, 'recommended', refresh_hz=240)
+        self.assertEqual(s['app']['frame_pacing'], '3')
+        # A 60 Hz screen: no pacing (half would be 30), the limit at 60.
+        s, _r = hw.settings_for(joao, 'recommended', refresh_hz=60)
+        self.assertEqual((s['app']['frame_pacing'], s['ini']['fps_limit']), ('', '60'))
+
     def test_unknown_pc(self):
         self.assertEqual(hw.tier(hw.Pc()), 'unknown')
         s, _r = hw.settings_for(hw.Pc(), 'balanced')

@@ -75,13 +75,14 @@ TOPICS = {
          'Update the graphics driver.']),
     'dlss_files': (
         'DLSS could not start',
-        'DLSS needs NVIDIA\'s Streamline files (not included) of the exact version the port uses.',
-        ['Graphics > Open the DLSS folder, and copy the five files from Streamline SDK 2.14.16 (bin\\x64).',
-         'A newer Streamline crashed the game for a tester: use 2.14.16.']),
+        'DLSS needs NVIDIA\'s Streamline files of the exact version the port uses; the launcher downloads them.',
+        ['Graphics > Download DLSS now (the launcher fetches Streamline 2.14.16 from NVIDIA\'s GitHub).',
+         'A newer Streamline crashed the game for a tester: the launcher uses 2.14.16.']),
     'xess_files': (
         'XeSS could not start',
-        'XeSS needs Intel\'s libxess.dll (not included), and a graphics card with the Vulkan features it uses.',
-        ['Graphics > Open the XeSS folder, and copy libxess.dll from the XeSS SDK zip (folder bin).',
+        'XeSS needs Intel\'s libxess.dll, which the launcher downloads, and a graphics card with the Vulkan '
+        'features it uses.',
+        ['Graphics > Download XeSS now (the launcher fetches it from Intel\'s GitHub).',
          'Update the graphics driver. If XeSS still does not start, pick FSR 4 or the game\'s own.']),
     'location': (
         'The port is in a folder that causes problems',

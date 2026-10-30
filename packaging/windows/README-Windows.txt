@@ -8,19 +8,14 @@ report how far you get and what goes wrong (see Reporting problems).
 
 Community: Discord https://discord.gg/y82HQ5uTQg (news, help, test builds).
 
-DLSS (optional, NVIDIA RTX)
-NVIDIA's files are not included (licence). Download Streamline SDK 2.14.16 from
-https://github.com/NVIDIA-RTX/Streamline/releases (exactly that version) and copy these five files
-from its bin\x64 folder (not development) into bin\dlss next to issn-probe.exe (launcher:
-Graphics > Open the DLSS folder): sl.interposer.dll, sl.common.dll, sl.dlss.dll, sl.pcl.dll,
-nvngx_dlss.dll. Then choose DLSS in Graphics > Anti-aliasing. Untested by us (no NVIDIA card):
-please report how it goes. Without the files the game keeps its own anti-aliasing.
-
-XeSS (optional, Intel Arc, Radeon RX 5000+, GeForce GTX 10+)
-Intel's libxess.dll is not included. Download the XeSS SDK from https://github.com/intel/xess/releases
-and copy libxess.dll from its bin folder into bin\xess next to issn-probe.exe (launcher: Graphics >
-Open the XeSS folder). Then choose XeSS in Graphics > Anti-aliasing. It needs the Visual C++
-2015-2022 runtime (vc_redist.x64). Without the file the game keeps its own anti-aliasing.
+XeSS and DLSS (optional)
+Intel's and NVIDIA's files are not included. When you choose XeSS or DLSS in Graphics >
+Anti-aliasing, the launcher downloads them from the vendors' own GitHub releases (XeSS SDK 3.0.2,
+about 60 MB; Streamline SDK 2.14.16, about 35 MB), checks each file and puts them in bin\xess and
+bin\dlss next to issn-probe.exe. Graphics > Download XeSS now / Download DLSS now does the same.
+XeSS runs on Intel Arc, Radeon RX 5000 and later and GeForce GTX 10 and later; DLSS needs an
+NVIDIA RTX card. XeSS needs the Visual C++ 2015-2022 runtime (vc_redist.x64). Without the files
+the game keeps its own anti-aliasing.
 
 What's new in 0.3.5.1
 - Fixed: the picture staying dark at night (only lights and glow visible) on some PCs. The
