@@ -377,7 +377,7 @@ static int64_t bounce_read(int h,void *buffer,uint64_t size,int64_t offset) {
         __atomic_add_fetch(&io_read_ns,t1-t0,__ATOMIC_RELAXED);
         if (n<0) return done ? (int64_t)done : -errno;
         /* issn: into GPU-modified memory without a fault (ISSN_WRITE_MERGE). */
-        if (n<64 || !issngpu_cpu_write((unsigned char *)buffer+done,bounce,-1,(uint64_t)n))
+        if (n<64 || !issngpu_cpu_write((unsigned char *)buffer+done,bounce,-2,(uint64_t)n)) /* -2: a file read */
             memcpy((unsigned char *)buffer+done,bounce,(size_t)n);
         __atomic_add_fetch(&io_copy_ns,io_now_ns()-t1,__ATOMIC_RELAXED);
         done+=(uint64_t)n;

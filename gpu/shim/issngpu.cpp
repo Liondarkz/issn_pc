@@ -718,12 +718,14 @@ extern "C" int issngpu_text_input_poll(char* out, uint64_t size) {
 // that read a block). The whole chunk is now marked CPU-written first, exactly as its faults
 // would have done (GuestWriteFault: GPU-written pages are read back, the rest unprotected), then
 // copied without faulting. Small reads keep the fault path. ISSN_READ_INVALIDATE=0: off.
-extern "C" int issngpu_cpu_write(void* dst, const void* src, int, uint64_t size) {
+// Only file reads (fill -2, src/runtime_file.c): the guest memset / memcpy (src/runtime.c) call
+// this too, memset with no source (the first try copied from it: crash at start, 10-29).
+extern "C" int issngpu_cpu_write(void* dst, const void* src, int fill, uint64_t size) {
     static const bool enabled = [] {
         const char* v = std::getenv("ISSN_READ_INVALIDATE");
         return !(v && v[0] == '0');
     }();
-    if (!enabled || size < (64u << 10)) {
+    if (!enabled || fill != -2 || !src || size < (64u << 10)) {
         return 0;
     }
     auto* rasterizer = Core::Memory::Instance()->GetRasterizer();

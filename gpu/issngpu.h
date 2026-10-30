@@ -38,6 +38,8 @@ void issngpu_dump_guest_writes(void *ucontext);
 void issngpu_dump_gpu_state(void);
 /* issn: a guest memcpy/memset into GPU-modified memory written without a fault or GPU wait
  * (ISSN_WRITE_MERGE=1 with precise readbacks, from HayatoG's iss_pc); 0: write normally. */
+/* issn 0.3.6: fill -2 = a file read (src/runtime_file.c): chunks of 64 KB or more are marked
+ * CPU-written in one go and copied without a fault per page. */
 int issngpu_cpu_write(void *dst, const void *src, int fill, uint64_t size);
 /* issn: frames the guest has finished (sceGnmSubmitDone calls), for the hang watchdog. */
 uint64_t issngpu_frame_count(void);
