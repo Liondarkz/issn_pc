@@ -482,13 +482,43 @@ static int apply_button_map(ButtonMap *map, const char *spec, bool keyboard) {
     return used;
 }
 
+/* issn 0.3.6: keys changed in the game's own menu (Controls tab, issn_overlay.cpp) are kept in
+ * issn.ini key_map and win over the launcher's ISSN_KEY_MAP (the launcher reads them back). */
+static ButtonMap default_key_map;
+static int key_map_saved;
 static void load_button_maps(void) {
     static bool loaded;
     if (loaded) return;
     loaded=true;
+    if (!key_map_saved) { default_key_map=key_map; key_map_saved=1; }
     const int pad=apply_button_map(&pad_map,getenv("ISSN_PAD_MAP"),false);
-    const int keys=apply_button_map(&key_map,getenv("ISSN_KEY_MAP"),true);
+    int keys=apply_button_map(&key_map,getenv("ISSN_KEY_MAP"),true);
+    keys+=apply_button_map(&key_map,issngpu_saved_key_map(),true);
     if (pad || keys) printf("Runtime: pad map: %d gamepad and %d keyboard buttons remapped\n",pad,keys);
+}
+/* The game's menu changed a key: the defaults, the launcher's map, then the menu's (live). */
+void runtime_pad_apply_key_map(const char *spec) {
+    pthread_mutex_lock(&lock);
+    if (!key_map_saved) { default_key_map=key_map; key_map_saved=1; }
+    ButtonMap map=default_key_map;
+    apply_button_map(&map,getenv("ISSN_KEY_MAP"),true);
+    apply_button_map(&map,spec,true);
+    key_map=map;
+    pthread_mutex_unlock(&lock);
+    printf("Runtime: keys changed in the game's menu: %s\n",spec && *spec ? spec : "(defaults)");
+    fflush(stdout);
+}
+/* The SDL name of the first key on a PS4 button (cross, touchpad_right, ...), "" if none. */
+const char *runtime_pad_key_name(const char *button) {
+    uint32_t ps=0;
+    for (size_t i=0;i<sizeof(ps_names)/sizeof(*ps_names);++i) if (!SDL_strcasecmp(button,ps_names[i].name)) ps=ps_names[i].ps;
+    if (!ps) return "";
+    pthread_mutex_lock(&lock);
+    const char *name="";
+    for (size_t i=0;i<key_map.count;++i)
+        if (key_map.entries[i].ps==ps) { name=SDL_GetScancodeName((SDL_Scancode)key_map.entries[i].source); break; }
+    pthread_mutex_unlock(&lock);
+    return name;
 }
 
 static void key_axis(uint8_t *axis, bool negative, bool positive) {

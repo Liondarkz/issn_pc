@@ -447,6 +447,27 @@ def control_values(controls, kind):
             if (key if kind == 'key' else pad) and isinstance(values.get(button), str) and values[button].strip()}
 
 
+def ini_key_changes(ini):
+    """issn.ini key_map (keys changed in the game's own menu, Controls tab) as {button: key}."""
+    changes = {}
+    for entry in str(ini.get('key_map', '') or '').split(','):
+        button, sep, key = entry.partition('=')
+        if sep and button.strip() in {b for b, _k, _p in CONTROLS} and key.strip():
+            changes[button.strip()] = key.strip()
+    return changes
+
+
+def merge_ini_keys(settings, ini):
+    """The launcher's controls with the keys changed in the game's menu on top: the game writes
+    them to issn.ini, the launcher shows them and passes them on (ISSN_KEY_MAP)."""
+    changes = ini_key_changes(ini)
+    if not changes:
+        return settings
+    controls = dict(settings.get('controls') or {})
+    controls['key'] = {**(controls.get('key') or {}), **changes}
+    return {**settings, 'controls': controls}
+
+
 def control_map(controls, kind):
     """ISSN_KEY_MAP/ISSN_PAD_MAP value: 'cross=Q,circle=Left Shift' for the changed buttons."""
     chosen = control_values(controls, kind)
@@ -1162,6 +1183,7 @@ class Launcher:
         self.root = root
         self.app = {**APP_DEFAULTS, **migrate_settings(load_json(CONFIG_FILE, {}))}
         self.ini, self.ini_lines = load_ini()
+        self.app = merge_ini_keys(self.app, self.ini)
         self.vars = {}
         self.process = self.job = None
         self.output = queue.Queue()
@@ -2478,6 +2500,10 @@ class Launcher:
         edited = {key: state['ini'][key] for key, var in self.vars.items()
                   if var.store == 'ini' and
                   (key not in persisted or state['ini'][key] != baseline.get(key))}
+        # The keys go to issn.ini too, where the game's menu keeps its changes (they win there).
+        keys = control_map(state['app'].get('controls', {}), 'key')
+        if keys != str(_disk.get('key_map', '')):
+            edited['key_map'] = keys
         try:
             save_ini(edited, lines)
             atomic_write(CONFIG_FILE, json.dumps(state['app'], indent=2, ensure_ascii=False))

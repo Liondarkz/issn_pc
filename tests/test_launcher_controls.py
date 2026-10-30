@@ -213,6 +213,13 @@ class ControlMapTest(unittest.TestCase):
         for key in ('display_mode', 'fps_limit', 'render_resolution', 'engine_fps'):
             self.assertIn(key, launcher.INI_DEFAULTS)
 
+    def test_keys_from_the_games_menu(self):
+        ini = {'key_map': 'cross=Q,bogus=Z,triangle=Return,options='}
+        self.assertEqual(launcher.ini_key_changes(ini), {'cross': 'Q', 'triangle': 'Return'})
+        merged = launcher.merge_ini_keys({'controls': {'key': {'circle': 'P', 'cross': 'K'}}}, ini)
+        self.assertEqual(merged['controls']['key'], {'circle': 'P', 'cross': 'Q', 'triangle': 'Return'})
+        self.assertEqual(launcher.merge_ini_keys({'controls': {}}, {}), {'controls': {}})
+
     def test_options_moves_to_escape(self):
         self.assertEqual(dict((b, k) for b, k, _p in launcher.CONTROLS)['options'], 'Escape')
         old = {'controls': {'key': {'options': 'Return', 'cross': 'Q'}}}

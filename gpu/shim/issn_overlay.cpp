@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <string>
 #include <vector>
 
 #include <SDL3/SDL.h>
@@ -22,6 +23,9 @@
 
 extern IssnActorSlot issn_actor_slots[2];
 extern "C" void runtime_restart(void); // src/probe.c: starts run.py again, ends this process
+// issn 0.3.6: keys changed live from the Controls tab (src/runtime_pad.c).
+extern "C" void runtime_pad_apply_key_map(const char* spec);
+extern "C" const char* runtime_pad_key_name(const char* button);
 #include "common/elf_info.h"
 #include "imgui.h"
 #include "imgui_internal.h" // RegisterUserTexture (save pictures)
@@ -389,6 +393,98 @@ void GameTab() {
     }
 }
 
+// issn 0.3.6: Controls: every PS4 button's key, changed here with the next key pressed (user
+// 10-29: a quicker way than the launcher). The changes go to issn.ini key_map: only the buttons that
+// differ from the port's layout, in the launcher's form (button=SDL key name).
+struct KeyRow {
+    const char* button;
+    const char* label;
+    const char* fallback; // the port's default key (src/runtime_pad.c key_map)
+};
+constexpr KeyRow KeyRows[] = {
+    {"cross", "Cross (X): jump", "Space"},       {"circle", "Circle: dodge, drop", "Left Shift"},
+    {"square", "Square: melee", "C"},            {"triangle", "Triangle: subdue, interact", "F"},
+    {"l1", "L1: power", "Q"},                    {"r1", "R1: power", "E"},
+    {"l3", "L3: sprint", "U"},                   {"r3", "R3: camera", "O"},
+    {"options", "Options: pause menu", "Escape"}, {"touchpad_right", "Touchpad (held: both thumbs)", "R"},
+    {"touchpad_left", "Touchpad left side (photo mode)", "G"},
+    {"up", "D-pad up", "Up"},                    {"down", "D-pad down", "Down"},
+    {"left", "D-pad left", "Left"},              {"right", "D-pad right", "Right"},
+    {"shake", "Shake the spray can", "X"},
+};
+int capturing_key = -1; // KeyRows index waiting for a key, or -1
+
+std::string KeyMapWith(const std::string& map, const char* button, const char* name) {
+    // map: "button=Key,button=Key"; the button's entry replaced (or removed when it is the default).
+    std::string out;
+    size_t start = 0;
+    while (start <= map.size()) {
+        const size_t end = std::min(map.find(',', start), map.size());
+        const std::string entry = map.substr(start, end - start);
+        const size_t eq = entry.find('=');
+        if (eq != std::string::npos && entry.substr(0, eq) != button && !entry.empty()) {
+            out += (out.empty() ? "" : ",") + entry;
+        }
+        start = end + 1;
+    }
+    if (name && *name) {
+        out += (out.empty() ? "" : ",") + std::string(button) + "=" + name;
+    }
+    return out;
+}
+
+void AssignKey(int row, SDL_Scancode code) {
+    auto& s = IssnSettings::Get();
+    const KeyRow& k = KeyRows[row];
+    const char* name = SDL_GetScancodeName(code);
+    if (!name || !*name) {
+        return;
+    }
+    s.key_map = KeyMapWith(s.key_map, k.button, SDL_strcasecmp(name, k.fallback) ? name : nullptr);
+    runtime_pad_apply_key_map(s.key_map.c_str());
+    dirty = true;
+}
+
+void ControlsTab() {
+    auto& s = IssnSettings::Get();
+    ImGui::SeparatorText("Keyboard");
+    ImGui::TextWrapped("Click Change, then press the key. Esc cancels. The mouse buttons stay L2 (aim) and R2 "
+                       "(shoot); W/A/S/D move and the mouse turns the camera.");
+    if (ImGui::BeginTable("##keys", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
+        ImGui::TableSetupColumn("button", ImGuiTableColumnFlags_WidthStretch, 0.55f);
+        ImGui::TableSetupColumn("key", ImGuiTableColumnFlags_WidthStretch, 0.25f);
+        ImGui::TableSetupColumn("change", ImGuiTableColumnFlags_WidthStretch, 0.20f);
+        for (int i = 0; i < int(std::size(KeyRows)); ++i) {
+            const KeyRow& k = KeyRows[i];
+            ImGui::PushID(i);
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted(k.label);
+            ImGui::TableNextColumn();
+            if (capturing_key == i) {
+                ImGui::TextColored(ImVec4(0.14f, 0.83f, 0.95f, 1.0f), "Press a key...");
+            } else {
+                const char* name = runtime_pad_key_name(k.button);
+                ImGui::TextUnformatted(name && *name ? name : "-");
+            }
+            ImGui::TableNextColumn();
+            if (ImGui::Button(capturing_key == i ? "Cancel" : "Change", ImVec2(-FLT_MIN, 0))) {
+                capturing_key = capturing_key == i ? -1 : i;
+            }
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+    }
+    if (ImGui::Button("Reset all keys")) {
+        s.key_map.clear();
+        runtime_pad_apply_key_map("");
+        capturing_key = -1;
+        dirty = true;
+    }
+    Help("Every key back to the port's layout (and the launcher's own changes, if any).");
+}
+
 void ImageTab() {
     namespace G = IssnGraphics;
     auto& s = IssnSettings::Get();
@@ -555,7 +651,7 @@ void Menu() {
         return;
     }
     footer_help = nullptr;
-    constexpr int TabCount = 4;
+    constexpr int TabCount = 5;
     const ImGuiIO& io = ImGui::GetIO();
     if (!io.WantTextInput) {
         const int step = ImGui::IsKeyPressed(ImGuiKey_GamepadR1, false) || ImGui::IsKeyPressed(ImGuiKey_E, false) ? 1
@@ -568,7 +664,7 @@ void Menu() {
     }
     const float footer = ImGui::GetFrameHeightWithSpacing() * 2.0f + ImGui::GetTextLineHeightWithSpacing() * 2.0f;
     if (ImGui::BeginTabBar("##tabs")) {
-        static const char* const tabs[TabCount] = {"Game", "Image", "Performance", "Overlay"};
+        static const char* const tabs[TabCount] = {"Game", "Image", "Performance", "Controls", "Overlay"};
         for (int tab = 0; tab < TabCount; ++tab) {
             const ImGuiTabItemFlags flags = requested_tab == tab ? ImGuiTabItemFlags_SetSelected : 0;
             if (!ImGui::BeginTabItem(tabs[tab], nullptr, flags)) {
@@ -583,6 +679,7 @@ void Menu() {
                 case 0: GameTab(); break;
                 case 1: ImageTab(); break;
                 case 2: PerformanceTab(); break;
+                case 3: ControlsTab(); break;
                 default: OverlayTab(); break;
                 }
             }
@@ -979,6 +1076,15 @@ bool HandleEvent(const SDL_Event& event) {
     case SDL_EVENT_KEY_DOWN:
     case SDL_EVENT_KEY_UP: {
         const bool down = event.type == SDL_EVENT_KEY_DOWN;
+        if (is_open && capturing_key >= 0) { // Controls tab: this key is the new one
+            if (down && !event.key.repeat) {
+                if (event.key.scancode != SDL_SCANCODE_ESCAPE && event.key.scancode != SDL_SCANCODE_INSERT) {
+                    AssignKey(capturing_key, event.key.scancode);
+                }
+                capturing_key = -1;
+            }
+            return true;
+        }
         if (down && !event.key.repeat && (event.key.key == SDLK_Y || event.key.key == SDLK_F7) &&
             !is_open) {
             // issn: Y (or F7, axylpup's key) gives the camera to the mouse (runtime_pad.c

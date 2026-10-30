@@ -5,6 +5,7 @@
 volatile int runtime_snapshot_request; /* runtime_thread.c */
 
 int issngpu_overlay_captures_input(void) { return 0; }
+const char *issngpu_saved_key_map(void) { return ""; }
 uintptr_t runtime_lookup(const RuntimeExport *table, size_t count, const char *name) {
     (void)table; (void)count; (void)name;
     return 0;

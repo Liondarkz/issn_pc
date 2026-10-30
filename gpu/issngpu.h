@@ -54,6 +54,8 @@ int issngpu_choice_begin(const char *title, const char *const *items, const char
 int issngpu_choice_poll(void);
 /* 1 while the in-game settings menu is open: the game's pad input is held neutral. */
 int issngpu_overlay_captures_input(void);
+/* issn 0.3.6: issn.ini key_map (keys changed in the game's menu), "" when none. */
+const char *issngpu_saved_key_map(void);
 /* Number of symbols registered by the vendored libraries (diagnostics). */
 unsigned issngpu_symbol_count(void);
 #ifdef __cplusplus

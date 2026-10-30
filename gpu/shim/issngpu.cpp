@@ -671,6 +671,12 @@ ScreenshotRequests ConsumeScreenshotRequests() {
 }
 } // namespace VideoCore
 
+extern "C" const char* issngpu_saved_key_map(void) {
+    static std::string copy;
+    copy = IssnSettings::Get().key_map;
+    return copy.c_str();
+}
+
 extern "C" int issngpu_overlay_captures_input(void) {
     return IssnOverlay::CapturesInput() ? 1 : 0;
 }
