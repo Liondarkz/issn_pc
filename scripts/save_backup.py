@@ -2,15 +2,25 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Backups of the game's saves: <user>/savedata copied to <user>/savedata_backups/<time>.
 
-run.py makes one before every start; the launcher lists them and restores one. A restore
-first backs up the current saves, so it can always be undone.
+run.py makes one before every start when the saves changed since the newest backup; the
+launcher lists them and restores one. A restore or an import first backs up the current saves
+(a "-before-restore" / "-before-import" backup), so it can always be undone.
+
+Kept (issn_pc 10-31: a tester's save copied over a player's own, then a dozen test starts pushed
+every backup of his progress out of a plain "newest ten"): the newest KEEP, the newest of each of
+the last DAYS days that have backups, and the newest PROTECTED backups made before a restore or an
+import.
 """
 import datetime
+import filecmp
 from pathlib import Path
 import shutil
 
 KEEP = 10
+DAYS = 14
+PROTECTED = 5
 STAMP = '%Y%m%d-%H%M%S'
+BEFORE_RESTORE, BEFORE_IMPORT = 'before-restore', 'before-import'
 
 
 def backups_dir(user_dir):
@@ -27,27 +37,68 @@ def _has_saves(savedata):
     return savedata.is_dir() and any(p.is_file() for p in savedata.rglob('*'))
 
 
+def is_protected(name):
+    return name.endswith(('-' + BEFORE_RESTORE, '-' + BEFORE_IMPORT))
+
+
+def kept(names, keep=KEEP, days=DAYS, protected=PROTECTED):
+    """The backups the rules above keep, of `names` (newest first)."""
+    keep_set = set(names[:keep])
+    seen_days = []
+    for name in names:
+        day = name[:8]
+        if day not in seen_days:
+            seen_days.append(day)
+            if len(seen_days) <= days:
+                keep_set.add(name)
+    keep_set.update([name for name in names if is_protected(name)][:protected])
+    return keep_set
+
+
 def _prune(user_dir, keep=KEEP):
-    for name in list_backups(user_dir)[keep:]:
-        shutil.rmtree(backups_dir(user_dir) / name, ignore_errors=True)
+    names = list_backups(user_dir)
+    stay = kept(names, keep)
+    for name in names:
+        if name not in stay:
+            shutil.rmtree(backups_dir(user_dir) / name, ignore_errors=True)
 
 
-def _copy(user_dir, now):
+def _same_tree(a, b):
+    """True when folders a and b hold the same files with the same bytes."""
+    def files(root):
+        return sorted(str(p.relative_to(root)) for p in root.rglob('*') if p.is_file())
+    listed = files(a)
+    if listed != files(b):
+        return False
+    return all(filecmp.cmp(a / name, b / name, shallow=False) for name in listed)
+
+
+def _copy(user_dir, now, tag=''):
     savedata = Path(user_dir) / 'savedata'
     if not _has_saves(savedata):
         return None
     root = backups_dir(user_dir)
     root.mkdir(parents=True, exist_ok=True)
     base = (now or datetime.datetime.now()).strftime(STAMP)
-    target, n = root / base, 2
+    suffix = f'-{tag}' if tag else ''
+    target, n = root / f'{base}{suffix}', 2
     while target.exists():
-        target, n = root / f'{base}-{n}', n + 1
+        target, n = root / f'{base}-{n}{suffix}', n + 1
     shutil.copytree(savedata, target)
     return target
 
 
 def backup(user_dir, now=None, keep=KEEP):
-    """Copies savedata; returns the new folder, or None when there is nothing to save."""
+    """Copies savedata; returns the new folder, or None when there is nothing to save or the saves
+    are the same as in the newest backup."""
+    savedata = Path(user_dir) / 'savedata'
+    names = list_backups(user_dir)
+    if names and _has_saves(savedata):
+        try:
+            if _same_tree(savedata, backups_dir(user_dir) / names[0]):
+                return None
+        except OSError:
+            pass
     made = _copy(user_dir, now)
     if made:
         _prune(user_dir, keep)
@@ -61,7 +112,7 @@ def restore(user_dir, name, now=None):
     source = backups_dir(user_dir) / name
     savedata = Path(user_dir) / 'savedata'
     # Pruning waits until the copy is done: the restored backup may be the oldest one.
-    safety = _copy(user_dir, now)
+    safety = _copy(user_dir, now, BEFORE_RESTORE)
     staging = Path(user_dir) / 'savedata.restoring'
     shutil.rmtree(staging, ignore_errors=True)
     shutil.copytree(source, staging)
@@ -161,7 +212,7 @@ def import_saves(user_dir, folder, now=None, title=TITLE):
         names = {p.name.split('.')[0].upper() for p in paths}
         pick = title.upper() if title.upper() in names else sorted(names)[0]
         chosen[uid] = [p for p in paths if p.name.split('.')[0].upper() == pick]
-    safety = _copy(user_dir, now)
+    safety = _copy(user_dir, now, BEFORE_IMPORT)
     slots = 0
     for uid, paths in chosen.items():
         for path in paths:

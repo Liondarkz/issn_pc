@@ -2148,8 +2148,9 @@ class Launcher:
         ttk.Button(holder, text=_('Restore', 'Восстановить'), command=self.restore_backup).pack(side='left', padx=(6, 0))
         ttk.Button(holder, text=_('Refresh', 'Обновить'), command=self.refresh_backups).pack(side='left', padx=(6, 0))
         self.row(f, _('Save backups', 'Резервные копии'), holder,
-                 _('Made before every start, newest first; the last {} are kept. Restoring backs up the '
-                   'current saves first.').format(save_backup.KEEP))
+                 _('Made before every start when the saves changed, newest first. Kept: the last {}, one a '
+                   'day for {} days and the ones made before a restore or an import. Restoring backs up the '
+                   'current saves first.').format(save_backup.KEEP, save_backup.DAYS))
         self.row(f, _('Import saves'),
                  ttk.Button(f, text=_('Import from another port…'), command=self.import_saves),
                  _('Brings your progress from another PC port of the game (HayatoG\'s iss_pc, or an older '

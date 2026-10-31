@@ -1125,7 +1125,7 @@ EXTRA = {
         'RUNNING': 'EXECUTANDO',
         '{} · version {}': '{} · versão {}',
         'Choose your game folder to play.': 'Escolha a pasta do jogo para jogar.',
-        'Made before every start, newest first; the last {} are kept. Restoring backs up the current saves first.': 'Feito antes de cada início, do mais novo ao mais antigo; os últimos {} são mantidos. Restaurar faz backup dos saves atuais antes.',
+        'Made before every start when the saves changed, newest first. Kept: the last {}, one a day for {} days and the ones made before a restore or an import. Restoring backs up the current saves first.': 'Feito antes de cada início quando os saves mudaram, do mais novo ao mais antigo. Ficam guardados: os últimos {}, um por dia durante {} dias e os feitos antes de restaurar ou importar. Restaurar faz backup dos saves atuais antes.',
         'shadPS4/GoldHEN XML patch files for this game version. Empty: {}': 'Arquivos de patch XML do shadPS4/GoldHEN para esta versão do jogo. Vazio: {}',
         '{} · version {} · {}. Resolution and frame rate patches follow Performance.': '{} · versão {} · {}. Os patches de resolução e de taxa de quadros seguem o Desempenho.',
         'Automatic lets SDL choose. Pick X11 if the window misbehaves on Wayland (it runs through XWayland).': 'O modo automático deixa o SDL escolher. Escolha X11 se a janela se comportar mal no Wayland (roda pelo XWayland).',
@@ -1323,8 +1323,8 @@ EXTRA = {
         'RUNNING': 'EN EJECUCIÓN',
         '{} · version {}': '{} · versión {}',
         'Choose your game folder to play.': 'Elige la carpeta del juego para jugar.',
-        'Made before every start, newest first; the last {} are kept. Restoring backs up the current saves first.':
-            'Se hace antes de cada inicio, de la más reciente a la más antigua; se conservan las últimas {}. Antes de restaurar se hace una copia de las partidas actuales.',
+        'Made before every start when the saves changed, newest first. Kept: the last {}, one a day for {} days and the ones made before a restore or an import. Restoring backs up the current saves first.':
+            'Se hace antes de cada inicio si las partidas cambiaron, de la más reciente a la más antigua. Se conservan: las últimas {}, una por día durante {} días y las hechas antes de restaurar o importar. Antes de restaurar se hace una copia de las partidas actuales.',
         'shadPS4/GoldHEN XML patch files for this game version. Empty: {}':
             'Archivos de parche XML de shadPS4/GoldHEN para esta versión del juego. Vacío: {}',
         '{} · version {} · {}. Resolution and frame rate patches follow Performance.':

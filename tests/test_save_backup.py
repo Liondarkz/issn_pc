@@ -41,18 +41,57 @@ class SaveBackupTest(unittest.TestCase):
     def test_same_second_gets_unique_name(self):
         write(self.save, 'v1')
         first = save_backup.backup(self.user, now=self.clock)
+        write(self.save, 'v2')
         second = save_backup.backup(self.user, now=self.clock)
         self.assertNotEqual(first, second)
         self.assertEqual(len(save_backup.list_backups(self.user)), 2)
 
+    def test_unchanged_saves_are_not_backed_up_again(self):
+        write(self.save, 'v1')
+        first = save_backup.backup(self.user, now=self.tick())
+        self.assertIsNone(save_backup.backup(self.user, now=self.tick()))
+        write(self.save, 'v2')
+        self.assertIsNotNone(save_backup.backup(self.user, now=self.tick()))
+        self.assertEqual(save_backup.list_backups(self.user)[1], first.name)
+
     def test_keeps_newest_ten(self):
-        write(self.save, 'v')
-        made = [save_backup.backup(self.user, now=self.tick()) for _ in range(12)]
+        made = []
+        for i in range(12):
+            write(self.save, f'v{i}')
+            made.append(save_backup.backup(self.user, now=self.tick()))
         kept = save_backup.list_backups(self.user)
         self.assertEqual(len(kept), save_backup.KEEP)
         self.assertEqual(kept[0], made[-1].name)  # newest first
         self.assertFalse(made[0].exists())
         self.assertFalse(made[1].exists())
+
+    def test_keeps_one_a_day_and_the_ones_before_an_import(self):
+        # issn_pc 10-31: yesterday's progress and the copy made before an import outlive a day of
+        # test starts.
+        write(self.save, 'yesterday')
+        yesterday = save_backup.backup(self.user, now=self.tick())
+        self.clock += datetime.timedelta(days=1)
+        write(self.save, 'mine')
+        importing = self.user / 'other' / 'savedata' / '1' / 'CUSA00223' / 'infamousssAuto0' / 'dis.dat'
+        write(importing, 'tester')
+        safety, _ = save_backup.import_saves(self.user, self.user / 'other', now=self.tick())
+        self.assertTrue(safety.name.endswith('-before-import'))
+        for i in range(20):
+            write(self.save, f'test start {i}')
+            save_backup.backup(self.user, now=self.tick())
+        names = save_backup.list_backups(self.user)
+        self.assertIn(yesterday.name, names)
+        self.assertIn(safety.name, names)
+        self.assertEqual(len(names), save_backup.KEEP + 2)
+
+    def test_kept_rules(self):
+        names = [f'202610{d:02d}-1200{m:02d}' for d in range(31, 0, -1) for m in (2, 1)]
+        stay = save_backup.kept(names, keep=3, days=4, protected=1)
+        self.assertEqual(sorted(stay, reverse=True), [
+            '20261031-120002', '20261031-120001', '20261030-120002', '20261029-120002', '20261028-120002'])
+        tagged = ['20261031-120000-before-import', '20261001-120000-before-restore', '20261001-110000-before-import']
+        stay = save_backup.kept(tagged, keep=0, days=0, protected=2)
+        self.assertEqual(stay, set(tagged[:2]))
 
     def test_restore_backs_up_current_first(self):
         write(self.save, 'old')
@@ -67,8 +106,8 @@ class SaveBackupTest(unittest.TestCase):
     def test_restore_oldest_when_full(self):
         write(self.save, 'oldest')
         oldest = save_backup.backup(self.user, now=self.tick())
-        write(self.save, 'later')
-        for _ in range(save_backup.KEEP - 1):
+        for i in range(save_backup.KEEP - 1):
+            write(self.save, f'later {i}')
             save_backup.backup(self.user, now=self.tick())
         save_backup.restore(self.user, oldest.name, now=self.tick())
         self.assertEqual(self.save.read_text(), 'oldest')
