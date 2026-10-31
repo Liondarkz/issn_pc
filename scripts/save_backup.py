@@ -75,9 +75,15 @@ def restore(user_dir, name, now=None):
 # ------------------------------------------------------------------------------ import
 # Saves from another PC port of the game (HayatoG's iss_pc, or an older copy of this one): the
 # same runtime, the same layout, savedata/<user id>/<title id>/<slot>/ with <slot>.sce_sys beside
-# it and <title id>.memory/memory.dat, so the folders are copied as they are.
+# it and <title id>.memory/memory.dat, so the folders are copied as they are. The title ID is the
+# game's region (CUSA00223 America, CUSA00004 Europe, ...): the slots are the same game's, so
+# saves of another region go into the title folder of the game this launcher plays.
+import re
+
 TITLE = 'CUSA00223'
 USER_ID = '1'  # src/runtime_services.c USER_ID
+SLOT_PREFIX = 'infamousss'
+_TITLE_NAME = re.compile(r'^CUSA\d{5}(\.memory)?$', re.IGNORECASE)
 
 
 def other_port_dirs(env=None, nt=None):
@@ -104,12 +110,21 @@ def other_port_dirs(env=None, nt=None):
     return [p for p in found if import_source(p)]
 
 
+def _title_folder(path):
+    """A CUSAxxxxx folder of this game (slot folders named infamousss...), or its .memory."""
+    if not path.is_dir() or not _TITLE_NAME.match(path.name):
+        return False
+    if path.name.lower().endswith('.memory'):
+        return True
+    return any(p.is_dir() and p.name.lower().startswith(SLOT_PREFIX) for p in path.iterdir())
+
+
 def import_source(folder):
     """The title folders to import from `folder`, as {user id: [paths]}: `folder` may be the other
-    port's own folder, its user/data folder, its savedata folder, savedata/<user id>, or the
-    CUSA00223 folder itself. Empty when there are no saves there."""
+    port's own folder, its user/data folder, its savedata folder, savedata/<user id>, or a
+    CUSAxxxxx folder itself. Empty when there are no saves there."""
     folder = Path(folder)
-    if folder.name.lower() == TITLE.lower() and folder.is_dir():
+    if _title_folder(folder) and not folder.name.lower().endswith('.memory'):
         uid = folder.parent.name if folder.parent.name.isdigit() else USER_ID
         memory = folder.with_name(folder.name + '.memory')
         return {uid: [folder] + ([memory] if memory.is_dir() else [])} if _has_saves(folder) else {}
@@ -119,16 +134,17 @@ def import_source(folder):
         users = [savedata] if savedata.name.isdigit() else [p for p in savedata.iterdir() if p.is_dir() and p.name.isdigit()]
         found = {}
         for user in users:
-            titles = [p for p in user.iterdir() if p.is_dir() and p.name.lower().startswith(TITLE.lower())]
-            if any(_has_saves(p) for p in titles):
+            titles = [p for p in user.iterdir() if _title_folder(p)]
+            if any(_has_saves(p) for p in titles if not p.name.lower().endswith('.memory')):
                 found[user.name] = titles
         if found:
             return found
     return {}
 
 
-def import_saves(user_dir, folder, now=None):
-    """Replaces this port's saves of the game with those in `folder` (import_source). The current
+def import_saves(user_dir, folder, now=None, title=TITLE):
+    """Replaces this port's saves of the game with those in `folder` (import_source), into the
+    title folder `title` (the game's own; other regions' saves are renamed to it). The current
     saves are backed up first; returns (the backup or None, slots imported). Raises ValueError when
     there is nothing to import or `folder` is this port's own saves."""
     savedata = Path(user_dir) / 'savedata'
@@ -139,17 +155,24 @@ def import_saves(user_dir, folder, now=None):
         for path in paths:
             if path.resolve().is_relative_to(savedata.resolve()):
                 raise ValueError('That folder holds the saves this launcher already uses')
+    # One region per user: the game's own when present, else the first (several regions found).
+    chosen = {}
+    for uid, paths in found.items():
+        names = {p.name.split('.')[0].upper() for p in paths}
+        pick = title.upper() if title.upper() in names else sorted(names)[0]
+        chosen[uid] = [p for p in paths if p.name.split('.')[0].upper() == pick]
     safety = _copy(user_dir, now)
     slots = 0
-    for uid, paths in found.items():
+    for uid, paths in chosen.items():
         for path in paths:
-            target = savedata / uid / path.name
+            name = title + ('.memory' if path.name.lower().endswith('.memory') else '')
+            target = savedata / uid / name
             staging = target.with_name(target.name + '.importing')
             shutil.rmtree(staging, ignore_errors=True)
             shutil.copytree(path, staging)
             shutil.rmtree(target, ignore_errors=True)
             staging.rename(target)
-            if not path.name.endswith('.memory'):
+            if not path.name.lower().endswith('.memory'):
                 slots += sum(1 for p in target.iterdir() if p.is_dir() and not p.name.endswith('.sce_sys'))
     _prune(user_dir)
     return safety, slots

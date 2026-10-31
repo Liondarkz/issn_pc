@@ -2205,8 +2205,12 @@ class Launcher:
             if not self.messagebox.askyesno(APP_NAME, _('Replace the current saves with the ones in {}? '
                                                         'The current saves are backed up first.').format(source)):
                 return
+        try:  # the game's own title ID (region); saves of another region are renamed to it
+            title = str(game_sfo(Path(self.app['game_dir'] or '.')).get('TITLE_ID') or save_backup.TITLE)
+        except (OSError, ValueError):
+            title = save_backup.TITLE
         try:
-            safety, slots = save_backup.import_saves(self.user_dir(), source)
+            safety, slots = save_backup.import_saves(self.user_dir(), source, title=title)
         except (OSError, ValueError) as error:
             self.messagebox.showerror(APP_NAME, _('Could not import: {}').format(error))
             return

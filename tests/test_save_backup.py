@@ -91,9 +91,9 @@ class SaveImportTest(unittest.TestCase):
         self.ours = root / 'issn-windows' / 'user'
         self.other = root / 'iss_pc'
         title = self.other / 'user' / 'savedata' / '1' / 'CUSA00223'
-        write(title / 'SAVE0' / 'data.sav', 'theirs')
-        write(title / 'SAVE0.sce_sys' / 'param.bin', 'param')
-        write(title / 'SAVE1' / 'data.sav', 'theirs 2')
+        write(title / 'infamousssAuto0' / 'data.sav', 'theirs')
+        write(title / 'infamousssAuto0.sce_sys' / 'param.bin', 'param')
+        write(title / 'infamousssAuto1' / 'data.sav', 'theirs 2')
         write(title.with_name('CUSA00223.memory') / 'memory.dat', 'memory')
         self.clock = datetime.datetime(2026, 10, 30, 13, 0, 0)
 
@@ -108,14 +108,14 @@ class SaveImportTest(unittest.TestCase):
         self.assertEqual(save_backup.import_source(Path(self.temp.name) / 'nothing'), {})
 
     def test_import_replaces_and_backs_up_the_current_saves(self):
-        mine = self.ours / 'savedata' / '1' / 'CUSA00223' / 'SAVE0' / 'data.sav'
+        mine = self.ours / 'savedata' / '1' / 'CUSA00223' / 'infamousssAuto0' / 'data.sav'
         write(mine, 'mine')
         safety, slots = save_backup.import_saves(self.ours, self.other, now=self.clock)
         self.assertEqual(slots, 2)
         self.assertEqual(mine.read_text(), 'theirs')
         self.assertEqual((self.ours / 'savedata' / '1' / 'CUSA00223.memory' / 'memory.dat').read_text(), 'memory')
-        self.assertEqual((self.ours / 'savedata' / '1' / 'CUSA00223' / 'SAVE0.sce_sys' / 'param.bin').read_text(), 'param')
-        self.assertEqual((safety / '1' / 'CUSA00223' / 'SAVE0' / 'data.sav').read_text(), 'mine')
+        self.assertEqual((self.ours / 'savedata' / '1' / 'CUSA00223' / 'infamousssAuto0.sce_sys' / 'param.bin').read_text(), 'param')
+        self.assertEqual((safety / '1' / 'CUSA00223' / 'infamousssAuto0' / 'data.sav').read_text(), 'mine')
         self.assertFalse(list((self.ours / 'savedata' / '1').glob('*.importing')))
 
     def test_import_into_an_empty_port_needs_no_backup(self):
@@ -126,9 +126,26 @@ class SaveImportTest(unittest.TestCase):
     def test_refuses_nothing_or_its_own_saves(self):
         with self.assertRaises(ValueError):
             save_backup.import_saves(self.ours, Path(self.temp.name) / 'nothing')
-        write(self.ours / 'savedata' / '1' / 'CUSA00223' / 'S' / 'd', 'mine')
+        write(self.ours / 'savedata' / '1' / 'CUSA00223' / 'infamousssUser0' / 'd', 'mine')
         with self.assertRaises(ValueError):
             save_backup.import_saves(self.ours, self.ours)
+
+    def test_another_region_goes_into_the_games_title_folder(self):
+        europe = Path(self.temp.name) / 'eu' / 'savedata' / '1' / 'CUSA00004'
+        write(europe / 'infamousssUser0' / 'dis.dat', 'european')
+        write(europe / 'infamousssUser0.sce_sys' / 'param.bin', 'param')
+        self.assertEqual([p.name for p in save_backup.import_source(europe.parent.parent.parent)['1']], ['CUSA00004'])
+        safety, slots = save_backup.import_saves(self.ours, europe.parent.parent.parent, now=self.clock,
+                                                 title='CUSA00223')
+        self.assertEqual(slots, 1)
+        self.assertEqual((self.ours / 'savedata' / '1' / 'CUSA00223' / 'infamousssUser0' / 'dis.dat').read_text(),
+                         'european')
+        self.assertFalse((self.ours / 'savedata' / '1' / 'CUSA00004').exists())
+
+    def test_a_folder_of_another_game_is_not_a_save(self):
+        other = Path(self.temp.name) / 'other' / 'savedata' / '1' / 'CUSA01623'
+        write(other / 'AUTOSAVE' / 'data.bin', 'kratos')
+        self.assertEqual(save_backup.import_source(other.parent.parent.parent), {})
 
     def test_finds_the_other_launcher_data_folder(self):
         appdata = Path(self.temp.name) / 'appdata'
