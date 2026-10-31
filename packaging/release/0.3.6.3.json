@@ -1,0 +1,119 @@
+{
+ "version": "0.3.6.3",
+ "en": {
+  "sub": "PC PORT  /  UPDATE 0.3.6.3",
+  "hero": "TUNE IT IN-GAME",
+  "hero_sub": "Press Insert (or R3 + L2) while playing: field of view, draw distance, texture filtering and frame generation change on the spot, no restart.",
+  "hero_pts": [
+   "Image tab: FOV, draw distance, filtering, frame gen",
+   "Game tab: God Mode and other cheats for Delsin"
+  ],
+  "shot": "IN-GAME MENU",
+  "new": "WHAT'S NEW",
+  "cards": [
+   [
+    "red",
+    "Cheats for Delsin",
+    "God Mode, infinite health and powers, Karma Bomb."
+   ],
+   [
+    "pink",
+    "Sharp HUD with frame gen",
+    "The HUD is laid over the generated frame."
+   ],
+   [
+    "neon",
+    "No more Delsin smear",
+    "Frame gen keeps him whole in motion."
+   ],
+   [
+    "green",
+    "\"Game saved\" note",
+    "Shows on screen each time the game saves."
+   ],
+   [
+    "gold",
+    "Older CPUs run it",
+    "CPUs without F16C (Intel 2nd gen) now start."
+   ],
+   [
+    "neon",
+    "Less VRAM trouble",
+    "Textures follow the card's real memory budget."
+   ]
+  ],
+  "also": "ALSO",
+  "also_pts": [
+   "Safer save backups: one a day for 14 days",
+   "Saves from any region import; HDR picture fixed"
+  ],
+  "next": "COMING NEXT",
+  "next_tag": "planned for the next updates",
+  "next_pts": [
+   "Fix for the dark nights in some areas",
+   "Turn off motion blur and chromatic aberration",
+   "Save now button (Ctrl + Shift + S)",
+   "Multi-frame generation"
+  ],
+  "disc": "JOIN THE DISCORD",
+  "disc_sub": "News, help and test builds"
+ },
+ "pt": {
+  "sub": "PORT PARA PC  /  ATUALIZAÇÃO 0.3.6.3",
+  "hero": "AJUSTE DENTRO DO JOGO",
+  "hero_sub": "Aperte Insert (ou R3 + L2) jogando: campo de visão, distância de visão, filtro de textura e geração de quadros mudam na hora, sem reiniciar.",
+  "hero_pts": [
+   "Aba Image: FOV, distância, filtro, frame gen",
+   "Aba Game: God Mode e outros cheats para o Delsin"
+  ],
+  "shot": "MENU NO JOGO",
+  "new": "NOVIDADES",
+  "cards": [
+   [
+    "red",
+    "Cheats para o Delsin",
+    "God Mode, vida e poderes infinitos, Karma Bomb."
+   ],
+   [
+    "pink",
+    "HUD nítido com frame gen",
+    "O HUD vai por cima do quadro gerado."
+   ],
+   [
+    "neon",
+    "Delsin sem borrão",
+    "A geração de quadros mantém ele inteiro."
+   ],
+   [
+    "green",
+    "Aviso de \"Jogo salvo\"",
+    "Aparece na tela sempre que o jogo salva."
+   ],
+   [
+    "gold",
+    "Roda em CPUs antigas",
+    "CPUs sem F16C (Intel 2ª geração) agora abrem."
+   ],
+   [
+    "neon",
+    "Menos problema de VRAM",
+    "Texturas seguem a memória real da placa."
+   ]
+  ],
+  "also": "E MAIS",
+  "also_pts": [
+   "Backups de save mais seguros: um por dia por 14 dias",
+   "Saves de qualquer região importam; HDR corrigido"
+  ],
+  "next": "PRÓXIMA ATUALIZAÇÃO",
+  "next_tag": "planejado para as próximas versões",
+  "next_pts": [
+   "Correção das noites escuras em algumas áreas",
+   "Desligar motion blur e aberração cromática",
+   "Botão Salvar agora (Ctrl + Shift + S)",
+   "Geração de vários quadros (multi frame gen)"
+  ],
+  "disc": "ENTRE NO DISCORD",
+  "disc_sub": "Novidades, ajuda e builds de teste"
+ }
+}

@@ -1,4 +1,4 @@
-inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.6.2
+inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.6.3
 ========================================================
 
 A test build: the game plays from the start, at about 90-105 FPS standing in the open city on a
@@ -27,6 +27,24 @@ bin\dlss next to issn-probe.exe. Graphics > Download XeSS now / Download DLSS no
 XeSS runs on Intel Arc, Radeon RX 5000 and later and GeForce GTX 10 and later; DLSS needs an
 NVIDIA RTX card. XeSS needs the Visual C++ 2015-2022 runtime (vc_redist.x64). Without the files
 the game keeps its own anti-aliasing.
+
+What's new in 0.3.6.3
+- In-game menu (Insert, or R3 + L2 on a controller), Image tab: field of view, draw distance,
+  texture filtering and frame generation change at once; anti-aliasing and upscaler quality are
+  chosen there for the next start (the launcher picks them up).
+- In-game menu, Game tab: cheats for Delsin - God Mode, infinite health, infinite powers and the Karma
+  Bomb always ready.
+- Frame generation (test): the generated frame is made from the scene alone and this frame's HUD
+  is laid over it, so the HUD stays sharp; Delsin no longer smears or vanishes in motion.
+- A "Game saved" note at the top of the screen when the game saves (Overlay tab: on/off).
+- Import saves: saves of another region (CUSA00004 and others) go into this game's own folder.
+- Save backups: besides the last 10, one a day for 14 days and the copies made before an import
+  or a restore are kept; a start with unchanged saves makes no new backup.
+- CPUs without F16C (Intel 2nd gen, Sandy Bridge): its 13 half-float conversions are translated
+  instead of stopping the game.
+- Video memory: textures are cleaned up by the card's live memory budget (fewer missing textures
+  on 8 GB cards); the log shows the usage once a minute.
+- HDR: the upscaler's HUD layer stays off while the game outputs HDR (the picture was too dark).
 
 What's new in 0.3.6.2
 - Game > Saves > Import from another port: brings your saves from HayatoG's iss_pc (or an older
