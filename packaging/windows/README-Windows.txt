@@ -29,9 +29,9 @@ NVIDIA RTX card. XeSS needs the Visual C++ 2015-2022 runtime (vc_redist.x64). Wi
 the game keeps its own anti-aliasing.
 
 What's new in 0.3.6.3
-- In-game menu (Insert, or R3 + L2 on a controller), Image tab: field of view, draw distance,
-  texture filtering and frame generation change at once; anti-aliasing and upscaler quality are
-  chosen there for the next start (the launcher picks them up).
+- In-game menu (Insert, or R3 + L2 on a controller), Image tab: draw distance, texture filtering
+  and frame generation change at once; anti-aliasing and upscaler quality are chosen there for the
+  next start (the launcher picks them up).
 - In-game menu, Game tab: cheats for Delsin - God Mode, infinite health, infinite powers and the Karma
   Bomb always ready.
 - Frame generation (test): the generated frame is made from the scene alone and this frame's HUD

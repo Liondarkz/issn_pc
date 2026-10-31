@@ -571,9 +571,7 @@ void PictureRows() {
             FloatChoiceRow("Field of view", s.fov, fov_labels, fov_values, 7,
                            "How much of the city the camera shows. Picture only: aiming and the camera "
                            "itself stay as they are.");
-        } else {
-            InfoRow("Field of view", "unavailable (another game build, or a field of view patch is on)");
-        }
+        } // hidden otherwise (src/probe.c install_fov: off unless ISSN_FOV=1 for now)
         static const char* const distance_labels[] = {"Short (faster)", "Original", "Long (less pop-in)",
                                                       "Very long (slower)"};
         if (s.view_supported) {

@@ -807,6 +807,11 @@ extern void issn_fov_attach(float *value);
  * a page of its own, kept read-write; the menu writes 0.5 x its factor there (issn_view.cpp).
  * Silent for other builds; with a field of view patch on, the patch's fixed angle stays. */
 static void install_fov(Segment *segments, uint64_t count, uint64_t size) {
+    /* Off unless ISSN_FOV=1 (0.3.6.3, tester 10-31): the camera computes its tan only when the game
+     * changes the angle (+0x590), so a menu change waits for the next one, and code that reads the
+     * angle itself (aim among them) keeps the original: shots land below the reticle. */
+    const char *on = getenv("ISSN_FOV");
+    if (!on || on[0] != '1') return;
     const char *off = getenv("ISSN_FOV_HOOK");
     if (off && off[0] == '0') return;
     for (unsigned i = 0; i < ISSN_FOV_SITE_COUNT; ++i)

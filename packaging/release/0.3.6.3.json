@@ -3,9 +3,9 @@
  "en": {
   "sub": "PC PORT  /  UPDATE 0.3.6.3",
   "hero": "TUNE IT IN-GAME",
-  "hero_sub": "Press Insert (or R3 + L2) while playing: field of view, draw distance, texture filtering and frame generation change on the spot, no restart.",
+  "hero_sub": "Press Insert (or R3 + L2) while playing: draw distance, texture filtering and frame generation change on the spot, no restart.",
   "hero_pts": [
-   "Image tab: FOV, draw distance, filtering, frame gen",
+   "Image tab: draw distance, filtering, frame gen",
    "Game tab: God Mode and other cheats for Delsin"
   ],
   "shot": "IN-GAME MENU",
@@ -53,7 +53,7 @@
    "Fix for the dark nights in some areas",
    "Turn off motion blur and chromatic aberration",
    "Save now button (Ctrl + Shift + S)",
-   "Multi-frame generation"
+   "Field of view back, with the aim fixed"
   ],
   "disc": "JOIN THE DISCORD",
   "disc_sub": "News, help and test builds"
@@ -61,9 +61,9 @@
  "pt": {
   "sub": "PORT PARA PC  /  ATUALIZAÇÃO 0.3.6.3",
   "hero": "AJUSTE DENTRO DO JOGO",
-  "hero_sub": "Aperte Insert (ou R3 + L2) jogando: campo de visão, distância de visão, filtro de textura e geração de quadros mudam na hora, sem reiniciar.",
+  "hero_sub": "Aperte Insert (ou R3 + L2) jogando: distância de visão, filtro de textura e geração de quadros mudam na hora, sem reiniciar.",
   "hero_pts": [
-   "Aba Image: FOV, distância, filtro, frame gen",
+   "Aba Image: distância de visão, filtro, frame gen",
    "Aba Game: God Mode e outros cheats para o Delsin"
   ],
   "shot": "MENU NO JOGO",
@@ -111,7 +111,7 @@
    "Correção das noites escuras em algumas áreas",
    "Desligar motion blur e aberração cromática",
    "Botão Salvar agora (Ctrl + Shift + S)",
-   "Geração de vários quadros (multi frame gen)"
+   "Campo de visão de volta, com a mira certa"
   ],
   "disc": "ENTRE NO DISCORD",
   "disc_sub": "Novidades, ajuda e builds de teste"
