@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <utility>
+
 #include <span>
 #include <unordered_map>
 
@@ -532,6 +534,9 @@ public:
 
     /// Returns the amount of memory used.
     [[nodiscard]] u64 GetDeviceMemoryUsage() const;
+    /// issn-axy: this process's device-local usage and the driver's budget for it now (the budget
+    /// shrinks while other programs hold video memory); {0, 0} without VK_EXT_memory_budget.
+    [[nodiscard]] std::pair<u64, u64> GetDeviceMemoryUsageAndBudget() const;
 
     /// Returns the total memory budget available to the device.
     [[nodiscard]] u64 GetTotalMemoryBudget() const {

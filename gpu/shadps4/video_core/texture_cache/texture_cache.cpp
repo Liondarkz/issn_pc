@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <cstdio>
+#include <chrono>
 #include <unordered_map>
 #include <boost/container/small_vector.hpp>
 #include <cstdlib>
@@ -2109,15 +2111,54 @@ void TextureCache::UntrackImageTail(ImageId image_id) {
 }
 
 void TextureCache::GarbageCollectImages() {
+    // issn-axy (10-30, an 8 GB NVIDIA card in the neon district: usage climbed past the budget,
+    // DLSS refused to run - Streamline eWarnOutOfVRAM - then the device was lost): the limits
+    // set at start-up ignore that the driver's budget shrinks while other programs hold video
+    // memory, and textures were only freed after 16-160 frames unused, 10-40 per pass. Now the
+    // limits follow the budget of the moment, and close to it ("emergency") textures unused for
+    // half a second go, up to 200 per frame.
+    u64 budget_now = 0;
     if (instance.CanReportMemoryUsage()) {
-        total_used_memory = instance.GetDeviceMemoryUsage();
+        const auto [usage, budget] = instance.GetDeviceMemoryUsageAndBudget();
+        total_used_memory = usage;
+        budget_now = budget;
+        // A line a minute in the log: how close the game runs to the budget.
+        static auto last_report = std::chrono::steady_clock::time_point{};
+        const auto now = std::chrono::steady_clock::now();
+        if (now - last_report >= std::chrono::seconds(60)) {
+            last_report = now;
+            std::printf("Video memory: %llu of %llu MB the driver allows now\n",
+                        static_cast<unsigned long long>(usage >> 20),
+                        static_cast<unsigned long long>(budget >> 20));
+            std::fflush(stdout);
+        }
     }
-    if (total_used_memory < trigger_gc_memory) {
+    u64 pressure_limit = pressure_gc_memory;
+    u64 critical_limit = critical_gc_memory;
+    bool emergency = false;
+    if (budget_now > 2_GB) {
+        pressure_limit = std::min<u64>(pressure_limit, budget_now - 1_GB);
+        critical_limit = std::min<u64>(critical_limit, budget_now - 512_MB);
+        emergency = total_used_memory + 384_MB >= budget_now;
+    }
+    if (emergency) {
+        static auto last_told = std::chrono::steady_clock::time_point{};
+        const auto now = std::chrono::steady_clock::now();
+        if (now - last_told >= std::chrono::seconds(30)) {
+            last_told = now;
+            std::printf("Video memory nearly full (%llu of %llu MB the driver allows now): "
+                        "freeing textures not used for half a second\n",
+                        static_cast<unsigned long long>(total_used_memory >> 20),
+                        static_cast<unsigned long long>(budget_now >> 20));
+            std::fflush(stdout);
+        }
+    }
+    if (total_used_memory < trigger_gc_memory && !emergency) {
         return;
     }
     // The walk tests every image's own use tick (review 10-20: it runs every frame where the
     // trigger is 0 - cards of <= 8 GB or no memory report): every 4th tick unless critical.
-    if ((gc_tick & 3) != 0 && total_used_memory < critical_gc_memory) {
+    if ((gc_tick & 3) != 0 && total_used_memory < critical_limit) {
         return;
     }
     CacheLock lock{*this};
@@ -2127,11 +2168,11 @@ void TextureCache::GarbageCollectImages() {
     size_t num_deletions = 0;
 
     const auto configure = [&](bool allow_aggressive) {
-        pressured = total_used_memory >= pressure_gc_memory;
-        aggresive = allow_aggressive && total_used_memory >= critical_gc_memory;
-        ticks_to_destroy = aggresive ? 160 : pressured ? 80 : 16;
+        pressured = emergency || total_used_memory >= pressure_limit;
+        aggresive = allow_aggressive && total_used_memory >= critical_limit;
+        ticks_to_destroy = emergency ? 30 : aggresive ? 160 : pressured ? 80 : 16;
         ticks_to_destroy = std::min(ticks_to_destroy, gc_tick);
-        num_deletions = aggresive ? 40 : pressured ? 20 : 10;
+        num_deletions = emergency ? 200 : aggresive ? 40 : pressured ? 20 : 10;
     };
     const auto clean_up = [&](ImageId image_id) {
         if (num_deletions == 0) {
@@ -2152,13 +2193,16 @@ void TextureCache::GarbageCollectImages() {
             DownloadImageMemory(image_id);
         }
         FreeImage(image_id);
-        if (total_used_memory < critical_gc_memory) {
+        if (emergency) {
+            return false; // the usage figure is the driver's: read again next frame
+        }
+        if (total_used_memory < critical_limit) {
             if (aggresive) {
                 num_deletions >>= 2;
                 aggresive = false;
                 return false;
             }
-            if (pressured && total_used_memory < pressure_gc_memory) {
+            if (pressured && total_used_memory < pressure_limit) {
                 num_deletions >>= 1;
                 pressured = false;
             }
@@ -2177,7 +2221,7 @@ void TextureCache::GarbageCollectImages() {
     configure(false);
     lru_cache.ForEachItem(old_enough);
 
-    if (total_used_memory >= critical_gc_memory) {
+    if (!emergency && total_used_memory >= critical_limit) {
         // If we are still over the critical limit, run an aggressive GC
         configure(true);
         lru_cache.ForEachItem(old_enough);
