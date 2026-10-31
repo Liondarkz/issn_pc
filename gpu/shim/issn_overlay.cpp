@@ -36,6 +36,7 @@ extern "C" const char* runtime_pad_key_name(const char* button);
 #include "video_core/renderer_vulkan/issn_framegen.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
+#include "video_core/renderer_vulkan/vk_swapchain.h"
 
 // DejaVu Sans (Cyrillic), embedded (third_party/fonts, Bitstream Vera license).
 #ifdef _WIN32
@@ -682,6 +683,16 @@ void PerformanceTab() {
     if (BeginRows("##perf_info")) {
         InfoRow("Anti-aliasing", AntiAliasingName());
         InfoRow("Change it in", "the Image tab (Apply and restart) or the launcher");
+        // Frame pacing (launcher, SHADPS4_VSYNC_DIVIDER) shows every game frame N refreshes with
+        // V-Sync forced on: the game tops out at refresh / N whatever the limit and VSync say, and
+        // the counter shows the screen's rate (tester 10-31: "100 FPS (game 50)" at limit 60).
+        if (const u32 divider = Vulkan::VsyncDivider(); divider > 1) {
+            static char pacing[96];
+            std::snprintf(pacing, sizeof(pacing), "on: each frame %u refreshes (game = refresh / %u)", divider,
+                          divider);
+            InfoRow("Frame pacing", pacing);
+            InfoRow("Note", "VSync stays on and the limit has no effect; turn it off in the launcher");
+        }
         ImGui::EndTable();
     }
 }
