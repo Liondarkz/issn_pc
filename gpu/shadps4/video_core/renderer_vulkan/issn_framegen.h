@@ -38,13 +38,24 @@ void Capture(const Instance& instance, Scheduler& scheduler, vk::CommandBuffer c
              const Fsr4Aa::Input& depth, const Fsr4Aa::Input& motion, float jitter_x,
              float jitter_y);
 
+/// This flip's share of the captures (the presenter, when it prepares the flip, on the GPU
+/// thread in stream order): whether a capture arrived since the last flip, and its jitter. Taken
+/// there, not where the passes are recorded: with SHADPS4_PRESENT_ASYNC the passes are recorded
+/// later, after the next frame's capture may already have run, and frames went without
+/// generation while others took the next frame's jitter (10-30 test: "game 48 + FG 38").
+struct Ticket {
+    bool captured = false;
+    float jitter_x = 0.0f, jitter_y = 0.0f;
+};
+Ticket TakeCapture();
+
 /// The presenter, after a frame was composed into `frame` (General layout, `width` x `height`,
 /// the swapchain's SDR format): writes the frame between the previous one and this into `out`
 /// (same size and format; left in General layout). Without a capture for this frame, or on a
 /// failure, `out` gets a copy of `frame` (shown twice, as without generation). True when a frame
 /// was generated.
 bool Generate(const Instance& instance, Scheduler& scheduler, vk::CommandBuffer cmdbuf,
-              vk::Image frame, vk::Image out, u32 width, u32 height);
+              const Ticket& ticket, vk::Image frame, vk::Image out, u32 width, u32 height);
 
 /// The HUD-free path (the HUD layer of vk_dlss_upscale.h is on while frame generation is): the
 /// upscaler's scene image (`scene`, RGBA8 UNORM, `width` x `height`, ShaderReadOnlyOptimal and
@@ -58,8 +69,8 @@ struct SceneFrame {
     vk::ImageView composite_view;
 };
 std::optional<SceneFrame> GenerateScene(const Instance& instance, Scheduler& scheduler,
-                                        vk::CommandBuffer cmdbuf, vk::Image scene, u32 width,
-                                        u32 height);
+                                        vk::CommandBuffer cmdbuf, const Ticket& ticket,
+                                        vk::Image scene, u32 width, u32 height);
 
 /// Frames really generated so far (not the copies of frames without a capture): the overlay
 /// shows their rate next to the game's ("100 FPS (game 50 + FG 50)").

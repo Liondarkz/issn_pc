@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+#version 450
+
+// issn-axy: frame generation (issn_framegen.cpp). The game's depth is reversed (near = 1, far
+// = 0); the FSR 3.1 frame interpolation shaders the bridge embeds read near = 0, far = 1. Turned
+// round in place (1 - d, the standard depth of an infinite far plane), so the interpolation
+// keeps the character in front of what moves behind him.
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, r32f) uniform image2D depth;
+
+void main() {
+    const ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
+    const ivec2 size = imageSize(depth);
+    if (pos.x >= size.x || pos.y >= size.y) {
+        return;
+    }
+    imageStore(depth, pos, vec4(1.0 - imageLoad(depth, pos).r));
+}

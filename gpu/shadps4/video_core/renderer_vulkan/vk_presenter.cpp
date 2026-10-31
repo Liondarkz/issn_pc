@@ -966,15 +966,19 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
     // generation is) the scene is interpolated alone and this frame's HUD laid over the result,
     // through the same composite and post pass as the frame itself: the HUD stays sharp. Without
     // it the whole finished frame is interpolated (or copied, when nothing was captured).
-    const auto record_generated = [this, generated, fc = *frame](
+    // Whether this frame's depth and motion were captured, taken now (stream order; the passes
+    // below may be recorded later, after the next frame's capture).
+    const FrameGen::Ticket fg_ticket = FrameGen::Wanted() ? FrameGen::TakeCapture() : FrameGen::Ticket{};
+    const auto record_generated = [this, generated, fg_ticket, fc = *frame](
                                       vk::CommandBuffer cb,
                                       const std::optional<Dlss::CompositeJob>& job,
                                       const HostPasses::PostProcessingPass::Settings& pp) {
         if (!generated) {
             return;
         }
+        FrameGen::Ticket ticket = fg_ticket;
         if (job) {
-            if (const auto scene = FrameGen::GenerateScene(instance, draw_scheduler, cb,
+            if (const auto scene = FrameGen::GenerateScene(instance, draw_scheduler, cb, ticket,
                                                            job->scene_image, job->size.width,
                                                            job->size.height)) {
                 Dlss::CompositeJob composite = *job;
@@ -999,9 +1003,10 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
                 pp_pass.Render(cb, composite.out_view, composite.size, *generated, pp);
                 return;
             }
+            ticket.captured = false; // spent (or none): the finished frame is copied
         }
-        FrameGen::Generate(instance, draw_scheduler, cb, fc.image, generated->image, fc.width,
-                           fc.height);
+        FrameGen::Generate(instance, draw_scheduler, cb, ticket, fc.image, generated->image,
+                           fc.width, fc.height);
     };
     const auto finish_generated = [&] {
         if (generated) {

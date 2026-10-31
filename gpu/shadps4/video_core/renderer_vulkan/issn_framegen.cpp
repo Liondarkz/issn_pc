@@ -12,14 +12,17 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "common/logging/log.h"
 #include "ffx_vk_fsr3_3_1_5_bridge.h"
 #include "video_core/buffer_cache/buffer.h"
+#include "video_core/host_shaders/framegen_depth_comp.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
+#include "video_core/renderer_vulkan/vk_shader_util.h"
 #include "video_core/texture_cache/image.h"
 
 namespace Vulkan::FrameGen {
@@ -117,15 +120,23 @@ struct State {
     u64 depth_buffer_size = 0;
     std::deque<std::pair<u64, Owned>> retired_images;
     std::deque<std::pair<u64, std::unique_ptr<VideoCore::UniqueBuffer>>> retired_buffers;
-    bool captured = false;
-    float jitter_x = 0.0f, jitter_y = 0.0f;
+    bool captured = false;                 ///< a capture since the last TakeCapture
+    float jitter_x = 0.0f, jitter_y = 0.0f; ///< its jitter
+    Ticket ticket;                         ///< the flip being generated (Interpolate)
+    vk::UniqueDescriptorSetLayout depth_set_layout;
+    vk::UniquePipelineLayout depth_layout;
+    vk::UniquePipeline depth_pipeline;
+    bool depth_pipeline_failed = false;
     FfxVkFsr3_3_1_6FrameGenerationContext* context = nullptr;
     u32 ctx_width = 0, ctx_height = 0, ctx_render_w = 0, ctx_render_h = 0;
     u64 frame_id = 0;
     std::deque<std::pair<u64, u64>> pending; ///< frame id, scheduler tick
     bool reset = true;
+    u32 misses = 0; ///< flips in a row without a capture
     std::chrono::steady_clock::time_point last_generate{};
     u64 generated = 0, copied = 0;
+    std::chrono::steady_clock::time_point last_summary{};
+    u64 summary_generated = 0, summary_copied = 0;
     std::string problem;
 
     State(const Instance& instance_, Scheduler& scheduler_)
@@ -257,6 +268,71 @@ struct State {
         captured = true;
     }
 
+    /// The captured depth turned round in place (framegen_depth.comp). ISSN_FRAME_GEN_DEPTH=raw
+    /// leaves it as the game wrote it (to compare).
+    void InvertDepth(vk::CommandBuffer cmdbuf) {
+        static const bool raw = [] {
+            const char* v = std::getenv("ISSN_FRAME_GEN_DEPTH");
+            return v && std::string_view{v} == "raw";
+        }();
+        if (raw || depth_pipeline_failed) {
+            return;
+        }
+        const vk::Device device = instance.GetDevice();
+        if (!depth_pipeline) {
+            const vk::DescriptorSetLayoutBinding binding{
+                .binding = 0,
+                .descriptorType = vk::DescriptorType::eStorageImage,
+                .descriptorCount = 1,
+                .stageFlags = vk::ShaderStageFlagBits::eCompute,
+            };
+            depth_set_layout = Check<"create frame generation depth set layout">(
+                device.createDescriptorSetLayoutUnique({
+                    .flags = vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptor,
+                    .bindingCount = 1,
+                    .pBindings = &binding,
+                }));
+            depth_layout = Check<"create frame generation depth layout">(
+                device.createPipelineLayoutUnique({
+                    .setLayoutCount = 1,
+                    .pSetLayouts = &depth_set_layout.get(),
+                }));
+            const auto module =
+                Compile(HostShaders::FRAMEGEN_DEPTH_COMP, vk::ShaderStageFlagBits::eCompute, device);
+            if (!module) {
+                depth_pipeline_failed = true;
+                std::printf("Frame generation: the depth pass did not compile; depth goes as the "
+                            "game wrote it\n");
+                std::fflush(stdout);
+                return;
+            }
+            depth_pipeline = Check<"create frame generation depth pipeline">(
+                device.createComputePipelineUnique(
+                    {}, vk::ComputePipelineCreateInfo{
+                            .stage{
+                                .stage = vk::ShaderStageFlagBits::eCompute,
+                                .module = module,
+                                .pName = "main",
+                            },
+                            .layout = depth_layout.get(),
+                        }));
+            device.destroyShaderModule(module);
+        }
+        To(cmdbuf, depth, vk::ImageLayout::eGeneral);
+        const vk::DescriptorImageInfo info{.imageView = *depth.view,
+                                           .imageLayout = vk::ImageLayout::eGeneral};
+        const vk::WriteDescriptorSet write{
+            .dstBinding = 0,
+            .descriptorCount = 1,
+            .descriptorType = vk::DescriptorType::eStorageImage,
+            .pImageInfo = &info,
+        };
+        cmdbuf.bindPipeline(vk::PipelineBindPoint::eCompute, *depth_pipeline);
+        cmdbuf.pushDescriptorSetKHR(vk::PipelineBindPoint::eCompute, *depth_layout, 0, write);
+        cmdbuf.dispatch((depth.width + 7) / 8, (depth.height + 7) / 8, 1);
+        To(cmdbuf, depth, vk::ImageLayout::eGeneral); // write -> FSR's reads
+    }
+
     bool Interpolate(vk::CommandBuffer cmdbuf, u32 width, u32 height, float frame_ms) {
         if (context && (ctx_width != width || ctx_height != height ||
                         ctx_render_w != depth.width || ctx_render_h != depth.height)) {
@@ -308,6 +384,7 @@ struct State {
             const char* v = std::getenv("ISSN_FRAME_GEN_MV");
             return v && v[0] == '+' ? 1.0f : -1.0f;
         }();
+        InvertDepth(cmdbuf);
         const u64 id = ++frame_id;
         const FfxVkFsr3_3_1_6FrameGenerationPrepareInfo prepare{
             .commandBuffer = cmdbuf,
@@ -316,8 +393,8 @@ struct State {
             .motionVectors = image(motion),
             .renderWidth = depth.width,
             .renderHeight = depth.height,
-            .jitterOffsetX = jitter_x,
-            .jitterOffsetY = jitter_y,
+            .jitterOffsetX = ticket.jitter_x,
+            .jitterOffsetY = ticket.jitter_y,
             .motionVectorScaleX = mv_sign * float(motion.width),
             .motionVectorScaleY = mv_sign * float(motion.height),
             .frameTimeMilliseconds = frame_ms,
@@ -378,10 +455,12 @@ struct State {
     void Tell(bool have_capture, bool hudless) {
         // The log says once whether the inputs arrive (10-30: a test showed no generated frames
         // and the log said nothing about frame generation) and which path the frames take.
-        static int told = -1;
+        // Each message once (10-30: flips with and without a capture alternate while playing,
+        // and the change was printed every time); Count sums them up once a minute.
+        static bool told[3] = {};
         const int now = have_capture ? (hudless ? 2 : 1) : 0;
-        if (now != told) {
-            told = now;
+        if (!told[now]) {
+            told[now] = true;
             std::printf("Frame generation: %s\n",
                         now == 2   ? "depth and motion vectors arrive, interpolating the scene "
                                      "(the HUD is laid over it sharp)"
@@ -398,20 +477,35 @@ struct State {
         if (generated) {
             g_generated.fetch_add(1, std::memory_order_relaxed);
         }
-        if (((this->generated + copied) & 4095) == 0) {
-            LOG_INFO(Render_Vulkan, "Frame generation: {} frames generated, {} shown twice",
-                     this->generated, copied);
+        const auto now = std::chrono::steady_clock::now();
+        if (now - last_summary >= std::chrono::seconds(60)) {
+            if (last_summary != std::chrono::steady_clock::time_point{}) {
+                std::printf("Frame generation: last minute %llu frames generated, %llu flips "
+                            "without a new frame to interpolate\n",
+                            static_cast<unsigned long long>(this->generated - summary_generated),
+                            static_cast<unsigned long long>(copied - summary_copied));
+                std::fflush(stdout);
+            }
+            last_summary = now;
+            summary_generated = this->generated;
+            summary_copied = copied;
         }
     }
 
-    std::optional<SceneFrame> GenerateScene(vk::CommandBuffer cmdbuf, vk::Image scene, u32 width,
-                                            u32 height) {
-        if (!captured || g_failed.load(std::memory_order_relaxed)) {
+    Ticket TakeCapture() {
+        Ticket taken{captured, jitter_x, jitter_y};
+        captured = false;
+        return taken;
+    }
+
+    std::optional<SceneFrame> GenerateScene(vk::CommandBuffer cmdbuf, const Ticket& flip,
+                                            vk::Image scene, u32 width, u32 height) {
+        if (!flip.captured || g_failed.load(std::memory_order_relaxed)) {
             return std::nullopt; // Generate copies the finished frame (and says why)
         }
         Retire();
         const float frame_ms = FrameMs();
-        captured = false;
+        ticket = flip;
         Tell(true, true);
         Ensure(color, ColorFormat, width, height);
         Ensure(output, ColorFormat, width, height);
@@ -432,6 +526,7 @@ struct State {
             return std::nullopt;
         }
         reset = false;
+        misses = 0;
         To(cmdbuf, output, vk::ImageLayout::eShaderReadOnlyOptimal);
         Count(true);
         return SceneFrame{
@@ -441,12 +536,12 @@ struct State {
         };
     }
 
-    bool Generate(vk::CommandBuffer cmdbuf, vk::Image frame, vk::Image out, u32 width,
-                  u32 height) {
+    bool Generate(vk::CommandBuffer cmdbuf, const Ticket& flip, vk::Image frame, vk::Image out,
+                  u32 width, u32 height) {
         Retire();
+        const bool have_capture = flip.captured;
         const float frame_ms = FrameMs();
-        const bool have_capture = captured;
-        captured = false;
+        ticket = flip;
         Tell(have_capture, false);
         // The composed frame (the post pass wrote it) into FSR's colour image.
         Barrier(cmdbuf, frame, vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral);
@@ -463,15 +558,21 @@ struct State {
             generated = Interpolate(cmdbuf, width, height, frame_ms);
             if (generated) {
                 reset = false;
+                misses = 0;
                 To(cmdbuf, output, vk::ImageLayout::eTransferSrcOptimal);
                 Blit(cmdbuf, output.image, vk::ImageLayout::eTransferSrcOptimal, width, height,
                      out, width, height);
             }
         }
         if (!generated) {
-            // No inputs this frame (a menu, a movie) or a failure: the frame itself, and the
-            // next generation starts a new history.
-            reset = true;
+            // No inputs this frame or a failure: the frame itself. The next generation starts a
+            // new history only after a few such flips (a menu, a movie): the game also flips a
+            // frame now and then without rendering a new one (10-30 log: captures and flips
+            // without one alternating while playing), and a reset there made the next
+            // interpolated frame start from nothing.
+            if (++misses >= 4 || !have_capture && g_failed.load(std::memory_order_relaxed)) {
+                reset = true;
+            }
             Blit(cmdbuf, frame, vk::ImageLayout::eGeneral, width, height, out, width, height);
         }
         Barrier(cmdbuf, out, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eGeneral);
@@ -516,19 +617,28 @@ void Capture(const Instance& instance, Scheduler& scheduler, vk::CommandBuffer c
     state.Capture(cmdbuf, depth, motion, jitter_x, jitter_y);
 }
 
+Ticket TakeCapture() {
+    std::scoped_lock lock{g_state_mutex};
+    if (!g_state) {
+        return {};
+    }
+    std::scoped_lock state_lock{g_state->mutex};
+    return g_state->TakeCapture();
+}
+
 bool Generate(const Instance& instance, Scheduler& scheduler, vk::CommandBuffer cmdbuf,
-              vk::Image frame, vk::Image out, u32 width, u32 height) {
+              const Ticket& ticket, vk::Image frame, vk::Image out, u32 width, u32 height) {
     State& state = Get(instance, scheduler);
     std::scoped_lock lock{state.mutex};
-    return state.Generate(cmdbuf, frame, out, width, height);
+    return state.Generate(cmdbuf, ticket, frame, out, width, height);
 }
 
 std::optional<SceneFrame> GenerateScene(const Instance& instance, Scheduler& scheduler,
-                                        vk::CommandBuffer cmdbuf, vk::Image scene, u32 width,
-                                        u32 height) {
+                                        vk::CommandBuffer cmdbuf, const Ticket& ticket,
+                                        vk::Image scene, u32 width, u32 height) {
     State& state = Get(instance, scheduler);
     std::scoped_lock lock{state.mutex};
-    return state.GenerateScene(cmdbuf, scene, width, height);
+    return state.GenerateScene(cmdbuf, ticket, scene, width, height);
 }
 
 u64 GeneratedCount() {
