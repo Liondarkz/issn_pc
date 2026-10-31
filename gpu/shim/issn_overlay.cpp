@@ -604,7 +604,7 @@ void PictureRows() {
         }
         ImGui::EndTable();
     }
-    ImGui::SeparatorText("Next start (restart the game from the launcher)");
+    ImGui::SeparatorText("Needs a restart (Apply and restart, below)");
     if (BeginRows("##next_start")) {
         static const char* const aa_labels[] = {"The game's own", "FSR 4 (AMD)", "XeSS (Intel)", "DLSS (NVIDIA RTX)"};
         ChoiceRow("Anti-aliasing / upscaler", s.menu_anti_aliasing, aa_labels, nullptr, 4,
@@ -625,7 +625,7 @@ void PictureRows() {
                          (!Vulkan::FrameGen::Wanted() && s.menu_frame_gen != s.startup_frame_gen);
     if (changed) {
         ImGui::TextColored(ImVec4(1.0f, 0.78f, 0.3f, 1.0f),
-                           "Changed: close the game and press Play in the launcher to use them.");
+                           "Changed: press \"Apply and restart\" below (unsaved progress is lost).");
     }
 }
 
@@ -779,7 +779,11 @@ void OverlayTab() {
 int RestartChanges() {
     const auto& s = IssnSettings::Get();
     const auto& startup = Startup();
-    return (s.fps_limit != startup.fps_limit) + (s.vsync != startup.vsync);
+    // issn-axy: the anti-aliasing, upscaler quality and (when it is not live) frame generation
+    // chosen in the Image tab; run.py starts them on a menu restart (graphics_options.py).
+    return (s.fps_limit != startup.fps_limit) + (s.vsync != startup.vsync) +
+           (s.menu_anti_aliasing != s.startup_anti_aliasing) + (s.menu_upscale_quality != s.startup_upscale_quality) +
+           (!Vulkan::FrameGen::Wanted() && s.menu_frame_gen != s.startup_frame_gen);
 }
 
 void Menu() {

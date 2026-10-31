@@ -70,5 +70,26 @@ class GraphicsOptionsTest(unittest.TestCase):
         self.assertEqual(env, {'ISSN_DEFERRED_READBACK': '1', 'ISSN_STALE_READBACK': '0', 'ISSN_ASYNC_SHADERS': '1'})
 
 
+class MenuEnvironmentTest(unittest.TestCase):
+    """issn-axy 10-31: "Apply and restart" starts the menu's anti-aliasing, quality and frame gen."""
+
+    def test_dlss_with_quality_and_frame_gen(self):
+        env, off = g.menu_environment(
+            {'menu_anti_aliasing': 'dlss', 'menu_upscale_quality': '1.5', 'menu_frame_gen': '1'}, True)
+        self.assertEqual(env, {'SHADPS4_DLSS': '1', 'SHADPS4_DLSS_UPSCALE': '1', 'ISSN_FRAME_GEN': '1',
+                               'ISSN_UPSCALE_FACTOR': '1.5'})
+        self.assertEqual(set(off), {'ISSN_FSR4', 'ISSN_XESS'})
+
+    def test_games_own_turns_the_switches_off(self):
+        env, off = g.menu_environment({'menu_anti_aliasing': 'game', 'menu_frame_gen': '1'}, True)
+        self.assertEqual(env, {})
+        self.assertIn('ISSN_FRAME_GEN', off)
+        self.assertIn('SHADPS4_DLSS', off)
+
+    def test_xess_is_windows_only_and_no_menu_keys_change_nothing(self):
+        self.assertEqual(g.menu_environment({'menu_anti_aliasing': 'xess'}, False)[0], {})
+        self.assertEqual(g.menu_environment({}, True), ({}, ()))
+
+
 if __name__ == '__main__':
     unittest.main()

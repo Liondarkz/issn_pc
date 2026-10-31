@@ -129,3 +129,33 @@ def environment(options):
     return {'ISSN_DEFERRED_READBACK': options['deferred_readback'],
             'ISSN_STALE_READBACK': options['stale_readback'],
             'ISSN_ASYNC_SHADERS': options['async_shaders']}
+
+
+# issn-axy (tester 10-31): "Apply and restart" in the menu also starts the anti-aliasing, the
+# upscaler quality and frame generation chosen there (menu_* keys, the launcher's values). The
+# launcher's own start keeps its environment; a menu restart (restart_unconfirmed=1) takes these.
+AA_SWITCHES = ('SHADPS4_DLSS', 'SHADPS4_DLSS_UPSCALE', 'ISSN_FSR4', 'ISSN_XESS')
+UPSCALE_FACTORS = ('1.5', '1.7', '2', '3')
+
+
+def menu_environment(ini, windows):
+    """(set, remove) for the environment of a restart from the in-game menu, as the launcher's
+    game_environment would make them from the same choices; ({}, ()) when the ini has none."""
+    if 'menu_anti_aliasing' not in ini:
+        return {}, ()
+    aa = ini.get('menu_anti_aliasing', 'game')
+    env = {}
+    if aa == 'fsr4':
+        env['ISSN_FSR4'] = '1'
+    elif aa == 'xess' and windows:
+        env['ISSN_XESS'] = '1'
+    elif aa == 'dlss' and windows:
+        env['SHADPS4_DLSS'] = '1'
+        env['SHADPS4_DLSS_UPSCALE'] = '1'
+    if ini.get('menu_frame_gen') == '1' and any(k in env for k in AA_SWITCHES):
+        env['ISSN_FRAME_GEN'] = '1'
+    if ini.get('menu_upscale_quality') in UPSCALE_FACTORS:
+        env['ISSN_UPSCALE_FACTOR'] = ini['menu_upscale_quality']
+    remove = tuple(k for k in (*AA_SWITCHES, 'ISSN_UPSCALE_FACTOR', 'ISSN_FRAME_GEN') if k not in env)
+    return env, remove
+

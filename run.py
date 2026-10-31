@@ -257,6 +257,16 @@ def main():
         if key not in env:
             env[key] = value
             derived.append(key)
+    # issn-axy: a restart from the in-game menu starts its anti-aliasing / quality / frame gen.
+    ini = graphics_options.read_ini(env['ISSN_CONFIG'])
+    if ini.get('restart_unconfirmed') == '1' and not reverted:
+        menu_env, menu_off = graphics_options.menu_environment(ini, WINDOWS)
+        for key in menu_off:
+            env.pop(key, None)
+        env.update(menu_env)
+        if menu_env or menu_off:
+            print('Graphics: the in-game menu\'s anti-aliasing for this restart: '
+                  + (', '.join(f'{k}={v}' for k, v in menu_env.items()) or "the game's own"), flush=True)
     if not env.get('ISSN_FSR411_DIR') and not (PORT / 'fsr4_411').is_dir() and (data / 'fsr4_411').is_dir():
         env['ISSN_FSR411_DIR'] = str(data / 'fsr4_411')
 
