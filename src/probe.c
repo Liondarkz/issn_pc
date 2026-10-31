@@ -807,11 +807,11 @@ extern void issn_fov_attach(IssnFovCave *cave);
  * a page of its own, kept read-write; the menu writes 0.5 x its factor there (issn_view.cpp).
  * Code that reads the camera's angle itself gets the factor too (ISSN_FOV_AIM, the aim), and
  * SetFov leaves the camera's address so a menu change shows at once. Silent for other builds;
- * with a field of view patch on, the patch's fixed angle stays. Off unless ISSN_FOV_MENU=1 while the
- * aim fix is tested (0.3.6.3: shots landed below the reticle). */
+ * with a field of view patch on, the patch's fixed angle stays. ISSN_FOV_MENU=0 leaves the game's
+ * camera alone (tested 10-31: the shots land on the reticle at 1.15x and 1.4x). */
 static void install_fov(Segment *segments, uint64_t count, uint64_t size) {
-    const char *on = getenv("ISSN_FOV_MENU"); /* not ISSN_FOV: that one sets the factor itself */
-    if (!on || on[0] != '1') return;
+    const char *menu = getenv("ISSN_FOV_MENU"); /* not ISSN_FOV: that one sets the factor itself */
+    if (menu && menu[0] == '0') return;
     const char *off = getenv("ISSN_FOV_HOOK");
     if (off && off[0] == '0') return;
     for (unsigned i = 0; i < ISSN_FOV_SITE_COUNT; ++i)

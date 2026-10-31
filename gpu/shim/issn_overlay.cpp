@@ -570,7 +570,7 @@ void PictureRows() {
         if (s.fov_supported) {
             FloatChoiceRow("Field of view", s.fov, fov_labels, fov_values, 7,
                            "How much of the city the camera shows. Aiming follows the wider view.");
-        } // hidden otherwise (src/probe.c install_fov: off unless ISSN_FOV_MENU=1 for now)
+        } // hidden otherwise (another eboot build, a field of view patch on, or ISSN_FOV_MENU=0)
         static const char* const distance_labels[] = {"Short (faster)", "Original", "Long (less pop-in)",
                                                       "Very long (slower)"};
         if (s.view_supported) {
