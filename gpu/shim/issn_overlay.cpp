@@ -688,10 +688,10 @@ void PerformanceTab() {
         // the counter shows the screen's rate (tester 10-31: "100 FPS (game 50)" at limit 60).
         if (const u32 divider = Vulkan::VsyncDivider(); divider > 1) {
             static char pacing[96];
-            std::snprintf(pacing, sizeof(pacing), "on: each frame %u refreshes (game = refresh / %u)", divider,
-                          divider);
+            std::snprintf(pacing, sizeof(pacing), "on: game = screen refresh / %u", divider);
             InfoRow("Frame pacing", pacing);
-            InfoRow("Note", "VSync stays on and the limit has no effect; turn it off in the launcher");
+            InfoRow("Note", "keeps VSync on, ignores the limit");
+            InfoRow("Turn it off in", "the launcher (Frame pacing: Normal)");
         }
         ImGui::EndTable();
     }
