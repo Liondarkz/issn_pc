@@ -824,7 +824,7 @@ static void install_fov(Segment *segments, uint64_t count, uint64_t size) {
     IssnFovCave *cave = (IssnFovCave *)allocate_cave(page_size); /* stays read-write: data only */
     cave->half_factor = ISSN_FOV_ORIGINAL;
     cave->factor = 1.0f;
-    cave->camera = 0;
+    memset(cave->camera, 0, sizeof cave->camera);
     if (!issn_fov_redirect(image, &cave->half_factor)) {
         printf("Field of view: menu control unavailable (outside relative reach)\n");
         return;
@@ -845,7 +845,7 @@ static void install_fov(Segment *segments, uint64_t count, uint64_t size) {
     int live = 0;
     if (mapped(segments, count, ISSN_FOV_SETFOV_SITE, ISSN_FOV_SETFOV_LENGTH) &&
         !memcmp(image + ISSN_FOV_SETFOV_SITE, issn_fov_setfov_code, ISSN_FOV_SETFOV_LENGTH)) {
-        const unsigned n = issn_fov_build_setfov(stubs + used, image, &cave->camera);
+        const unsigned n = issn_fov_build_setfov(stubs + used, image, cave->camera);
         live = n && install_jump(ISSN_FOV_SETFOV_SITE, ISSN_FOV_SETFOV_LENGTH, stubs + used);
     }
     protect(stubs, page_size, 5);

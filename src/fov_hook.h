@@ -55,8 +55,11 @@ static inline int issn_fov_redirect(unsigned char *image, const float *value) {
 }
 
 /* The cave page (read-write): [0] 0.5 x factor (the four sites above), [1] the factor itself
- * (the readers below), then the camera the game last gave an angle (SetFov's rdi). */
-typedef struct { float half_factor, factor; uint64_t camera; } IssnFovCave;
+ * (the readers below), then the cameras the game gave an angle (SetFov's rdi), one slot per
+ * hash of the address: the game has more than one (the render camera copies the angle of the
+ * gameplay one through SetFov, and recomputes only when the angle differs). */
+#define ISSN_FOV_CAMERA_SLOTS 16u
+typedef struct { float half_factor, factor; uint64_t camera[ISSN_FOV_CAMERA_SLOTS]; } IssnFovCave;
 
 /* Code that reads the camera's angle (+0x590) itself, not the tan the four sites build: each gets
  * a stub that replays the read and multiplies (divides, for a vdivss) by the factor, so it agrees
@@ -110,13 +113,25 @@ static inline unsigned issn_fov_build_reader(unsigned char *out, const unsigned 
     return n;
 }
 
-/* SetFov's stub: mov [rip -> camera slot], rdi; the two replaced instructions; jmp back. */
-static inline unsigned issn_fov_build_setfov(unsigned char *out, const unsigned char *image, uint64_t *slot) {
+/* SetFov's stub: push rax/rcx; rax = (rdi >> 6) & 15; rcx = &slots; mov [rcx+rax*8], rdi;
+ * pop; the two replaced instructions; jmp back. Flags are dead here (the vucomiss after the
+ * replayed store sets them) and SetFov has its frame, so the pushes below rsp are free. */
+static inline unsigned issn_fov_build_setfov(unsigned char *out, const unsigned char *image, uint64_t *slots) {
+    static const unsigned char head[] = {
+        0x50, 0x51,                   /* push rax; push rcx */
+        0x48, 0x89, 0xf8,             /* mov rax, rdi */
+        0x48, 0xc1, 0xe8, 0x06,       /* shr rax, 6 */
+        0x83, 0xe0, 0x0f,             /* and eax, 15 */
+        0x48, 0x8d, 0x0d};            /* lea rcx, [rip+disp32] */
+    static const unsigned char tail[] = {
+        0x48, 0x89, 0x3c, 0xc1,       /* mov [rcx+rax*8], rdi */
+        0x59, 0x58};                  /* pop rcx; pop rax */
     unsigned n = 0;
     int32_t d;
-    out[n++] = 0x48; out[n++] = 0x89; out[n++] = 0x3d;
-    if (!issn_rel32(out + n + 4, slot, &d)) return 0;
+    memcpy(out, head, sizeof head); n += sizeof head;
+    if (!issn_rel32(out + n + 4, slots, &d)) return 0;
     memcpy(out + n, &d, 4); n += 4;
+    memcpy(out + n, tail, sizeof tail); n += sizeof tail;
     memcpy(out + n, issn_fov_setfov_code, ISSN_FOV_SETFOV_LENGTH); n += ISSN_FOV_SETFOV_LENGTH;
     out[n++] = 0xe9;
     if (!issn_rel32(out + n + 4, image + ISSN_FOV_SETFOV_SITE + ISSN_FOV_SETFOV_LENGTH, &d)) return 0;
