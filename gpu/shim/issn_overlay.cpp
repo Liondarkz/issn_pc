@@ -637,7 +637,7 @@ void ImageTab() {
     if (BeginRows("##display")) {
         ChoiceRow("Display mode", s.display_mode, G::DisplayModeNames.data(), nullptr, G::DisplayModeCount,
                   "Windowed, borderless window or exclusive fullscreen.");
-        CheckRow("VSync (on restart)", s.vsync, "Waits for the monitor: no tearing, a little more input delay.");
+        CheckRow("VSync", s.vsync, "Waits for the monitor: no tearing, a little more input delay.");
         ImGui::EndTable();
     }
     const int iw = s.image_width, ih = s.image_height, ww = s.window_width, wh = s.window_height;
@@ -650,20 +650,6 @@ void ImageTab() {
         InfoRow("Window", text);
         ImGui::EndTable();
     }
-}
-
-// issn-axy: the new GPU core reads the frame rate limit (its vblank rate) and VSync (the present
-// mode) when it starts, so both apply on restart; the old core's live options are gone.
-struct StartupGraphics {
-    int fps_limit = -1;
-    bool vsync = false;
-};
-StartupGraphics& Startup() {
-    static StartupGraphics startup = [] {
-        const auto& s = IssnSettings::Get();
-        return StartupGraphics{s.fps_limit.load(), s.vsync.load()};
-    }();
-    return startup;
 }
 
 const char* AntiAliasingName() {
@@ -685,8 +671,7 @@ const char* AntiAliasingName() {
 void PerformanceTab() {
     namespace G = IssnGraphics;
     auto& s = IssnSettings::Get();
-    Startup();
-    ImGui::SeparatorText("Applied on restart");
+    ImGui::SeparatorText("Changes at once");
     if (BeginRows("##restart")) {
         static const char* const fps_labels[] = {"30", "60", "120", "240", "Unlimited"};
         ChoiceRow("Frame rate limit", s.fps_limit, fps_labels, G::FpsLimits.data(), int(G::FpsLimits.size()),
@@ -696,7 +681,7 @@ void PerformanceTab() {
     ImGui::SeparatorText("Information");
     if (BeginRows("##perf_info")) {
         InfoRow("Anti-aliasing", AntiAliasingName());
-        InfoRow("Change it in", "the Image tab (next start) or the launcher");
+        InfoRow("Change it in", "the Image tab (Apply and restart) or the launcher");
         ImGui::EndTable();
     }
 }
@@ -778,11 +763,10 @@ void OverlayTab() {
 // Startup options changed since this launch (applied by "Apply and restart").
 int RestartChanges() {
     const auto& s = IssnSettings::Get();
-    const auto& startup = Startup();
     // issn-axy: the anti-aliasing, upscaler quality and (when it is not live) frame generation
     // chosen in the Image tab; run.py starts them on a menu restart (graphics_options.py).
-    return (s.fps_limit != startup.fps_limit) + (s.vsync != startup.vsync) +
-           (s.menu_anti_aliasing != s.startup_anti_aliasing) + (s.menu_upscale_quality != s.startup_upscale_quality) +
+    // Frame rate limit and VSync change at once (the vblank thread and the swapchain follow them).
+    return (s.menu_anti_aliasing != s.startup_anti_aliasing) + (s.menu_upscale_quality != s.startup_upscale_quality) +
            (!Vulkan::FrameGen::Wanted() && s.menu_frame_gen != s.startup_frame_gen);
 }
 
