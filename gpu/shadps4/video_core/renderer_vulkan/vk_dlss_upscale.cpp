@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <cstdlib>
 #include "common/assert.h"
 #include "common/logging/log.h"
@@ -116,7 +117,7 @@ Upscaler::Upscaler(const Instance& instance_) : instance{instance_}, device{inst
 
 Upscaler::~Upscaler() = default;
 
-void Upscaler::SetOutputSize(u32 width, u32 height) {
+void Upscaler::SetOutputSize(u32 width, u32 height, bool hdr) {
     ++flips;
     while (!retired.empty() && retired.front().first + 16 <= flips) {
         retired.pop_front();
@@ -149,8 +150,26 @@ void Upscaler::SetOutputSize(u32 width, u32 height) {
     // issn-axy: frame generation keeps the HUD layer at any size: it interpolates the scene
     // alone and lays the newest HUD over the frame it makes (the HUD broke up in fast motion
     // when the whole frame was interpolated, 10-30).
-    const bool on = (force || FrameGen::Active() || (width > game_w && height > game_h)) &&
-                    g_ready.load() && instance.IsDynamicColorWriteMaskSupported();
+    // issn-axy: never while the game outputs HDR. The composite replaces the game's last pass,
+    // which is the one that encodes HDR (BT.2020 PQ); the composite writes SDR (sRGB decoded to
+    // linear), and the post pass hands HDR frames to the display as they are, so the picture came
+    // out far too dark with HDR on and the upscaler at a render size below the window (Reddit
+    // reports, 10-30). Off, the upscaler works in place at the render size and the game's own
+    // HDR pass runs; the post pass scales the frame to the window.
+    const bool wanted_size = force || FrameGen::Active() || (width > game_w && height > game_h);
+    const bool on = !hdr && wanted_size && g_ready.load() &&
+                    instance.IsDynamicColorWriteMaskSupported();
+    static bool told_hdr = false;
+    if (hdr && wanted_size && !told_hdr) {
+        told_hdr = true;
+        LOG_WARNING(Render_Vulkan, "{} upscale: off while the game outputs HDR (its own HDR pass "
+                                   "runs; the upscaler works at the render size)",
+                    ModeName());
+        std::printf("%s upscale: off while the game outputs HDR (the upscaler works at the render "
+                    "size; the frame is scaled to the window)\n",
+                    ModeName());
+        std::fflush(stdout);
+    }
     if (on != g_hud_layer.load(std::memory_order_relaxed)) {
         // issn-axy: a warning (the port's log level), and FSR 4 named when it is the upscaler.
         LOG_WARNING(Render_Vulkan, "{} upscale: {} (game {}x{}, output {}x{}{})",

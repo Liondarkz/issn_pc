@@ -917,7 +917,7 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
                 dlss_job = upscaler->TakeJob(*hud.FindView(hud_view_info).image_view);
             }
         }
-        upscaler->SetOutputSize(frame->width, frame->height);
+        upscaler->SetOutputSize(frame->width, frame->height, frame->is_hdr);
     }
 
     // DLSS 5 on video cutscenes (vk_dlss5.h): a frame the game did not render through the T2x

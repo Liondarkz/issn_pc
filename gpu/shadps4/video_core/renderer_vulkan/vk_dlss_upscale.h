@@ -77,7 +77,8 @@ public:
     ~Upscaler();
 
     /// Presenter, each flip (GPU thread): the output size; turns the HUD-layer mode on / off.
-    void SetOutputSize(u32 width, u32 height);
+    /// `hdr`: the game outputs HDR (BT.2020 PQ): the HUD-layer mode stays off.
+    void SetOutputSize(u32 width, u32 height, bool hdr = false);
     vk::Extent2D OutputSize() const {
         return output_size;
     }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <string_view>
 #include <boost/container/static_vector.hpp>
@@ -1270,6 +1271,11 @@ void Instance::CollectDeviceParameters() {
     LOG_INFO(Render_Vulkan, "GPU_Vulkan_Driver: {}", driver_name);
     LOG_INFO(Render_Vulkan, "GPU_Vulkan_Version: {}", api_version);
     LOG_INFO(Render_Vulkan, "GPU_Vulkan_Extensions: {}", extensions);
+    // issn-axy: the card and driver in every log (the log level hides the lines above; a tester's
+    // device-lost log, 10-30, did not say which GPU it came from).
+    std::printf("GPU: %s (%s, Vulkan %s%s)\n", model_name.c_str(), driver_name.c_str(),
+                api_version.c_str(), IsIntegrated() ? ", integrated" : "");
+    std::fflush(stdout);
 }
 
 void Instance::CollectPhysicalMemoryInfo() {

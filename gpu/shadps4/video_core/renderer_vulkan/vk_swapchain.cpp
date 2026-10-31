@@ -4,6 +4,7 @@
 #include <chrono>
 #include <thread>
 #include <algorithm>
+#include <cstdio>
 #include <array>
 #include <atomic>
 #include <cstdlib>
@@ -178,6 +179,10 @@ void Swapchain::SetHDR(bool hdr) {
     }
 
     needs_hdr = hdr;
+    // issn-axy: the log says when the game switches HDR (Reddit reports of a dark picture with
+    // HDR on, 10-30: the log did not say whether HDR was in use at all).
+    std::printf("HDR output: %s\n", hdr ? "on (the game outputs BT.2020 PQ)" : "off (SDR)");
+    std::fflush(stdout);
     Recreate(width, height);
     ImGui::Core::OnSurfaceFormatChange(needs_hdr ? SURFACE_FORMAT_HDR.format
                                                  : surface_format.format);
@@ -284,6 +289,15 @@ void Swapchain::FindPresentFormat() {
             return format == SURFACE_FORMAT_HDR;
         }) != formats.end();
     // Also make sure that user allowed us to use HDR
+    static bool told_hdr = false;
+    if (!told_hdr && EmulatorSettings.IsHdrAllowed()) {
+        told_hdr = true;
+        std::printf("HDR: %s\n", supports_hdr
+                                     ? "allowed, and the display offers HDR10 (the game decides)"
+                                     : "allowed in the launcher, but the display offers no HDR10 "
+                                       "format (is HDR on in Windows?): SDR");
+        std::fflush(stdout);
+    }
     supports_hdr &= EmulatorSettings.IsHdrAllowed();
 
     // If there is a single undefined surface format, the device doesn't care, so we'll just use
