@@ -7,6 +7,7 @@
 #include "issn_view.h"
 
 #include "../../src/view_hook.h"
+#include "../../src/fov_hook.h"
 
 #include <algorithm>
 #include <chrono>
@@ -115,22 +116,41 @@ void Apply() {
 
 } // namespace
 
-// Field of view (src/fov_hook.h): the float the camera's four sites read, in a read-write page
-// next to the image; 0.5 x the menu's factor. A thread of its own (the draw distance one exists
-// only when that hook is in place).
+// Field of view (src/fov_hook.h): the cave the camera's four sites and the angle readers read, in
+// a read-write page next to the image: 0.5 x the menu's factor, the factor, and the camera SetFov
+// last saw. A thread of its own (the draw distance one exists only when that hook is in place).
 namespace {
-float* fov_value = nullptr;
+IssnFovCave* fov_cave = nullptr;
+
+// The camera works its tan out only when its angle (+0x590) differs from the target (+0x5d4):
+// a nudge to the angle makes its next update do it again with the new factor.
+void NudgeCamera() {
+    const std::uint64_t at = fov_cave->camera;
+    if (at < (1ull << 32) || at >= (1ull << 47)) {
+        return;
+    }
+    auto* camera = reinterpret_cast<unsigned char*>(at);
+    float target;
+    std::memcpy(&target, camera + 0x5d4, 4);
+    if (!(target > 0.05f && target < 3.5f)) { // radians
+        return;
+    }
+    const float nudged = target * 1.001f;
+    std::memcpy(camera + 0x590, &nudged, 4);
+}
 
 void ApplyFov() {
-    const float value = 0.5f * IssnView::ClampFov(IssnSettings::Get().fov);
-    if (*fov_value != value) {
-        *fov_value = value;
+    const float factor = IssnView::ClampFov(IssnSettings::Get().fov);
+    if (fov_cave->factor != factor) {
+        fov_cave->factor = factor;
+        fov_cave->half_factor = 0.5f * factor;
+        NudgeCamera();
     }
 }
 } // namespace
 
-extern "C" void issn_fov_attach(float* value) {
-    fov_value = value;
+extern "C" void issn_fov_attach(IssnFovCave* cave) {
+    fov_cave = cave;
     ApplyFov(); // before the game's first frame
     IssnSettings::Get().fov_supported = true;
     std::printf("Field of view: menu control ready (x%.2f)\n", IssnSettings::Get().fov.load());

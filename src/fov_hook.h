@@ -53,4 +53,74 @@ static inline int issn_fov_redirect(unsigned char *image, const float *value) {
         memcpy(image + issn_fov_sites[i] + 4, &disp[i], 4);
     return 1;
 }
+
+/* The cave page (read-write): [0] 0.5 x factor (the four sites above), [1] the factor itself
+ * (the readers below), then the camera the game last gave an angle (SetFov's rdi). */
+typedef struct { float half_factor, factor; uint64_t camera; } IssnFovCave;
+
+/* Code that reads the camera's angle (+0x590) itself, not the tan the four sites build: each gets
+ * a stub that replays the read and multiplies (divides, for a vdivss) by the factor, so it agrees
+ * with the wider picture. Factor 1 (Original) changes nothing. Which of them aims is not known
+ * yet: ISSN_FOV_AIM (bit i = reader i) picks them, default the three next to the aspect (+0x59c). */
+#define ISSN_FOV_READER_COUNT 7u
+typedef struct { uint32_t at; uint8_t length, xmm, divide, ret; uint8_t code[9]; } IssnFovReader;
+static const IssnFovReader issn_fov_readers[ISSN_FOV_READER_COUNT] = {
+    {0x22c71bu, 8, 2, 0, 0, {0xc5, 0xfa, 0x10, 0x93, 0x90, 0x05, 0x00, 0x00}},       /* vmovss xmm2,[rbx+590h] (+59c) */
+    {0x14a89bu, 8, 0, 0, 0, {0xc5, 0xfa, 0x10, 0x83, 0x90, 0x05, 0x00, 0x00}},       /* vmovss xmm0,[rbx+590h] (+59c) */
+    {0x144fb3u, 9, 0, 0, 0, {0xc4, 0xc1, 0x7a, 0x10, 0x86, 0x90, 0x05, 0x00, 0x00}}, /* vmovss xmm0,[r14+590h] (+59c, +694) */
+    {0x2e5460u, 9, 0, 0, 1, {0xc5, 0xfa, 0x10, 0x87, 0x90, 0x05, 0x00, 0x00, 0xc3}}, /* GetFov: vmovss xmm0,[rdi+590h]; ret */
+    {0x43ac25u, 9, 0, 1, 0, {0xc4, 0xc1, 0x7a, 0x5e, 0x87, 0x90, 0x05, 0x00, 0x00}}, /* vdivss xmm0,xmm0,[r15+590h] */
+    {0x133159u, 8, 2, 0, 0, {0xc5, 0xfa, 0x10, 0x93, 0x90, 0x05, 0x00, 0x00}},       /* vmovss xmm2,[rbx+590h] */
+    {0x145745u, 8, 0, 0, 0, {0xc5, 0xfa, 0x10, 0x80, 0x90, 0x05, 0x00, 0x00}},       /* vmovss xmm0,[rax+590h] */
+};
+#define ISSN_FOV_AIM_DEFAULT 0x7u
+
+/* SetFov(camera, angle) at 0x580580: its first two instructions after the prologue are replayed
+ * after `mov [camera slot], rdi`, so the menu can ask that camera to work its angle out again. */
+#define ISSN_FOV_SETFOV_SITE 0x580586u
+#define ISSN_FOV_SETFOV_LENGTH 11u
+static const unsigned char issn_fov_setfov_code[ISSN_FOV_SETFOV_LENGTH] = {
+    0x48, 0x89, 0xfb, 0xc5, 0xfa, 0x11, 0x83, 0xd4, 0x05, 0x00, 0x00}; /* mov rbx,rdi; vmovss [rbx+5d4h],xmm0 */
+
+static inline int issn_rel32(const unsigned char *next, const void *target, int32_t *out) {
+    const int64_t d = (int64_t)(uintptr_t)target - (int64_t)(uintptr_t)next;
+    if (d < INT32_MIN || d > INT32_MAX) return 0;
+    *out = (int32_t)d;
+    return 1;
+}
+
+/* A reader's stub at `out`: the read, vmulss/vdivss xmmN,xmmN,[rip -> factor], then ret (GetFov)
+ * or a jmp back. Returns its length, 0 when out of reach. */
+static inline unsigned issn_fov_build_reader(unsigned char *out, const unsigned char *image,
+                                             const IssnFovReader *r, const float *factor) {
+    unsigned n = 0;
+    const unsigned body = r->ret ? r->length - 1u : r->length;
+    memcpy(out, r->code, body); n += body;
+    out[n++] = 0xc5;
+    out[n++] = (uint8_t)(0x80 | ((~r->xmm & 15) << 3) | 0x02); /* R=1, vvvv=xmmN, L=0, F3 */
+    out[n++] = r->divide ? 0x5e : 0x59;
+    out[n++] = (uint8_t)((r->xmm & 7) << 3 | 5);              /* [rip+disp32] */
+    int32_t d;
+    if (!issn_rel32(out + n + 4, factor, &d)) return 0;
+    memcpy(out + n, &d, 4); n += 4;
+    if (r->ret) { out[n++] = 0xc3; return n; }
+    out[n++] = 0xe9;
+    if (!issn_rel32(out + n + 4, image + r->at + r->length, &d)) return 0;
+    memcpy(out + n, &d, 4); n += 4;
+    return n;
+}
+
+/* SetFov's stub: mov [rip -> camera slot], rdi; the two replaced instructions; jmp back. */
+static inline unsigned issn_fov_build_setfov(unsigned char *out, const unsigned char *image, uint64_t *slot) {
+    unsigned n = 0;
+    int32_t d;
+    out[n++] = 0x48; out[n++] = 0x89; out[n++] = 0x3d;
+    if (!issn_rel32(out + n + 4, slot, &d)) return 0;
+    memcpy(out + n, &d, 4); n += 4;
+    memcpy(out + n, issn_fov_setfov_code, ISSN_FOV_SETFOV_LENGTH); n += ISSN_FOV_SETFOV_LENGTH;
+    out[n++] = 0xe9;
+    if (!issn_rel32(out + n + 4, image + ISSN_FOV_SETFOV_SITE + ISSN_FOV_SETFOV_LENGTH, &d)) return 0;
+    memcpy(out + n, &d, 4); n += 4;
+    return n;
+}
 #endif

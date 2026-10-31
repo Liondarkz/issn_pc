@@ -569,8 +569,7 @@ void PictureRows() {
         static const float fov_values[] = {0.9f, 1.0f, 1.1f, 1.15f, 1.2f, 1.3f, 1.4f};
         if (s.fov_supported) {
             FloatChoiceRow("Field of view", s.fov, fov_labels, fov_values, 7,
-                           "How much of the city the camera shows. Picture only: aiming and the camera "
-                           "itself stay as they are.");
+                           "How much of the city the camera shows. Aiming follows the wider view.");
         } // hidden otherwise (src/probe.c install_fov: off unless ISSN_FOV=1 for now)
         static const char* const distance_labels[] = {"Short (faster)", "Original", "Long (less pop-in)",
                                                       "Very long (slower)"};

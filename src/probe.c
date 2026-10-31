@@ -801,15 +801,15 @@ static void install_hero_cheats(Segment *segments, uint64_t count, uint64_t size
 }
 
 #include "fov_hook.h"
-extern void issn_fov_attach(float *value);
+extern void issn_fov_attach(IssnFovCave *cave);
 
 /* issn: field of view (src/fov_hook.h): the camera's four 0.5 constants are read from a float in
  * a page of its own, kept read-write; the menu writes 0.5 x its factor there (issn_view.cpp).
- * Silent for other builds; with a field of view patch on, the patch's fixed angle stays. */
+ * Code that reads the camera's angle itself gets the factor too (ISSN_FOV_AIM, the aim), and
+ * SetFov leaves the camera's address so a menu change shows at once. Silent for other builds;
+ * with a field of view patch on, the patch's fixed angle stays. Off unless ISSN_FOV=1 while the
+ * aim fix is tested (0.3.6.3: shots landed below the reticle). */
 static void install_fov(Segment *segments, uint64_t count, uint64_t size) {
-    /* Off unless ISSN_FOV=1 (0.3.6.3, tester 10-31): the camera computes its tan only when the game
-     * changes the angle (+0x590), so a menu change waits for the next one, and code that reads the
-     * angle itself (aim among them) keeps the original: shots land below the reticle. */
     const char *on = getenv("ISSN_FOV");
     if (!on || on[0] != '1') return;
     const char *off = getenv("ISSN_FOV_HOOK");
@@ -821,13 +821,37 @@ static void install_fov(Segment *segments, uint64_t count, uint64_t size) {
                "patch is on, or another eboot build)\n");
         return;
     }
-    float *value = (float *)allocate_cave(page_size); /* stays read-write: data only */
-    *value = ISSN_FOV_ORIGINAL;
-    if (!issn_fov_redirect(image, value)) {
+    IssnFovCave *cave = (IssnFovCave *)allocate_cave(page_size); /* stays read-write: data only */
+    cave->half_factor = ISSN_FOV_ORIGINAL;
+    cave->factor = 1.0f;
+    cave->camera = 0;
+    if (!issn_fov_redirect(image, &cave->half_factor)) {
         printf("Field of view: menu control unavailable (outside relative reach)\n");
         return;
     }
-    issn_fov_attach(value);
+    const char *mask_text = getenv("ISSN_FOV_AIM");
+    const unsigned mask = mask_text ? (unsigned)strtoul(mask_text, NULL, 0) : ISSN_FOV_AIM_DEFAULT;
+    unsigned char *stubs = allocate_cave(page_size);
+    unsigned used = 0, readers = 0;
+    for (unsigned i = 0; i < ISSN_FOV_READER_COUNT; ++i) {
+        const IssnFovReader *r = &issn_fov_readers[i];
+        if (!(mask >> i & 1) || !mapped(segments, count, r->at, r->length) ||
+            memcmp(image + r->at, r->code, r->length)) continue;
+        const unsigned n = issn_fov_build_reader(stubs + used, image, r, &cave->factor);
+        if (!n || !install_jump(r->at, r->length, stubs + used)) continue;
+        used += (n + 15u) & ~15u;
+        ++readers;
+    }
+    int live = 0;
+    if (mapped(segments, count, ISSN_FOV_SETFOV_SITE, ISSN_FOV_SETFOV_LENGTH) &&
+        !memcmp(image + ISSN_FOV_SETFOV_SITE, issn_fov_setfov_code, ISSN_FOV_SETFOV_LENGTH)) {
+        const unsigned n = issn_fov_build_setfov(stubs + used, image, &cave->camera);
+        live = n && install_jump(ISSN_FOV_SETFOV_SITE, ISSN_FOV_SETFOV_LENGTH, stubs + used);
+    }
+    protect(stubs, page_size, 5);
+    printf("Field of view: %u angle readers follow the factor (ISSN_FOV_AIM=0x%x), live change %s\n",
+           readers, mask, live ? "on" : "off");
+    issn_fov_attach(cave);
 }
 
 extern IssnMouseMailbox *runtime_mouse_aim_mailbox(void);
