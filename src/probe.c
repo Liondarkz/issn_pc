@@ -773,6 +773,33 @@ static void install_view_tuning(Segment *segments, uint64_t count, uint64_t size
     printf("Draw distance: ready (LOD scale, LOD bands, region LOD_ADJUST and FADE_DISTANCE, near/far clip)\n");
 }
 
+#include "hero_hook.h"
+extern const volatile unsigned char *issn_hero_health_flag(void);
+extern void issn_hero_attach(unsigned char *guest_image);
+
+/* issn: Delsin's cheats (src/hero_hook.h): a stub at SetHitPoints for infinite health; the shim
+ * refills health, powers and the Karma Bomb meter. Silent for other builds. */
+static void install_hero_cheats(Segment *segments, uint64_t count, uint64_t size) {
+    const char *off = getenv("ISSN_HERO_CHEATS");
+    if (off && off[0] == '0') return;
+    if (!mapped(segments, count, ISSN_HERO_SET_HP, sizeof(issn_hero_set_hp_code)) ||
+        !mapped(segments, count, ISSN_HERO_GLOBAL, 8) ||
+        !mapped(segments, count, ISSN_HERO_ADJUST_MAGIC_LOADS, sizeof(issn_hero_magic_code)) ||
+        !mapped(segments, count, ISSN_HERO_GLOBAL_READER, 18)) return;
+    if (!issn_hero_signature_match(image, size)) {
+        printf("Cheats: unavailable (the health code is not the expected one)\n");
+        return;
+    }
+    unsigned char *stub = allocate_cave(page_size);
+    issn_hero_build_stub(stub, image, issn_hero_health_flag());
+    protect(stub, page_size, 5);
+    if (!install_jump(ISSN_HERO_SITE, ISSN_HERO_SITE_LENGTH, stub)) {
+        printf("Cheats: unavailable (stub outside relative-jump range)\n");
+        return;
+    }
+    issn_hero_attach(image);
+}
+
 #include "fov_hook.h"
 extern void issn_fov_attach(float *value);
 
@@ -1298,6 +1325,7 @@ int main(int argc, char **argv) {
     if (gpu_enabled) install_view_tuning(segments, ns, size);
     if (gpu_enabled) install_mouse_aim(segments, ns, size);
     if (gpu_enabled) install_fov(segments, ns, size);
+    if (gpu_enabled) install_hero_cheats(segments, ns, size);
     if (gpu_enabled) issngpu_apply_game_patches();
 #ifdef _WIN32
     printf("Guest TCB loads redirected to the TEB TLS slot: %" PRIu64 "\n", patch_tcb_loads(segments, ns));

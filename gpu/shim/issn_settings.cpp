@@ -209,6 +209,12 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.far_clip = IssnView::ClampFarClip(f);
     } else if (key == "mip_lod_bias") {
         v.mip_lod_bias = IssnView::ClampMipLodBias(f);
+    } else if (key == "hero_health") {
+        v.hero_health = i != 0;
+    } else if (key == "hero_powers") {
+        v.hero_powers = i != 0;
+    } else if (key == "hero_karma") {
+        v.hero_karma = i != 0;
     } else if (key == "fov") {
         v.fov = IssnView::ClampFov(value.empty() ? 1.0f : f);
     } else if (key == "menu_anti_aliasing") {
@@ -446,6 +452,8 @@ void Save() {
                  v.far_clip.load(), v.mip_lod_bias.load(), v.lod_bands[0].load(), v.lod_bands[1].load(),
                  v.lod_bands[2].load(), v.lod_bands[3].load(), v.lod_bands[4].load(), v.lod_bands[5].load());
     std::fprintf(file, "fov=%.3f\n", v.fov.load());
+    std::fprintf(file, "hero_health=%d\nhero_powers=%d\nhero_karma=%d\n", int(v.hero_health.load()),
+                 int(v.hero_powers.load()), int(v.hero_karma.load()));
     // For the launcher (next start): its own setting names and values.
     const auto pick = [](const auto& keys, int index) {
         const int n = int(sizeof(keys) / sizeof(keys[0]));

@@ -138,6 +138,9 @@ struct Values {
     std::atomic<bool> view_supported{false};
     /// Extra texture LOD bias of the game's draws (vk_rasterizer.cpp), any game.
     std::atomic<float> mip_lod_bias{0.0f};
+    /// Delsin's cheats (src/hero_hook.h, issn_hero.cpp), live; hero_supported once hooked.
+    std::atomic<bool> hero_health{false}, hero_powers{false}, hero_karma{false};
+    std::atomic<bool> hero_supported{false};
     /// Field of view factor (src/fov_hook.h, issn_view.cpp), live; fov_supported once hooked.
     std::atomic<float> fov{1.0f};
     std::atomic<bool> fov_supported{false};

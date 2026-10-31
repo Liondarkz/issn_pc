@@ -362,11 +362,31 @@ void GameTab() {
     // Son has none yet, so the sections only show when one of them is supported.
     const bool any_cheat = s.cheats_supported.load() != 0 || s.red_orbs_supported.load() ||
                            s.orb_pickup_supported.load() || s.damage_supported.load();
+    // issn-axy: Delsin's cheats (src/hero_hook.h, issn_hero.cpp).
     ImGui::SeparatorText("Cheats");
-    if (!any_cheat) {
-        ImGui::TextDisabled("No cheats for this game yet.");
+    if (s.hero_supported && BeginRows("##hero")) {
+        Row("God Mode");
+        bool god = s.hero_health.load() && s.hero_powers.load();
+        if (ImGui::Checkbox("##value", &god)) {
+            s.hero_health = god;
+            s.hero_powers = god;
+            dirty = true;
+        }
+        Help("Infinite health and infinite powers together.");
+        ImGui::PopID();
+        CheckRow("Infinite health", s.hero_health,
+                 "Delsin does not lose health (falls and scripted deaths still happen). Only Delsin "
+                 "is protected.");
+        CheckRow("Infinite powers", s.hero_powers,
+                 "The energy of the power in use stays full: no need to drain smoke, neon or other "
+                 "sources.");
+        CheckRow("Karma Bomb always ready", s.hero_karma,
+                 "The Karma Bomb meter stays full.");
+        ImGui::EndTable();
+    } else if (!any_cheat) {
+        ImGui::TextDisabled("No cheats for this game build.");
     }
-    if (any_cheat && BeginRows("##cheats")) {
+    if (any_cheat && !s.hero_supported && BeginRows("##cheats")) {
         static const char* const names[] = {"Infinite health", "Infinite magic", "Infinite item meter",
                                             "Infinite Rage of Sparta", "Max red orbs",
                                             "Unlock Very Hard", "Infinite Double Jumps"};
@@ -419,8 +439,8 @@ void GameTab() {
         ImGui::EndTable();
     }
 
-    ImGui::SeparatorText("HUD");
-    if (BeginRows("##hud")) {
+    if (s.actor_watch_supported.load()) ImGui::SeparatorText("HUD");
+    if (s.actor_watch_supported.load() && BeginRows("##hud")) {
         ImGui::BeginDisabled(!s.actor_watch_supported.load());
         CheckRow("Enemy health bar", s.enemy_health_bar,
                  s.actor_watch_supported.load() ? "A thin bar at the top for the last enemy hit." : Unsupported);
