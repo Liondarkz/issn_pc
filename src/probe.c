@@ -829,6 +829,8 @@ static void install_fov(Segment *segments, uint64_t count, uint64_t size) {
         printf("Field of view: menu control unavailable (outside relative reach)\n");
         return;
     }
+    const char *aim_off = getenv("ISSN_FOV_AIM_SITES");
+    const unsigned aim = aim_off && aim_off[0] == '0' ? 0 : issn_fov_redirect_aim(image, size, &cave->half_factor);
     const char *mask_text = getenv("ISSN_FOV_AIM");
     const unsigned mask = mask_text ? (unsigned)strtoul(mask_text, NULL, 0) : ISSN_FOV_AIM_DEFAULT;
     unsigned char *stubs = allocate_cave(page_size);
@@ -849,8 +851,8 @@ static void install_fov(Segment *segments, uint64_t count, uint64_t size) {
         live = n && install_jump(ISSN_FOV_SETFOV_SITE, ISSN_FOV_SETFOV_LENGTH, stubs + used);
     }
     protect(stubs, page_size, 5);
-    printf("Field of view: %u angle readers follow the factor (ISSN_FOV_AIM=0x%x), live change %s\n",
-           readers, mask, live ? "on" : "off");
+    printf("Field of view: aim follows the factor at %u of %u sites; %u angle readers (ISSN_FOV_AIM=0x%x); "
+           "live change %s\n", aim, ISSN_FOV_AIM_SITE_COUNT, readers, mask, live ? "on" : "off");
     issn_fov_attach(cave);
 }
 

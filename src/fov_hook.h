@@ -76,7 +76,40 @@ static const IssnFovReader issn_fov_readers[ISSN_FOV_READER_COUNT] = {
     {0x133159u, 8, 2, 0, 0, {0xc5, 0xfa, 0x10, 0x93, 0x90, 0x05, 0x00, 0x00}},       /* vmovss xmm2,[rbx+590h] */
     {0x145745u, 8, 0, 0, 0, {0xc5, 0xfa, 0x10, 0x80, 0x90, 0x05, 0x00, 0x00}},       /* vmovss xmm0,[rax+590h] */
 };
-#define ISSN_FOV_AIM_DEFAULT 0x7u
+#define ISSN_FOV_AIM_DEFAULT 0x0u /* none: the aim is the two sites below (tester 10-31) */
+
+/* The aim: two places build the shot's direction through the reticle from the field of view the
+ * controller hands the camera (+0x468 + +0x358), not from the camera: tan(0.5 x angle) x the
+ * camera's aspect x the reticle's screen position. The reticle sits above the centre, so with
+ * only the picture wider the shots landed below it (1.15x a little, 1.4x more). Their 0.5 goes to
+ * the same cave float as the camera's four sites. */
+#define ISSN_FOV_AIM_SITE_COUNT 2u
+static const uint32_t issn_fov_aim_sites[ISSN_FOV_AIM_SITE_COUNT] = {0x14ebf2u, 0x14a5e9u};
+static const unsigned char issn_fov_aim_opcodes[ISSN_FOV_AIM_SITE_COUNT][4] = {
+    {0xc5, 0xfa, 0x59, 0x05}, /* vmulss xmm0,xmm0,[rip+X] */
+    {0xc5, 0xea, 0x59, 0x05}};/* vmulss xmm0,xmm2,[rip+X] */
+static const uint32_t issn_fov_aim_constants[ISSN_FOV_AIM_SITE_COUNT] = {0x9960a4u, 0x996040u};
+
+/* Points the aim sites at `value`; returns how many were (0 when the code differs). */
+static inline unsigned issn_fov_redirect_aim(unsigned char *image, uint64_t size, const float *value) {
+    unsigned done = 0;
+    for (unsigned i = 0; i < ISSN_FOV_AIM_SITE_COUNT; ++i) {
+        const uint32_t at = issn_fov_aim_sites[i];
+        if ((uint64_t)at + ISSN_FOV_SITE_LENGTH > size || memcmp(image + at, issn_fov_aim_opcodes[i], 4)) continue;
+        int32_t disp;
+        memcpy(&disp, image + at + 4, 4);
+        if ((int64_t)at + ISSN_FOV_SITE_LENGTH + disp != (int64_t)issn_fov_aim_constants[i]) continue;
+        float original;
+        memcpy(&original, image + issn_fov_aim_constants[i], 4);
+        if (original != ISSN_FOV_ORIGINAL) continue;
+        const int64_t delta = (int64_t)(uintptr_t)value - (int64_t)(uintptr_t)(image + at + ISSN_FOV_SITE_LENGTH);
+        if (delta < INT32_MIN || delta > INT32_MAX) continue;
+        disp = (int32_t)delta;
+        memcpy(image + at + 4, &disp, 4);
+        ++done;
+    }
+    return done;
+}
 
 /* SetFov(camera, angle) at 0x580580: its first two instructions after the prologue are replayed
  * after `mov [camera slot], rdi`, so the menu can ask that camera to work its angle out again. */
