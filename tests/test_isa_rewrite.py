@@ -53,11 +53,23 @@ class ScanSegmentTests(unittest.TestCase):
         self.assertEqual(s.mode, isa_rewrite.MODE_INT3)
 
     def test_unsupported_encodings(self):
-        for code, why in ((b'\x64' + BEXTR_RIP, 'segment prefix'), (b'\x67' + MOVBE_STORE, '32-bit address'),
-                          (bytes.fromhex('c4e2791310'), 'vcvtph2ps xmm2, [rax]')):
+        for code, why in ((b'\x64' + BEXTR_RIP, 'segment prefix'), (b'\x67' + MOVBE_STORE, '32-bit address')):
             s, = isa_rewrite.scan_segment(code + RET, 0)
             self.assertEqual(s.mode, isa_rewrite.MODE_UNSUPPORTED, why)
-        self.assertEqual(isa_rewrite.scan_segment(bytes.fromhex('c4e2791310') + RET, 0)[0].kind, isa_rewrite.KIND_VCVTPH2PS)
+
+    def test_f16c_sites(self):
+        # issn_pc 10-31: Sandy Bridge lacks F16C; inFAMOUS Second Son runs 13 of these (xmm forms).
+        sites = isa_rewrite.scan_segment(bytes.fromhex(
+            'c4e2791310'          # vcvtph2ps xmm2, [rax]
+            'c4e3791dc908'        # vcvtps2ph xmm1, xmm1, 8
+            'c4427d13ca'          # vcvtph2ps ymm9, xmm10
+            'c4637d1d0f04'        # vcvtps2ph [rdi], ymm9, 4
+            'c4c37d1ddc03') + RET, 0)   # vcvtps2ph xmm12, ymm3, 3
+        got = [(s.kind, s.mode, s.width, s.dst, s.src1, s.src2, s.mem_slot, s.base) for s in sites]
+        K, P, NO = isa_rewrite.KIND_VCVTPH2PS, isa_rewrite.KIND_VCVTPS2PH, isa_rewrite.NO_REG
+        J = isa_rewrite.MODE_JMP
+        self.assertEqual(got, [(K, J, 16, 2, NO, NO, 2, 0), (P, J, 16, 1, 1, 0, 0, NO), (K, J, 32, 9, 10, NO, 0, NO),
+                               (P, J, 32, NO, 9, 4, 1, 7), (P, J, 32, 12, 3, 3, 0, NO)])
 
     def test_negative_displacement_is_signed(self):
         s, = isa_rewrite.scan_segment(bytes.fromhex('0f38f048f8'), 0)   # movbe ecx, [rax-8]
@@ -155,7 +167,7 @@ class TableTests(unittest.TestCase):
     def test_summary_line(self):
         sites = isa_rewrite.scan_segment(BLSR_ECX + MOVBE_STORE + NOP + bytes.fromhex('c4e2791310') + RET, 0)
         self.assertEqual(isa_rewrite.summary(sites),
-                         'ISA: 3 sites (MOVBE 1, BMI1 1, LZCNT 0, F16C 1, SSE4A 0); 1 relocated, 0 int3, 1 unsupported')
+                         'ISA: 3 sites (MOVBE 1, BMI1 1, LZCNT 0, F16C 1, SSE4A 0); 1 relocated, 0 int3, 0 unsupported')
 
     def test_main_writes_table_for_executable_segments_only(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -13,7 +13,8 @@ CpuFeatureWords cpu_feature_words(void) {
 }
 
 /* Jaguar's sets beyond the x86-64 baseline. A missing fatal set stops the game; the rewritable
- * ones can be emulated: MOVBE, F16C, BMI1 and LZCNT (Intel has them from Haswell on) and SSE4A,
+ * ones can be emulated: MOVBE, BMI1 and LZCNT (Intel has them from Haswell on), F16C (from Ivy
+ * Bridge on; issn_pc 10-31: 13 sites in inFAMOUS Second Son, a Sandy Bridge player stopped) and SSE4A,
  * which no Intel CPU has (issn_pc 2026-10-24: inFAMOUS Second Son runs EXTRQ, 96 sites; God of War
  * III, where this list comes from, had none, and an i7-10700K closed on its first one). */
 enum { LEAF1, LEAF7, EXT1 };

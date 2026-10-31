@@ -80,6 +80,16 @@ static int record_valid(const IsaSite *s, uint64_t image_size) {
         !register_valid(s->index) || s->mem_slot > ISA_MEM_SRC)
         return 0;
     if (s->kind <= ISA_BLSR && s->width != 16 && s->width != 32 && s->width != 64) return 0;
+    /* F16C: xmm/ymm registers (width = the vector's bytes), a jmp to its stub only; vcvtph2ps may
+     * read memory, vcvtps2ph may write it; vcvtps2ph's src2 is the rounding immediate (0-7). */
+    if (s->kind == ISA_VCVTPH2PS || s->kind == ISA_VCVTPS2PH) {
+        const int ph2ps = s->kind == ISA_VCVTPH2PS;
+        if ((s->width != 16 && s->width != 32) || s->mode == ISA_MODE_INT3 || s->mode == ISA_MODE_JMP_RELOCATE) return 0;
+        if (s->mem_slot == (ph2ps ? ISA_MEM_DST : ISA_MEM_SRC)) return 0;
+        if ((s->dst == ISA_NO_REG) != (s->mem_slot == ISA_MEM_DST) || (s->src1 == ISA_NO_REG) != (s->mem_slot == ISA_MEM_SRC))
+            return 0;
+        if (ph2ps ? s->src2 != ISA_NO_REG : s->src2 > 7) return 0;
+    }
     if (s->scale != 1 && s->scale != 2 && s->scale != 4 && s->scale != 8 && !(s->scale == 0 && s->index == ISA_NO_REG))
         return 0;
     if (s->mode == ISA_MODE_JMP && s->length < JMP_BYTES) return 0;
@@ -175,6 +185,16 @@ static void emit_rsp_mov(unsigned char **p, uint8_t opcode, int reg, uint8_t dis
 static void emit_mov_store(unsigned char **p, int reg, uint8_t disp) { emit_rsp_mov(p, 0x89, reg, disp); }
 static void emit_mov_load(unsigned char **p, int reg, uint8_t disp) { emit_rsp_mov(p, 0x8b, reg, disp); }
 
+/* vmovdqu [rsp], xmm/ymm (opcode 7F) or vmovdqu xmm/ymm, [rsp] (6F): VEX.F3.0F, two-byte prefix
+ * (R inverted, vvvv unused, L = 256 bits). A 128-bit load zeroes the register above bit 127. */
+static void emit_vmovdqu(unsigned char **p, uint8_t opcode, int reg, int ymm) {
+    emit_u8(p, 0xc5);
+    emit_u8(p, (uint8_t)((reg < 8 ? 0x80 : 0) | 0x78 | (ymm ? 0x04 : 0) | 0x02));
+    emit_u8(p, opcode);
+    emit_u8(p, (uint8_t)(0x04 | (reg & 7) << 3));
+    emit_u8(p, 0x24);
+}
+
 /* rel32 from the byte after a jmp ending at `next` to `target`; 0 when it does not fit. */
 static int rel32_to(const unsigned char *next, const unsigned char *target, int32_t *rel) {
     int64_t delta = (int64_t)((intptr_t)target - (intptr_t)next);
@@ -257,12 +277,21 @@ static size_t emit_stub(unsigned char *code, const unsigned char *at, const IsaS
     emit_bytes(&p, (const uint8_t[]){0x48, 0xff, 0x00}, 3);         /* inc qword [rax] */
     emit_bytes(&p, (const uint8_t[]){0x48, 0x89, 0xe5}, 3);         /* mov rbp, rsp */
     emit_bytes(&p, (const uint8_t[]){0x48, 0x83, 0xe4, 0xf0}, 4);   /* and rsp, -16 */
+    const int f16c = s->kind == ISA_VCVTPH2PS || s->kind == ISA_VCVTPS2PH;
+    if (f16c) {   /* a 32-byte vector buffer at rsp, third argument */
+        emit_bytes(&p, (const uint8_t[]){0x48, 0x83, 0xec, 0x20}, 4);   /* sub rsp, 32 */
+        if (s->src1 != ISA_NO_REG)   /* vmovdqu [rsp], xmm/ymm src (ymm: vcvtps2ph's 8 floats) */
+            emit_vmovdqu(&p, 0x7f, s->src1, s->kind == ISA_VCVTPS2PH && s->width == 32);
+        emit_bytes(&p, (const uint8_t[]){0x48, 0x89, 0xe2}, 3);         /* mov rdx, rsp */
+    }
     emit_bytes(&p, (const uint8_t[]){0x48, 0xbf}, 2);               /* mov rdi, site */
     emit_u64(&p, (uint64_t)(uintptr_t)s);
     emit_bytes(&p, (const uint8_t[]){0x48, 0x89, 0xee}, 3);         /* mov rsi, rbp */
-    emit_bytes(&p, (const uint8_t[]){0x48, 0xb8}, 2);               /* mov rax, isa_emulate */
-    emit_u64(&p, (uint64_t)(uintptr_t)isa_emulate);
+    emit_bytes(&p, (const uint8_t[]){0x48, 0xb8}, 2);               /* mov rax, isa_emulate(_f16c) */
+    emit_u64(&p, f16c ? (uint64_t)(uintptr_t)isa_emulate_f16c : (uint64_t)(uintptr_t)isa_emulate);
     emit_bytes(&p, (const uint8_t[]){0xff, 0xd0}, 2);               /* call rax */
+    if (f16c && s->dst != ISA_NO_REG)   /* vmovdqu xmm/ymm dst, [rsp] (ymm: vcvtph2ps's 8 floats) */
+        emit_vmovdqu(&p, 0x6f, s->dst, s->kind == ISA_VCVTPH2PS && s->width == 32);
     emit_bytes(&p, (const uint8_t[]){0x48, 0x89, 0xec}, 3);         /* mov rsp, rbp */
     emit_u8(&p, 0x9d);                                              /* popfq: rsp = &gpr[0] */
     for (int reg = 0; reg < 16; reg++)

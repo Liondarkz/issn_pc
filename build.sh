@@ -167,6 +167,9 @@ if [[ ${1:-} == --test ]]; then
     out/isa-stub-test tests/data/isa_fixture.bin
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -I. -Isrc tests/test_isa_extrq.c out/isa_rewrite.o out/isa_emulate.o -o out/isa-extrq-test
     out/isa-extrq-test
+    # The run helper calls through inline asm: no red zone in the test itself.
+    "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -mno-red-zone -I. -Isrc tests/test_isa_f16c.c out/isa_rewrite.o out/isa_emulate.o -o out/isa-f16c-test
+    out/isa-f16c-test
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -I. -Isrc tests/test_redzone_guard.c -o out/redzone-guard-test
     out/redzone-guard-test
 fi

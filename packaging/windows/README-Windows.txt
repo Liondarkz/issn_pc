@@ -12,8 +12,8 @@ Requirements (Windows 10 1903+ / 11 64-bit, a Vulkan 1.3 graphics driver)
 - Recommended (1080p, 60 FPS): Intel Core i5 8th gen / Ryzen 5 1600, GTX 1070 / RTX 2060 /
   RX 6600, 16 GB RAM, 8 GB video memory.
 - 1440p: 16 GB RAM; 4K: 32 GB RAM (the game reserves more memory at higher resolutions).
-- The CPU needs AVX and F16C (Intel 3rd gen / AMD FX-8300 or newer); the port translates the
-  MOVBE, BMI1, LZCNT and SSE4A instructions some CPUs lack.
+- The CPU needs AVX (Intel 2nd gen / AMD FX or newer); the port translates the MOVBE, F16C,
+  BMI1, LZCNT and SSE4A instructions some CPUs lack.
 Minimum and recommended are the launcher's estimates (Graphics > Your PC); measured: Ryzen 7 3700X
 + RX 9060 XT, about 100 FPS in the open city.
 
