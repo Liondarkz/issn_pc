@@ -521,9 +521,87 @@ void ControlsTab() {
     Help("Every key back to the port's layout (and the launcher's own changes, if any).");
 }
 
+// A combo over float values: the entry nearest the current value is shown.
+void FloatChoiceRow(const char* label, std::atomic<float>& target, const char* const* labels,
+                    const float* values, int count, const char* help) {
+    Row(label);
+    int current = 0;
+    for (int i = 1; i < count; ++i) {
+        if (std::fabs(values[i] - target.load()) < std::fabs(values[current] - target.load())) current = i;
+    }
+    if (ImGui::Combo("##value", &current, labels, count)) {
+        Store(target, values[current], true);
+    }
+    Help(help);
+    ImGui::PopID();
+}
+
+// issn-axy (tester request 10-31): the picture settings in the game. Field of view and draw
+// distance change at once; the launcher's anti-aliasing, upscaler quality, texture filtering
+// and frame generation are written for the next start (menu_* keys in issn.ini, which the
+// launcher takes over when the game closes).
+void PictureRows() {
+    auto& s = IssnSettings::Get();
+    ImGui::SeparatorText("Picture (changes at once)");
+    if (BeginRows("##picture")) {
+        static const char* const fov_labels[] = {"0.9x (narrower)", "Original", "1.1x", "1.15x", "1.2x",
+                                                 "1.3x (wide)", "1.4x (widest)"};
+        static const float fov_values[] = {0.9f, 1.0f, 1.1f, 1.15f, 1.2f, 1.3f, 1.4f};
+        if (s.fov_supported) {
+            FloatChoiceRow("Field of view", s.fov, fov_labels, fov_values, 7,
+                           "How much of the city the camera shows. Picture only: aiming and the camera "
+                           "itself stay as they are.");
+        } else {
+            InfoRow("Field of view", "unavailable (another game build, or a field of view patch is on)");
+        }
+        static const char* const distance_labels[] = {"Short (faster)", "Original", "Long (less pop-in)",
+                                                      "Very long (slower)"};
+        if (s.view_supported) {
+            const int before = s.menu_draw_distance;
+            ChoiceRow("Draw distance", s.menu_draw_distance, distance_labels, nullptr, 4,
+                      "How far away buildings and props keep their detail. Longer means less pop-in "
+                      "and a few FPS less.");
+            if (s.menu_draw_distance != before) {
+                s.lod_scale = IssnSettings::DrawDistanceScales[std::clamp(s.menu_draw_distance.load(), 0, 3)];
+            }
+        } else {
+            InfoRow("Draw distance", "unavailable (another game build)");
+        }
+        ImGui::EndTable();
+    }
+    ImGui::SeparatorText("Next start (restart the game from the launcher)");
+    if (BeginRows("##next_start")) {
+        static const char* const aa_labels[] = {"The game's own", "FSR 4 (AMD)", "XeSS (Intel)", "DLSS (NVIDIA RTX)"};
+        ChoiceRow("Anti-aliasing / upscaler", s.menu_anti_aliasing, aa_labels, nullptr, 4,
+                  "FSR 4, XeSS or DLSS give the sharpest picture and allow the quality below and frame "
+                  "generation. The launcher fetches XeSS / DLSS files when needed.");
+        static const char* const quality_labels[] = {"Off (game resolution)", "Quality (screen / 1.5)",
+                                                     "Balanced (screen / 1.7)", "Performance (screen / 2)",
+                                                     "Ultra Performance (screen / 3)"};
+        ChoiceRow("Upscaler quality", s.menu_upscale_quality, quality_labels, nullptr, 5,
+                  "With FSR 4, XeSS or DLSS: the game draws smaller than the screen and the upscaler "
+                  "rebuilds it. Quality looks closest to native; lower ones give more FPS.");
+        static const char* const aniso_labels[] = {"The game's own", "4x", "8x", "16x (sharpest)"};
+        ChoiceRow("Texture filtering", s.menu_aniso, aniso_labels, nullptr, 4,
+                  "Ground and walls seen at an angle stay sharp in the distance.");
+        static const char* const fg_labels[] = {"Off", "On (test)"};
+        ChoiceRow("Frame generation", s.menu_frame_gen, fg_labels, nullptr, 2,
+                  "FSR 3.1: a frame between every two of the game. Needs FSR 4, XeSS or DLSS.");
+        ImGui::EndTable();
+    }
+    const bool changed = s.menu_anti_aliasing != s.startup_anti_aliasing ||
+                         s.menu_upscale_quality != s.startup_upscale_quality ||
+                         s.menu_aniso != s.startup_aniso || s.menu_frame_gen != s.startup_frame_gen;
+    if (changed) {
+        ImGui::TextColored(ImVec4(1.0f, 0.78f, 0.3f, 1.0f),
+                           "Changed: close the game and press Play in the launcher to use them.");
+    }
+}
+
 void ImageTab() {
     namespace G = IssnGraphics;
     auto& s = IssnSettings::Get();
+    PictureRows();
     ImGui::SeparatorText("Display");
     if (BeginRows("##display")) {
         ChoiceRow("Display mode", s.display_mode, G::DisplayModeNames.data(), nullptr, G::DisplayModeCount,
@@ -587,7 +665,7 @@ void PerformanceTab() {
     ImGui::SeparatorText("Information");
     if (BeginRows("##perf_info")) {
         InfoRow("Anti-aliasing", AntiAliasingName());
-        InfoRow("Change it in", "the launcher: Graphics > Anti-aliasing");
+        InfoRow("Change it in", "the Image tab (next start) or the launcher");
         ImGui::EndTable();
     }
 }

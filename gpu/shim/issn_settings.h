@@ -138,6 +138,17 @@ struct Values {
     std::atomic<bool> view_supported{false};
     /// Extra texture LOD bias of the game's draws (vk_rasterizer.cpp), any game.
     std::atomic<float> mip_lod_bias{0.0f};
+    /// Field of view factor (src/fov_hook.h, issn_view.cpp), live; fov_supported once hooked.
+    std::atomic<float> fov{1.0f};
+    std::atomic<bool> fov_supported{false};
+
+    // Launcher settings the menu changes for the next start (issn-axy): kept in issn.ini as
+    // menu_* keys, which the launcher reads back into its own settings (and writes when they
+    // change there). Index into the menu's choices; -1 = not known (the menu shows this launch's).
+    std::atomic<int> menu_anti_aliasing{-1}, menu_upscale_quality{-1}, menu_aniso{-1},
+        menu_draw_distance{-1}, menu_frame_gen{-1};
+    int startup_anti_aliasing = 0, startup_upscale_quality = 0, startup_aniso = 0,
+        startup_draw_distance = 1, startup_frame_gen = 0;
 
     // Mouse and keyboard (src/runtime_pad.c through issngpu_input_settings, src/mouse_stick.h):
     // the mouse turns the camera (right stick). Live from the menu.
@@ -163,6 +174,15 @@ bool ResolutionNeedsRestart();
 bool GraphicsNeedRestart();
 /// Writes the file (menu changes).
 void Save();
+
+/// The launcher's choices the menu offers (menu_* keys; the values are the launcher's own).
+inline constexpr const char* AntiAliasingKeys[] = {"game", "fsr4", "xess", "dlss"};
+inline constexpr const char* UpscaleQualityKeys[] = {"", "1.5", "1.7", "2", "3"};
+inline constexpr const char* AnisoKeys[] = {"", "4", "8", "16"};
+inline constexpr const char* DrawDistanceKeys[] = {"0.6", "", "1.5", "2.0"};
+inline constexpr float DrawDistanceScales[] = {0.6f, 1.0f, 1.5f, 2.0f};
+/// What this launch runs with (environment), as menu indexes; filled by Load.
+void ReadLaunchChoices();
 
 /// Render resolution divisor of a preset (1.0 native, 1.5 quality, ...).
 float PresetScale(int preset);

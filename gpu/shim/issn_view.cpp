@@ -115,6 +115,33 @@ void Apply() {
 
 } // namespace
 
+// Field of view (src/fov_hook.h): the float the camera's four sites read, in a read-write page
+// next to the image; 0.5 x the menu's factor. A thread of its own (the draw distance one exists
+// only when that hook is in place).
+namespace {
+float* fov_value = nullptr;
+
+void ApplyFov() {
+    const float value = 0.5f * IssnView::ClampFov(IssnSettings::Get().fov);
+    if (*fov_value != value) {
+        *fov_value = value;
+    }
+}
+} // namespace
+
+extern "C" void issn_fov_attach(float* value) {
+    fov_value = value;
+    ApplyFov(); // before the game's first frame
+    IssnSettings::Get().fov_supported = true;
+    std::printf("Field of view: menu control ready (x%.2f)\n", IssnSettings::Get().fov.load());
+    std::thread([] {
+        for (;;) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            ApplyFov();
+        }
+    }).detach();
+}
+
 extern "C" uintptr_t issn_view_region_params(void) {
     return reinterpret_cast<uintptr_t>(region_params);
 }

@@ -22,4 +22,6 @@ inline float ClampFarClip(float v) { return Clamp(v, 1000.0f, 1.0e7f, 1.0e7f); }
 inline float ClampBand(float v) { return Clamp(v, 1.0f, 1.0e6f, 400.0f); }
 /// Extra texture LOD bias of the game's draws: negative is sharper, positive is blurrier.
 inline float ClampMipLodBias(float v) { return Clamp(v, -3.0f, 3.0f, 0.0f); }
+/// Field of view factor (src/fov_hook.h): 1 the game's angle.
+inline float ClampFov(float v) { return Clamp(v, 0.75f, 1.6f, 1.0f); }
 } // namespace IssnView

@@ -773,6 +773,31 @@ static void install_view_tuning(Segment *segments, uint64_t count, uint64_t size
     printf("Draw distance: ready (LOD scale, LOD bands, region LOD_ADJUST and FADE_DISTANCE, near/far clip)\n");
 }
 
+#include "fov_hook.h"
+extern void issn_fov_attach(float *value);
+
+/* issn: field of view (src/fov_hook.h): the camera's four 0.5 constants are read from a float in
+ * a page of its own, kept read-write; the menu writes 0.5 x its factor there (issn_view.cpp).
+ * Silent for other builds; with a field of view patch on, the patch's fixed angle stays. */
+static void install_fov(Segment *segments, uint64_t count, uint64_t size) {
+    const char *off = getenv("ISSN_FOV_HOOK");
+    if (off && off[0] == '0') return;
+    for (unsigned i = 0; i < ISSN_FOV_SITE_COUNT; ++i)
+        if (!mapped(segments, count, issn_fov_sites[i], ISSN_FOV_SITE_LENGTH)) return;
+    if (!issn_fov_signature_match(image, size)) {
+        printf("Field of view: menu control unavailable (the camera code differs: a field of view "
+               "patch is on, or another eboot build)\n");
+        return;
+    }
+    float *value = (float *)allocate_cave(page_size); /* stays read-write: data only */
+    *value = ISSN_FOV_ORIGINAL;
+    if (!issn_fov_redirect(image, value)) {
+        printf("Field of view: menu control unavailable (outside relative reach)\n");
+        return;
+    }
+    issn_fov_attach(value);
+}
+
 extern IssnMouseMailbox *runtime_mouse_aim_mailbox(void);
 extern void runtime_mouse_aim_attach(volatile unsigned char *no_follow, const volatile unsigned char *invert_x,
                                      const volatile unsigned char *invert_y);
@@ -1272,6 +1297,7 @@ int main(int argc, char **argv) {
     if (gpu_enabled) install_stat_multipliers(segments, ns, size);
     if (gpu_enabled) install_view_tuning(segments, ns, size);
     if (gpu_enabled) install_mouse_aim(segments, ns, size);
+    if (gpu_enabled) install_fov(segments, ns, size);
     if (gpu_enabled) issngpu_apply_game_patches();
 #ifdef _WIN32
     printf("Guest TCB loads redirected to the TEB TLS slot: %" PRIu64 "\n", patch_tcb_loads(segments, ns));

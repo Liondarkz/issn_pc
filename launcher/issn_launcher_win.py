@@ -470,6 +470,40 @@ def merge_ini_keys(settings, ini):
     return {**settings, 'controls': controls}
 
 
+# issn-axy: launcher settings the game's menu (Image tab) changes for the next start. The game
+# writes them to issn.ini as menu_<key> with the launcher's own values; the launcher takes them
+# over when it opens and when the game closes, and writes them there when they change here.
+MENU_KEYS = ('anti_aliasing', 'upscale_quality', 'aniso', 'draw_distance', 'frame_gen')
+
+
+def menu_choices(key):
+    return {value for value, _text in {'anti_aliasing': ANTI_ALIASING, 'upscale_quality': UPSCALE_QUALITY,
+                                        'aniso': ANISO, 'draw_distance': DRAW_DISTANCE}[key]}
+
+
+def menu_ini_value(settings, key):
+    """A launcher setting as the game's menu_<key> in issn.ini."""
+    if key == 'frame_gen':
+        return '1' if settings.get(key) else '0'
+    return str(settings.get(key) or '')
+
+
+def menu_settings(ini):
+    """The launcher settings the game's menu left in issn.ini (only valid values)."""
+    found = {}
+    for key in MENU_KEYS:
+        name = f'menu_{key}'
+        if name not in ini:
+            continue
+        value = str(ini[name]).strip()
+        if key == 'frame_gen':
+            if value in ('0', '1'):
+                found[key] = value == '1'
+        elif value in menu_choices(key):
+            found[key] = value
+    return found
+
+
 def control_map(controls, kind):
     """ISSN_KEY_MAP/ISSN_PAD_MAP value: 'cross=Q,circle=Left Shift' for the changed buttons."""
     chosen = control_values(controls, kind)
@@ -1243,6 +1277,7 @@ class Launcher:
         self.app = {**APP_DEFAULTS, **migrate_settings(load_json(CONFIG_FILE, {}))}
         self.ini, self.ini_lines = load_ini()
         self.app = merge_ini_keys(self.app, self.ini)
+        self.app = {**self.app, **menu_settings(self.ini)}
         self.vars = {}
         self.process = self.job = None
         self.output = queue.Queue()
@@ -2719,6 +2754,12 @@ class Launcher:
         keys = control_map(state['app'].get('controls', {}), 'key')
         if keys != str(_disk.get('key_map', '')):
             edited['key_map'] = keys
+        for key in MENU_KEYS:  # what the game's menu shows next time
+            value = menu_ini_value(state['app'], key)
+            if f'menu_{key}' in _disk and str(_disk[f'menu_{key}']) != value:
+                edited[f'menu_{key}'] = value
+            elif f'menu_{key}' not in _disk and key in state['app']:
+                edited[f'menu_{key}'] = value
         try:
             save_ini(edited, lines)
             atomic_write(CONFIG_FILE, json.dumps(state['app'], indent=2, ensure_ascii=False))
@@ -2930,6 +2971,17 @@ class Launcher:
                 _close_quietly(run_log)
             self.output.put((process.wait(),))
 
+    def adopt_menu_settings(self):
+        """The picture settings changed in the game's menu (menu_* in issn.ini) into the launcher's
+        controls, so the next Play uses them and the launcher shows them."""
+        ini, _lines = load_ini()
+        for key, value in menu_settings(ini).items():
+            if self.app.get(key) == value:
+                continue
+            self.app[key] = value
+            if key in self.vars:
+                self.vars[key].set(value)
+
     def drain_output(self):
         while not self.ui_calls.empty():
             self.ui_calls.get_nowait()()
@@ -2941,6 +2993,7 @@ class Launcher:
                     self.process = None
                     if self.job:
                         self.job.close()
+                    self.adopt_menu_settings()
                     self.refresh_status()
                     if item[0] not in (0, None):
                         self.root.after(800, self.after_failed_run)

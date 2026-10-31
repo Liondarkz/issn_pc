@@ -6,6 +6,7 @@
 #include "issn_view.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -23,6 +24,21 @@ const char* Path() {
 
 float Clamp(float v, float lo, float hi) {
     return std::clamp(v, lo, hi);
+}
+
+template <size_t N>
+int IndexOf(const char* const (&keys)[N], const std::string& value) {
+    for (size_t k = 0; k < N; ++k) {
+        if (value == keys[k]) {
+            return int(k);
+        }
+    }
+    return -1;
+}
+
+const char* Env(const char* name) {
+    const char* v = std::getenv(name);
+    return v ? v : "";
 }
 
 void Set(Values& v, const std::string& key, const std::string& value) {
@@ -193,6 +209,18 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.far_clip = IssnView::ClampFarClip(f);
     } else if (key == "mip_lod_bias") {
         v.mip_lod_bias = IssnView::ClampMipLodBias(f);
+    } else if (key == "fov") {
+        v.fov = IssnView::ClampFov(value.empty() ? 1.0f : f);
+    } else if (key == "menu_anti_aliasing") {
+        v.menu_anti_aliasing = IndexOf(AntiAliasingKeys, value);
+    } else if (key == "menu_upscale_quality") {
+        v.menu_upscale_quality = IndexOf(UpscaleQualityKeys, value);
+    } else if (key == "menu_aniso") {
+        v.menu_aniso = IndexOf(AnisoKeys, value);
+    } else if (key == "menu_draw_distance") {
+        v.menu_draw_distance = IndexOf(DrawDistanceKeys, value);
+    } else if (key == "menu_frame_gen") {
+        v.menu_frame_gen = value.empty() ? -1 : i != 0;
     } else if (key == "fsr4_auto_exposure") {
         v.fsr4_auto_exposure = i != 0;
     } else if (key == "fsr4_invert_jitter") {
@@ -253,7 +281,7 @@ void Load() {
         {"ISSN_LOD_SCALE", "lod_scale"},           {"ISSN_LOD_BANDS", "lod_bands"},
         {"ISSN_REGION_LOD", "region_lod"},         {"ISSN_REGION_FADE", "region_fade"},
         {"ISSN_NEAR_CLIP", "near_clip"},           {"ISSN_FAR_CLIP", "far_clip"},
-        {"ISSN_MIP_LOD_BIAS", "mip_lod_bias"},
+        {"ISSN_MIP_LOD_BIAS", "mip_lod_bias"},     {"ISSN_FOV", "fov"},
     };
     for (const auto& [env, key] : env_keys) {
         if (const char* value = std::getenv(env); value && value[0]) {
@@ -272,6 +300,36 @@ void Load() {
                                                  : v.engine_fps.load();
     v.startup_deferred_readback = v.deferred_readback;
     v.startup_stale_readback = v.stale_readback;
+    ReadLaunchChoices();
+}
+
+void ReadLaunchChoices() {
+    auto& v = Get();
+    // The launcher passes its choices as these variables (launcher/issn_launcher_win.py
+    // game_environment); the menu starts from them where issn.ini has no menu_* key yet.
+    v.startup_anti_aliasing = Env("SHADPS4_DLSS")[0] == '1' ? 3
+                              : Env("ISSN_XESS")[0] == '1' ? 2
+                              : Env("ISSN_FSR4")[0] == '1' ? 1
+                                                           : 0;
+    const int quality = IndexOf(UpscaleQualityKeys, Env("ISSN_UPSCALE_FACTOR"));
+    v.startup_upscale_quality = quality < 0 ? 0 : quality;
+    const int aniso = IndexOf(AnisoKeys, Env("ISSN_ANISO"));
+    v.startup_aniso = aniso < 0 ? 0 : aniso;
+    const float lod = IssnView::ClampLodScale(float(std::atof(Env("ISSN_LOD_SCALE"))));
+    int distance = 1;
+    for (int d = 0; d < 4; ++d) {
+        if (std::abs(DrawDistanceScales[d] - lod) < 0.01f) distance = d;
+    }
+    v.startup_draw_distance = distance;
+    v.startup_frame_gen = Env("ISSN_FRAME_GEN")[0] == '1';
+    if (v.menu_anti_aliasing < 0) v.menu_anti_aliasing = v.startup_anti_aliasing;
+    if (v.menu_upscale_quality < 0) v.menu_upscale_quality = v.startup_upscale_quality;
+    if (v.menu_aniso < 0) v.menu_aniso = v.startup_aniso;
+    if (v.menu_draw_distance < 0) v.menu_draw_distance = v.startup_draw_distance;
+    if (v.menu_frame_gen < 0) v.menu_frame_gen = v.startup_frame_gen;
+    // The live draw distance follows the launcher's choice this launch (ISSN_LOD_SCALE wins over
+    // issn.ini); the menu's choice is the one shown and saved.
+    v.menu_draw_distance = v.startup_draw_distance;
 }
 
 bool GraphicsNeedRestart() {
@@ -387,6 +445,18 @@ void Save() {
                  v.lod_scale.load(), v.region_lod.load(), v.region_fade.load(), v.near_clip.load(),
                  v.far_clip.load(), v.mip_lod_bias.load(), v.lod_bands[0].load(), v.lod_bands[1].load(),
                  v.lod_bands[2].load(), v.lod_bands[3].load(), v.lod_bands[4].load(), v.lod_bands[5].load());
+    std::fprintf(file, "fov=%.3f\n", v.fov.load());
+    // For the launcher (next start): its own setting names and values.
+    const auto pick = [](const auto& keys, int index) {
+        const int n = int(sizeof(keys) / sizeof(keys[0]));
+        return keys[std::clamp(index, 0, n - 1)];
+    };
+    std::fprintf(file,
+                 "menu_anti_aliasing=%s\nmenu_upscale_quality=%s\nmenu_aniso=%s\n"
+                 "menu_draw_distance=%s\nmenu_frame_gen=%d\n",
+                 pick(AntiAliasingKeys, v.menu_anti_aliasing), pick(UpscaleQualityKeys, v.menu_upscale_quality),
+                 pick(AnisoKeys, v.menu_aniso), pick(DrawDistanceKeys, v.menu_draw_distance),
+                 v.menu_frame_gen.load() > 0 ? 1 : 0);
     // Fixes: applied on the next start by the launcher (ISSN_BPnn / ISSN_<NAME>); only the ones
     // the player or the launcher chose are written.
     for (int n = 0; n < kBackportPrefs; ++n) {
