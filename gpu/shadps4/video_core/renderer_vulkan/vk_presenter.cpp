@@ -641,7 +641,8 @@ Presenter::Presenter(Frontend::WindowSDL& window_, AmdGpu::Liverpool* liverpool_
         return std::clamp(want, least, 8u);
     }();
     if (FrameGen::Wanted()) {
-        std::printf("Frame generation: on (FSR 3.1), %u presentation frames\n", num_images);
+        std::printf("Frame generation: available (FSR 3.1, %s now), %u presentation frames\n",
+                    FrameGen::Enabled() ? "on" : "off", num_images);
         std::fflush(stdout);
     }
     LOG_INFO(Render_Vulkan, "Presenter: {} presentation frames (swapchain images {})", num_images,
@@ -956,7 +957,7 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
             told = why;
             static constexpr const char* reasons[] = {
                 "frames are generated", "off while the output is HDR", "off on DLSS 5 video frames",
-                "off after a failure (see above)", "no second frame of the same size"};
+                "off (the menu's switch, or a failure above)", "no second frame of the same size"};
             std::printf("Frame generation: %s\n", reasons[why]);
             std::fflush(stdout);
         }

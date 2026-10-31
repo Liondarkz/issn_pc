@@ -19,6 +19,7 @@
 #include "ffx_vk_fsr3_3_1_5_bridge.h"
 #include "video_core/buffer_cache/buffer.h"
 #include "video_core/host_shaders/framegen_depth_comp.h"
+#include "video_core/renderer_vulkan/vk_dlss.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
@@ -55,6 +56,8 @@ constexpr vk::ImageUsageFlags Usage = vk::ImageUsageFlagBits::eSampled |
 
 std::atomic<bool> g_failed{false};
 std::atomic<u64> g_generated{0}; ///< GeneratedCount
+std::atomic<int> g_enabled{-1};  ///< the menu's switch; -1 = not read from ISSN_FRAME_GEN yet
+std::atomic<bool> g_reset_request{false}; ///< switched on again: start a new history
 
 struct Owned {
     VideoCore::UniqueImage image;
@@ -334,6 +337,9 @@ struct State {
     }
 
     bool Interpolate(vk::CommandBuffer cmdbuf, u32 width, u32 height, float frame_ms) {
+        if (g_reset_request.exchange(false, std::memory_order_relaxed)) {
+            reset = true; // switched on again from the menu: no history across the gap
+        }
         if (context && (ctx_width != width || ctx_height != height ||
                         ctx_render_w != depth.width || ctx_render_h != depth.height)) {
             DestroyContext();
@@ -595,15 +601,41 @@ State& Get(const Instance& instance, Scheduler& scheduler) {
 } // namespace
 
 bool Wanted() {
-    static const bool wanted = [] {
-        const char* v = std::getenv("ISSN_FRAME_GEN");
-        return v && v[0] == '1';
+    static const bool capable = [] {
+        const int mode = Dlss::Mode();
+        const char* off = std::getenv("ISSN_FRAME_GEN");
+        // ISSN_FRAME_GEN=off: not even available from the menu (fewer presentation frames).
+        return (mode == 1 || mode == 3 || mode == 4) && !(off && std::string_view{off} == "off");
     }();
-    return wanted;
+    return capable;
+}
+
+bool Enabled() {
+    int on = g_enabled.load(std::memory_order_relaxed);
+    if (on < 0) {
+        const char* v = std::getenv("ISSN_FRAME_GEN");
+        on = v && v[0] == '1' ? 1 : 0;
+        int expected = -1;
+        g_enabled.compare_exchange_strong(expected, on);
+        on = g_enabled.load(std::memory_order_relaxed);
+    }
+    return on == 1;
+}
+
+void SetEnabled(bool on) {
+    if (Enabled() == on) {
+        return;
+    }
+    g_enabled.store(on ? 1 : 0, std::memory_order_relaxed);
+    if (on) {
+        g_reset_request.store(true, std::memory_order_relaxed);
+    }
+    std::printf("Frame generation: %s from the menu\n", on ? "on" : "off");
+    std::fflush(stdout);
 }
 
 bool Active() {
-    return Wanted() && !g_failed.load(std::memory_order_relaxed);
+    return Wanted() && Enabled() && !g_failed.load(std::memory_order_relaxed);
 }
 
 void Capture(const Instance& instance, Scheduler& scheduler, vk::CommandBuffer cmdbuf,

@@ -139,6 +139,8 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.debug_view = std::clamp(i, 0, DebugViewCount - 1);
     } else if (key == "show_fps") {
         v.show_fps = i != 0;
+    } else if (key == "save_note") {
+        v.save_note = i != 0;
     } else if (key == "mouse_enabled") {
         v.mouse_enabled = i != 0;
     } else if (key == "mouse_invert_y") {
@@ -451,7 +453,7 @@ void Save() {
                  v.lod_scale.load(), v.region_lod.load(), v.region_fade.load(), v.near_clip.load(),
                  v.far_clip.load(), v.mip_lod_bias.load(), v.lod_bands[0].load(), v.lod_bands[1].load(),
                  v.lod_bands[2].load(), v.lod_bands[3].load(), v.lod_bands[4].load(), v.lod_bands[5].load());
-    std::fprintf(file, "fov=%.3f\n", v.fov.load());
+    std::fprintf(file, "fov=%.3f\nsave_note=%d\n", v.fov.load(), int(v.save_note.load()));
     std::fprintf(file, "hero_health=%d\nhero_powers=%d\nhero_karma=%d\n", int(v.hero_health.load()),
                  int(v.hero_powers.load()), int(v.hero_karma.load()));
     // For the launcher (next start): its own setting names and values.

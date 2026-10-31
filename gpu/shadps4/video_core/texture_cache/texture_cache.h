@@ -683,6 +683,7 @@ private:
     // SHADPS4_BIND_MEMO_STATS: see StructGeneration and SamplerGeneration.
     std::atomic<u64> struct_generation{0};
     std::atomic<u64> sampler_generation{0};
+    float samplers_aniso = -1.0f; ///< the forced anisotropy the samplers were made with (GetSampler)
     struct MetaDataInfo {
         enum class Type {
             CMask,

@@ -6,6 +6,7 @@
  * Metadata lives beside the directory so the guest's own files are untouched. */
 #define _GNU_SOURCE
 #include "runtime.h"
+#include "gpu/issngpu.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -65,7 +66,7 @@ _Static_assert(sizeof(SearchCond)==64 && sizeof(SearchResult)==56,"dir name sear
 static pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER;
 static int initialized;
 static char title_id[16]="UNKNOWN";
-static struct { int used; char host[700], meta[700]; } slots[SLOTS];
+static struct { int used, saved; char host[700], meta[700]; } slots[SLOTS]; /* saved: its param written */
 static char memory_path[720];
 static uint64_t memory_size;
 static size_t mounts_done, memory_writes;
@@ -187,8 +188,16 @@ static ABI int32_t save_umount(const MountPoint *point) {
     if (!initialized) return ERR_NOT_INITIALIZED;
     pthread_mutex_lock(&lock);
     int slot=slot_of(point);
-    if (slot>=0) { runtime_file_unmount(point->data); slots[slot].used=0; }
+    char note[160]=""; int saved=0;
+    if (slot>=0) {
+        saved=slots[slot].saved;
+        if (saved) { Param p; read_param(slots[slot].meta,&p); snprintf(note,sizeof(note),"%s",p.subtitle); }
+        runtime_file_unmount(point->data); slots[slot].used=slots[slot].saved=0;
+    }
     pthread_mutex_unlock(&lock);
+    /* issn-axy (tester request 10-31): a save the game wrote (its param set) is done: a note in
+     * the corner of the screen (the menu's Overlay tab turns it off). */
+    if (saved) issngpu_note_game_saved(note);
     return slot>=0 ? 0 : ERR_NOT_FOUND;
 }
 static ABI int32_t save_set_param(const MountPoint *point, uint32_t type, const void *buffer, uint64_t size) {
@@ -207,6 +216,7 @@ static ABI int32_t save_set_param(const MountPoint *point, uint32_t type, const 
     default: goto bad;
     }
     write_param(slots[slot].meta,&p);
+    slots[slot].saved=1;
     pthread_mutex_unlock(&lock);
     return 0;
 bad:

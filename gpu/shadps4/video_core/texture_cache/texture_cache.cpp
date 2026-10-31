@@ -1797,12 +1797,25 @@ void TextureCache::RefreshImage(Image& image) {
     g_refresh_lock_cyc = 0;
 }
 
+// issn-axy: samplers keyed by the guest's descriptor and the forced anisotropy of the moment (the
+// menu's Texture filtering, sampler.h): a change makes new ones; the old ones age out (GC).
+static u64 SamplerKey(const AmdGpu::Sampler& sampler, float aniso) {
+    return XXH3_64bits(&sampler, sizeof(sampler)) ^
+           (static_cast<u64>(aniso * 16.0f) * 0x9E3779B97F4A7C15ull);
+}
+
 vk::Sampler TextureCache::GetSampler(const AmdGpu::Sampler& sampler,
                                      AmdGpu::BorderColorBuffer border_color_base,
                                      u32* native_index) {
-    const u64 hash = XXH3_64bits(&sampler, sizeof(sampler));
+    const float aniso = VideoCore::ForcedAniso();
+    const u64 hash = SamplerKey(sampler, aniso);
 
     std::scoped_lock lock{samplers_mutex};
+    if (aniso != samplers_aniso) {
+        // Draws that kept a sampler (bind memos) look again: the generation tells them.
+        samplers_aniso = aniso;
+        sampler_generation.fetch_add(1, std::memory_order_relaxed);
+    }
     const auto [it, new_sampler] = samplers.try_emplace(hash, instance, sampler, border_color_base);
     if (new_sampler) {
         samplers.at(hash).lru_id = sampler_lru_cache.Insert(hash, gc_tick);
@@ -1858,7 +1871,7 @@ void TextureCache::TouchImageAccess(Image& image) {
 }
 
 size_t TextureCache::SamplerLruId(const AmdGpu::Sampler& sampler) {
-    const u64 hash = XXH3_64bits(&sampler, sizeof(sampler));
+    const u64 hash = SamplerKey(sampler, VideoCore::ForcedAniso());
     std::scoped_lock lock{samplers_mutex};
     const auto it = samplers.find(hash);
     return it != samplers.end() ? it->second.lru_id : ~size_t{0};

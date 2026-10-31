@@ -14,6 +14,12 @@ class Instance;
 
 namespace VideoCore {
 
+/// issn-axy: the anisotropy forced on the game's filtered colour samplers (ISSN_ANISO at start,
+/// the in-game menu's Texture filtering live; 0 = the game's own). The texture cache keys its
+/// samplers by it, so a change makes new samplers on the next draws.
+float ForcedAniso();
+void SetForcedAniso(float level);
+
 class Sampler {
 public:
     explicit Sampler(const Vulkan::Instance& instance, const AmdGpu::Sampler& sampler,

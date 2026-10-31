@@ -44,6 +44,10 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent);
 /// counting presents showed the screen's refresh rate (144 on a 144 Hz screen at 72 FPS).
 void NoteGameFrame();
 
+/// The game finished writing a save: "Game saved" and `what` (the save's subtitle) in a corner
+/// for a few seconds (settings: save_note).
+void NoteGameSaved(const std::string& what);
+
 /// The menu is open or a text entry is shown: the game's input is held neutral.
 bool CapturesInput();
 

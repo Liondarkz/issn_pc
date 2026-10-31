@@ -677,6 +677,10 @@ extern "C" const char* issngpu_saved_key_map(void) {
     return copy.c_str();
 }
 
+extern "C" void issngpu_note_game_saved(const char* what) {
+    IssnOverlay::NoteGameSaved(what ? what : "");
+}
+
 extern "C" int issngpu_overlay_captures_input(void) {
     return IssnOverlay::CapturesInput() ? 1 : 0;
 }

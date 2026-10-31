@@ -12,6 +12,7 @@ int64_t runtime_file_close(int fd) { (void)fd; return 0; }
 static int choice_next=-1;
 int issngpu_choice_begin(const char *title, const char *const *items, const char *const *images, int count, int focus) { (void)title; (void)items; (void)images; (void)focus; return count>0; }
 int issngpu_choice_poll(void) { return choice_next; }
+void issngpu_note_game_saved(const char *what) { (void)what; }
 int runtime_savedata_param(int32_t user, const char *dir, void *param) { (void)user; (void)dir; (void)param; return -1; }
 int runtime_savedata_icon(int32_t user, const char *dir, char *out, size_t size) { (void)user; (void)dir; (void)out; (void)size; return -1; }
 

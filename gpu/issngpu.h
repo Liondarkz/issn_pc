@@ -52,6 +52,9 @@ int issngpu_text_input_poll(char *out_utf8, uint64_t size);
  * poll: -1 while open, -2 cancelled, else the chosen index. */
 int issngpu_choice_begin(const char *title, const char *const *items, const char *const *images, int count, int focus);
 int issngpu_choice_poll(void);
+/* issn-axy: the game finished writing a save (`what`: its subtitle, e.g. the mission): a note
+ * in the corner of the screen for a few seconds. */
+void issngpu_note_game_saved(const char *what);
 /* 1 while the in-game settings menu is open: the game's pad input is held neutral. */
 int issngpu_overlay_captures_input(void);
 /* issn 0.3.6: issn.ini key_map (keys changed in the game's menu), "" when none. */

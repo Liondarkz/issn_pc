@@ -587,6 +587,24 @@ void PictureRows() {
         } else {
             InfoRow("Draw distance", "unavailable (another game build)");
         }
+        static const char* const aniso_labels[] = {"The game's own", "4x", "8x", "16x (sharpest)"};
+        {
+            const int before = s.menu_aniso;
+            ChoiceRow("Texture filtering", s.menu_aniso, aniso_labels, nullptr, 4,
+                      "Ground and walls seen at an angle stay sharp in the distance.");
+            if (s.menu_aniso != before) IssnSettings::ApplyLiveChoices();
+        }
+        static const char* const fg_labels[] = {"Off", "On (test)"};
+        if (Vulkan::FrameGen::Wanted()) {
+            const int before = s.menu_frame_gen;
+            ChoiceRow("Frame generation", s.menu_frame_gen, fg_labels, nullptr, 2,
+                      "FSR 3.1: a frame between every two of the game (more FPS on the screen).");
+            if (s.menu_frame_gen != before) IssnSettings::ApplyLiveChoices();
+        } else {
+            ChoiceRow("Frame generation (next start)", s.menu_frame_gen, fg_labels, nullptr, 2,
+                      "Needs FSR 4, XeSS or DLSS as anti-aliasing: with the game's own it starts with "
+                      "the next launch after choosing one of them below.");
+        }
         ImGui::EndTable();
     }
     ImGui::SeparatorText("Next start (restart the game from the launcher)");
@@ -601,17 +619,13 @@ void PictureRows() {
         ChoiceRow("Upscaler quality", s.menu_upscale_quality, quality_labels, nullptr, 5,
                   "With FSR 4, XeSS or DLSS: the game draws smaller than the screen and the upscaler "
                   "rebuilds it. Quality looks closest to native; lower ones give more FPS.");
-        static const char* const aniso_labels[] = {"The game's own", "4x", "8x", "16x (sharpest)"};
-        ChoiceRow("Texture filtering", s.menu_aniso, aniso_labels, nullptr, 4,
-                  "Ground and walls seen at an angle stay sharp in the distance.");
-        static const char* const fg_labels[] = {"Off", "On (test)"};
-        ChoiceRow("Frame generation", s.menu_frame_gen, fg_labels, nullptr, 2,
-                  "FSR 3.1: a frame between every two of the game. Needs FSR 4, XeSS or DLSS.");
         ImGui::EndTable();
     }
+    ImGui::TextDisabled("These two set up the graphics card and the game's render size when the game "
+                        "starts.");
     const bool changed = s.menu_anti_aliasing != s.startup_anti_aliasing ||
                          s.menu_upscale_quality != s.startup_upscale_quality ||
-                         s.menu_aniso != s.startup_aniso || s.menu_frame_gen != s.startup_frame_gen;
+                         (!Vulkan::FrameGen::Wanted() && s.menu_frame_gen != s.startup_frame_gen);
     if (changed) {
         ImGui::TextColored(ImVec4(1.0f, 0.78f, 0.3f, 1.0f),
                            "Changed: close the game and press Play in the launcher to use them.");
@@ -695,6 +709,8 @@ void OverlayTab() {
     auto& s = IssnSettings::Get();
     if (BeginRows("##overlay_on")) {
         CheckRow("Show overlay", s.show_fps, "The performance overlay in a corner of the screen.");
+        CheckRow("\"Game saved\" note", s.save_note,
+                 "A short note at the top of the screen each time the game writes a save.");
         ImGui::EndTable();
     }
     ImGui::BeginDisabled(!s.show_fps);
@@ -1035,6 +1051,49 @@ void FpsCounter() {
     ImGui::End();
 }
 
+// issn-axy: "Game saved" for a few seconds after the game writes a save (NoteGameSaved).
+std::mutex save_note_mutex;
+std::string save_note_text;
+std::atomic<std::int64_t> save_note_until{0}; ///< steady_clock milliseconds; 0 = none
+constexpr std::int64_t SaveNoteMs = 3500;
+
+std::int64_t NowMs() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+
+void SaveNote() {
+    const std::int64_t left = save_note_until.load() - NowMs();
+    if (left <= 0) {
+        save_note_until = 0;
+        return;
+    }
+    std::string text;
+    {
+        std::scoped_lock lock{save_note_mutex};
+        text = save_note_text;
+    }
+    const float fade = std::clamp(float(left) / 500.0f, 0.0f, 1.0f); // the last half second
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const float pad = 16.0f * base_scale;
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * 0.5f, viewport->WorkPos.y + pad),
+                            ImGuiCond_Always, ImVec2(0.5f, 0.0f));
+    ImGui::SetNextWindowBgAlpha(0.55f * fade);
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, fade);
+    ImGui::Begin("##save_note", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
+                     ImGuiWindowFlags_NoFocusOnAppearing);
+    ImGui::TextColored(ImVec4(0.45f, 0.9f, 1.0f, 1.0f), "Game saved");
+    if (!text.empty()) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", text.c_str());
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
+}
+
 void BackgroundLoading() {
     const u32 done = background_done, total = std::max(background_total.load(), 1u);
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -1054,6 +1113,8 @@ void BackgroundLoading() {
 } // namespace
 
 void Init(const Vulkan::Instance& instance, vk::Format format, u32 image_count) {
+    // The menu's live choices saved in issn.ini (a launch without the launcher keeps them too).
+    IssnSettings::ApplyLiveChoices();
     std::scoped_lock lock{imgui_mutex};
     if (initialized) {
         return;
@@ -1385,7 +1446,7 @@ void SetLoading(bool active, u32 done, u32 total) {
 bool Visible() {
     const auto& s = IssnSettings::Get();
     return initialized && (loading || background_total || menu_open || text_entry_active || choice_active ||
-                           choice_retiring || s.show_fps ||
+                           choice_retiring || s.show_fps || save_note_until.load() != 0 ||
                            (s.actor_watch_supported && s.enemy_health_bar));
 }
 
@@ -1415,6 +1476,19 @@ void SetTextEntry(bool active, const std::string& prompt, const std::string& tex
     text_entry_active = active;
     text_entry_prompt = prompt;
     text_entry_text = text;
+}
+
+void NoteGameSaved(const std::string& what) {
+    std::printf("Game saved%s%s\n", what.empty() ? "" : ": ", what.c_str());
+    std::fflush(stdout);
+    if (!IssnSettings::Get().save_note) {
+        return;
+    }
+    {
+        std::scoped_lock lock{save_note_mutex};
+        save_note_text = what;
+    }
+    save_note_until = NowMs() + SaveNoteMs;
 }
 
 void NoteGameFrame() {
@@ -1479,6 +1553,9 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
     }
     if (background_total && !loading && !menu_open) {
         BackgroundLoading();
+    }
+    if (save_note_until.load() != 0 && !loading && !menu_open) {
+        SaveNote();
     }
     if (text_entry_active) {
         TextEntryBox();

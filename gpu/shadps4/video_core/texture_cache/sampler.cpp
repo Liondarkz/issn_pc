@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <atomic>
 #include <cstdlib>
 #include <algorithm>
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
@@ -9,6 +10,26 @@
 
 namespace VideoCore {
 
+namespace {
+std::atomic<float> g_forced_aniso{-1.0f}; ///< -1 = not read from ISSN_ANISO yet
+}
+
+float ForcedAniso() {
+    float level = g_forced_aniso.load(std::memory_order_relaxed);
+    if (level < 0.0f) {
+        const char* v = std::getenv("ISSN_ANISO");
+        level = v ? std::max(static_cast<float>(std::atof(v)), 0.0f) : 0.0f;
+        float expected = -1.0f;
+        g_forced_aniso.compare_exchange_strong(expected, level);
+        level = g_forced_aniso.load(std::memory_order_relaxed);
+    }
+    return level;
+}
+
+void SetForcedAniso(float level) {
+    g_forced_aniso.store(std::max(level, 0.0f), std::memory_order_relaxed);
+}
+
 Sampler::Sampler(const Vulkan::Instance& instance, const AmdGpu::Sampler& sampler,
                  const AmdGpu::BorderColorBuffer border_color_base) {
     using namespace Vulkan;
@@ -16,10 +37,7 @@ Sampler::Sampler(const Vulkan::Instance& instance, const AmdGpu::Sampler& sample
     // game's filtered, mipmapped colour samplers to at least that (sharper ground and walls at an
     // angle, like a PC game's setting); point, unmipmapped and depth-compare samplers stay as the
     // game set them. Unset or 1: the game's own filtering.
-    static const float forced_aniso = [] {
-        const char* v = std::getenv("ISSN_ANISO");
-        return v ? static_cast<float>(std::atof(v)) : 0.0f;
-    }();
+    const float forced_aniso = ForcedAniso();
     const bool force_aniso = forced_aniso > 1.0f &&
                              sampler.xy_min_filter != AmdGpu::Filter::Point &&
                              sampler.xy_min_filter != AmdGpu::Filter::AnisoPoint &&

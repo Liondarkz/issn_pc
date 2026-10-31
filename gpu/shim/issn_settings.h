@@ -49,6 +49,8 @@ struct Values {
     std::atomic<float> reactive_max{0.9f};
     std::atomic<int> debug_view{DebugNone};
     std::atomic<bool> show_fps{false};
+    /// "Game saved" note in a corner when the game writes a save (issn_overlay.cpp).
+    std::atomic<bool> save_note{true};
     /// Sensor mode's aiming speed (the graffiti cursor), percent of the default: 25..200.
     std::atomic<int> sensor_aim{100};
     /// The graffiti guide was shown once; the menu's Controls tab opens it again.
@@ -186,6 +188,8 @@ inline constexpr const char* DrawDistanceKeys[] = {"0.6", "", "1.5", "2.0"};
 inline constexpr float DrawDistanceScales[] = {0.6f, 1.0f, 1.5f, 2.0f};
 /// What this launch runs with (environment), as menu indexes; filled by Load.
 void ReadLaunchChoices();
+/// The menu's live choices to the renderer: texture filtering, frame generation on / off.
+void ApplyLiveChoices();
 
 /// Render resolution divisor of a preset (1.0 native, 1.5 quality, ...).
 float PresetScale(int preset);

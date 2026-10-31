@@ -25,11 +25,17 @@ class Scheduler;
 
 namespace FrameGen {
 
-/// ISSN_FRAME_GEN=1 (launcher: Performance > Frame generation).
+/// Frame generation can run this session: the anti-aliasing is DLSS, FSR 4 or XeSS (the depth and
+/// motion capture needs that slot). The presenter keeps twice the frames then.
 bool Wanted();
 
-/// Wanted and not switched off by a failure (the game's frames are then shown alone).
+/// On (ISSN_FRAME_GEN=1 at start, the in-game menu's switch live), Wanted, and not switched off
+/// by a failure (the game's frames are then shown alone).
 bool Active();
+
+/// The in-game menu's switch (live); turning it on starts a new history.
+void SetEnabled(bool on);
+bool Enabled();
 
 /// The rasterizer, where the resolve is replaced: this frame's depth (reversed Z, the depth
 /// aspect is read) and motion vectors (screen UV, current minus previous), both in
