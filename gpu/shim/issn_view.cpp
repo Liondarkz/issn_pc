@@ -124,19 +124,34 @@ IssnFovCave* fov_cave = nullptr;
 
 // The camera works its tan out only when its angle (+0x590) differs from the target (+0x5d4):
 // a nudge to the angle makes its next update do it again with the new factor.
-void NudgeCamera() {
+float ReadFloat(const unsigned char* at) {
+    float v;
+    std::memcpy(&v, at, 4);
+    return v;
+}
+
+void NudgeCamera(float factor) {
     const std::uint64_t at = fov_cave->camera;
     if (at < (1ull << 32) || at >= (1ull << 47)) {
+        std::printf("Field of view: x%.2f (no camera seen yet: it shows when the game sets its angle)\n", factor);
         return;
     }
     auto* camera = reinterpret_cast<unsigned char*>(at);
-    float target;
-    std::memcpy(&target, camera + 0x5d4, 4);
+    const float target = ReadFloat(camera + 0x5d4), tan_before = ReadFloat(camera + 0x5a4);
     if (!(target > 0.05f && target < 3.5f)) { // radians
+        std::printf("Field of view: x%.2f (camera %#llx angle %.3f out of range: not nudged)\n", factor,
+                    static_cast<unsigned long long>(at), target);
         return;
     }
     const float nudged = target * 1.001f;
     std::memcpy(camera + 0x590, &nudged, 4);
+    // What the camera's next updates make of it (the log tells whether the nudge works).
+    std::thread([camera, factor, target, tan_before] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        std::printf("Field of view: x%.2f camera angle %.3f -> %.3f, tan %.4f -> %.4f (wanted %.4f)\n", factor,
+                    target, ReadFloat(camera + 0x590), tan_before, ReadFloat(camera + 0x5a4),
+                    std::tan(0.5f * factor * ReadFloat(camera + 0x590)));
+    }).detach();
 }
 
 void ApplyFov() {
@@ -144,7 +159,7 @@ void ApplyFov() {
     if (fov_cave->factor != factor) {
         fov_cave->factor = factor;
         fov_cave->half_factor = 0.5f * factor;
-        NudgeCamera();
+        NudgeCamera(factor);
     }
 }
 } // namespace
