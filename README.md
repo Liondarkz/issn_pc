@@ -100,7 +100,7 @@ Add to Steam. Building: [packaging/windows/README.md](packaging/windows/README.m
 - Gráficos / graphics: o build do shadPS4 do **axylpup** para o Second Son
   ([axylpup/shadPS4](https://github.com/axylpup/shadPS4)), sobre o
   [shadPS4](https://github.com/shadps4-emu/shadPS4); trabalhos anteriores no inFAMOUS de
-  **Ayoub** (shadPS4-AYOUB1080p) e **HayatoG** (iss_pc). Mouse 1:1, layout de teclado e
+  **Ayoub** (shadPS4-AYOUB1080p) e **HayatoG** ([iss_pc](https://github.com/HayatoG/iss_pc)). Mouse 1:1, layout de teclado e
   sensor de movimento sintético: design do axylpup.
 - Base do port / port base: [gow3_pc](https://github.com/FelipePrado0/gow3_pc) (Felipe Prado),
   que vem do [bloodborne_pc](https://github.com/Supermedo/bloodborne_pc) (deadinside28,
