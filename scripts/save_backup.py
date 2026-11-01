@@ -84,6 +84,17 @@ def _copy(user_dir, now, tag=''):
     target, n = root / f'{base}{suffix}', 2
     while target.exists():
         target, n = root / f'{base}-{n}{suffix}', n + 1
+    try:
+        _check_size(savedata)
+    except TooBig:
+        # A savedata stuffed with other files (Discord 11-01: the import's copy of ~17,000 files
+        # froze the launcher): only the game's own folders, savedata/<user id>/CUSAxxxxx[.memory].
+        games = [p for p in savedata.glob('*/*') if p.is_dir() and _TITLE_NAME.match(p.name)]
+        for game in games:
+            _check_size(game)
+        for game in games:
+            shutil.copytree(game, target / game.relative_to(savedata))
+        return target if games else None
     shutil.copytree(savedata, target)
     return target
 
