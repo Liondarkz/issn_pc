@@ -32,6 +32,19 @@ class SaveBackupTest(unittest.TestCase):
         self.assertEqual(made.name, '20261009-180100')
         self.assertEqual((made / self.save.relative_to(self.user / 'savedata')).read_text(), 'v1')
 
+    def test_no_backup_of_a_huge_savedata(self):
+        write(self.save, 'v1')
+        for i in range(5):
+            write(self.user / 'savedata' / 'junk' / f'{i}.bin', 'x')
+        old = save_backup.MAX_FILES
+        save_backup.MAX_FILES = 4
+        try:
+            with self.assertRaises(save_backup.TooBig):
+                save_backup.backup(self.user, now=self.tick())
+        finally:
+            save_backup.MAX_FILES = old
+        self.assertEqual(save_backup.list_backups(self.user), [])
+
     def test_no_backup_without_saves(self):
         self.assertIsNone(save_backup.backup(self.user, now=self.tick()))
         (self.user / 'savedata').mkdir()
