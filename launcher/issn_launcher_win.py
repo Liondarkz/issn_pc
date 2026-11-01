@@ -379,7 +379,7 @@ PAGES = ('home', 'news', 'graphics', 'performance', 'game', 'advanced', 'help')
 PAGE_REFRESH = {'home': ('refresh_status',), 'news': ('refresh_news',), 'help': ('run_help',), 'game': ('refresh_lists', 'refresh_game_patches')}
 APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', str(PORT_DIR.parent / 'CUSA00004') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
-                'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False, 'frame_pacing': '', 'frame_gen': False, 'seed_any_profile': False,
+                'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False, 'save_backups': True, 'frame_pacing': '', 'frame_gen': False, 'seed_any_profile': False,
                 'player_name': '', 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
                 'gpu_id': '', 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binaries': False,
                 'perf_diag': False, 'frame_capture_key': False, 'frame_stats': False, 'gpu_profile': False,
@@ -1100,6 +1100,11 @@ def game_environment(s):
     env.pop('ISSN_SKIP_INTRO', None)
     if s.get('skip_intro'):
         env['ISSN_SKIP_INTRO'] = '1'
+    # issn: the save backup run.py makes before a start (scripts/save_backup.py); a player asked to
+    # turn it off (Discord 11-01).
+    env.pop('ISSN_SAVE_BACKUP', None)
+    if not s.get('save_backups', True):
+        env['ISSN_SAVE_BACKUP'] = '0'
     # issn-axy: FSR 3.1 frame generation (gpu issn_framegen.h); it needs FSR 4, XeSS or DLSS.
     env.pop('ISSN_FRAME_GEN', None)
     if s.get('frame_gen') and s.get('anti_aliasing', 'game') != 'game':
@@ -2147,6 +2152,9 @@ class Launcher:
         self.backup_choice.pack(side='left')
         ttk.Button(holder, text=_('Restore', 'Восстановить'), command=self.restore_backup).pack(side='left', padx=(6, 0))
         ttk.Button(holder, text=_('Refresh', 'Обновить'), command=self.refresh_backups).pack(side='left', padx=(6, 0))
+        self.check(f, 'save_backups', 'app', _('Back up saves before a start'),
+                   _('A copy of your saves before each start when they changed (kept in '
+                     'user\\savedata_backups). Off: no new copies; the old ones stay and can still be restored.'))
         self.row(f, _('Save backups', 'Резервные копии'), holder,
                  _('Made before every start when the saves changed, newest first. Kept: the last {}, one a '
                    'day for {} days and the ones made before a restore or an import. Restoring backs up the '

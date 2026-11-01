@@ -248,6 +248,10 @@ class ControlMapTest(unittest.TestCase):
         self.assertNotIn('ISSN_SKIP_INTRO', launcher.game_environment({**launcher.APP_DEFAULTS}))
         self.assertEqual(launcher.game_environment({**launcher.APP_DEFAULTS, 'skip_intro': True})['ISSN_SKIP_INTRO'], '1')
 
+    def test_save_backups_setting(self):
+        self.assertNotIn('ISSN_SAVE_BACKUP', launcher.game_environment({**launcher.APP_DEFAULTS}))
+        self.assertEqual(launcher.game_environment({**launcher.APP_DEFAULTS, 'save_backups': False})['ISSN_SAVE_BACKUP'], '0')
+
     def test_stick_deadzone_setting(self):
         self.assertNotIn('ISSN_STICK_DEADZONE', launcher.game_environment({**launcher.APP_DEFAULTS}))
         env = launcher.game_environment({**launcher.APP_DEFAULTS, 'stick_deadzone': '0.15'})

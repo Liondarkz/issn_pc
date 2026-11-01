@@ -458,7 +458,9 @@ def main():
               + (f"; other cache folders: {', '.join(others)}" if others else ''), flush=True)
         from save_backup import backup
         try:
-            if made := backup(user_dir):
+            if env.get('ISSN_SAVE_BACKUP') == '0':
+                print('Save backup: off (launcher)', flush=True)
+            elif made := backup(user_dir):
                 print(f'Saves backed up to {made}', flush=True)
         except OSError as error:
             print(f'Save backup failed, starting anyway: {error}', flush=True)

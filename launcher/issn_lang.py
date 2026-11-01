@@ -866,6 +866,8 @@ EXTRA = {
         'Spray can stick speed': 'Velocidade do analógico na lata',
         'Stick dead zone': 'Zona morta dos analógicos',
         'Skip the intro logos': 'Pular as logos da abertura',
+        'Back up saves before a start': 'Fazer backup dos saves antes de jogar',
+        'A copy of your saves before each start when they changed (kept in user\\savedata_backups). Off: no new copies; the old ones stay and can still be restored.': 'Uma cópia dos seus saves antes de cada início, quando eles mudaram (fica em user\\savedata_backups). Desligado: nenhuma cópia nova; as antigas ficam e ainda podem ser restauradas.',
         'Frame pacing': 'Ritmo dos quadros',
         "What's new": 'Novidades',
         'Help': 'Ajuda',
