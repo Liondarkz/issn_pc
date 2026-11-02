@@ -99,9 +99,16 @@ Add to Steam. Building: [packaging/windows/README.md](packaging/windows/README.m
 
 - Gráficos / graphics: o build do shadPS4 do **axylpup** para o Second Son
   ([axylpup/shadPS4](https://github.com/axylpup/shadPS4)), sobre o
-  [shadPS4](https://github.com/shadps4-emu/shadPS4); trabalhos anteriores no inFAMOUS de
-  **Ayoub** (shadPS4-AYOUB1080p) e **HayatoG** (iss_pc). Mouse 1:1, layout de teclado e
-  sensor de movimento sintético: design do axylpup.
+  [shadPS4](https://github.com/shadps4-emu/shadPS4); trabalho anterior no inFAMOUS de
+  **Ayoub** (shadPS4-AYOUB1080p). Mouse 1:1 e layout de teclado: design do axylpup. Sensor de
+  movimento sintético: o modelo atual é do axylpup; o modo sensor para controles sem giroscópio
+  (L3+R3, inclinar com o analógico, sacudir com um botão) veio antes no iss_pc do HayatoG (13/10).
+- **HayatoG** ([iss_pc](https://github.com/HayatoG/iss_pc)), o outro port do inFAMOUS para PC
+  (mesma base gow3_pc): core de vídeo/GPU (merge three-way: readbacks precisos, compute
+  pipelines fora da thread da GPU, correção do índice do shader cache, permutações de shader,
+  write merge, atalho de região com "algum bit marcado"), distância de desenho (view hooks e os
+  valores 0.6 / 0.8), respostas de PS4 base offline, correções de travamento no Windows (read
+  fault especulativo, pool do guest, mutex do Wwise) e nomes de NIDs.
 - Base do port / port base: [gow3_pc](https://github.com/FelipePrado0/gow3_pc) (Felipe Prado),
   que vem do [bloodborne_pc](https://github.com/Supermedo/bloodborne_pc) (deadinside28,
   Supermedo), com cuesta4 e a equipe do shadPS4. Documentação herdada: [docs/base](docs/base/README.md).

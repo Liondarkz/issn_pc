@@ -56,7 +56,7 @@ Reporting problems
   each thread was doing.
 
 Credits: axylpup's shadPS4 build for inFAMOUS Second Son (graphics), earlier inFAMOUS work by
-Ayoub and HayatoG, the God of War III Remastered port (gow3_pc, Felipe Prado) and bloodborne_pc
+Ayoub and HayatoG (iss_pc, github.com/HayatoG/iss_pc: video core, draw distance, sensor mode), the God of War III Remastered port (gow3_pc, Felipe Prado) and bloodborne_pc
 (deadinside28, Supermedo) it is built on, the shadPS4 project. FSR 4: AMD FidelityFX (MIT).
 Launcher title face: Bebas Neue (SIL Open Font License). Source: github.com/Liondarkz/issn_pc
 (GPL-2.0-or-later).
