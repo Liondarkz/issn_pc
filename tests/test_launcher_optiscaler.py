@@ -351,6 +351,14 @@ class InstallTest(unittest.TestCase):
         dl.remove(self.bin)
         self.assertEqual(tree(self.bin), PORT_FILES)
 
+    def test_installing_over_a_copy_by_hand_then_removing_leaves_nothing_of_it(self):
+        with dl.SevenZip(self.archive) as seven:
+            seven.extract(lambda e: self.bin / ('winmm.dll' if e.name == 'OptiScaler.dll' else e.name))
+        dl.install(self.archive, self.bin, 'fsr22', 'v0.9.4')
+        self.assertEqual(dl.optiscaler_state(self.bin)['menu_key'], '0x77')
+        dl.remove(self.bin)
+        self.assertEqual(tree(self.bin), PORT_FILES)
+
     def test_another_winmm_is_left_alone(self):
         (self.bin / 'winmm.dll').write_bytes(b'MZ something else')
         self.assertTrue(dl.optiscaler_state(self.bin)['foreign'])

@@ -928,7 +928,10 @@ def install(archive, bin_dir, output, version, progress=None, dlss_dll=None):
             shutil.copyfile(dlss_dll, staging / 'nvngx_dlss.dll')
             files.append('nvngx_dlss.dll')
         old = _manifest(bin_dir) or {}
-        listed = sorted(set(files) | set(old.get('files', [])), key=str.lower)
+        # Over a copy unpacked by hand, its leftovers (README, setup scripts, Licenses\) join the
+        # list so Remove takes them too.
+        by_hand = [n for n in HAND_FILES if current and current['by_hand'] and (bin_dir / n).is_file()]
+        listed = sorted(set(files) | set(old.get('files', [])) | set(by_hand), key=str.lower)
         # The list first, so even a move cut short (a file in use) can be removed.
         _write_text(bin_dir / MANIFEST, json.dumps({'version': version, 'files': listed}, indent=2))
         for name in files:
