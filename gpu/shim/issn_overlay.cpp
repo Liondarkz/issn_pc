@@ -20,6 +20,7 @@
 #include "issn_actors.h"
 #include "issn_graphics.h"
 #include "issn_perf_stats.h"
+#include "issn_exposure.h"
 #include "../../src/actor_hook.h"
 
 extern IssnActorSlot issn_actor_slots[2];
@@ -673,6 +674,25 @@ void ImageTab() {
         std::snprintf(text, sizeof(text), "%d x %d", ww, wh);
         InfoRow("Window", text);
         ImGui::EndTable();
+    }
+    // issn 11-04: the game's exposure meter (src/exposure_hook.h), for the dark-night reports.
+    if (const auto e = IssnExposure::Read(); e.attached) {
+        ImGui::SeparatorText("Exposure (test)");
+        if (BeginRows("##exposure")) {
+            char text[96];
+            std::snprintf(text, sizeof(text), "%.4g (tile sum %.4g, %u rows)", e.value, e.sum, e.rows);
+            InfoRow("Metered now", text);
+            Row("Hold this exposure");
+            bool held = e.held;
+            if (ImGui::Checkbox("##hold", &held)) {
+                IssnExposure::Hold(held);
+            }
+            Help("A test for the dark night: hold it where the picture looks right (in daylight), then walk "
+                 "into the dark place. If it is not dark any more, the darkness comes from the metering. Turn "
+                 "it off afterwards (it is not saved).");
+            ImGui::PopID();
+            ImGui::EndTable();
+        }
     }
 }
 
@@ -1525,6 +1545,7 @@ void NoteGameFrame() {
 }
 
 void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
+    IssnExposure::Tick();
     // Game frame interval for the FPS readout (measured also while nothing is drawn). A present
     // that repeats the last frame (frame pacing) is not a new frame; before the driver's first
     // Flip every present counts.

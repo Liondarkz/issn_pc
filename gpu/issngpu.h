@@ -66,6 +66,10 @@ float issngpu_pad_sensitivity(void);
 /* issn 11-04: the spray can pose (pad tilted) for pads without motion sensors: the menu's
  * switch (Insert > Controls) and H in play. Not saved. */
 int issngpu_spray_pose(void);
+/* issn 11-04: the exposure meter's mailbox (src/exposure_hook.h, IssnExposureMailbox) and the
+ * probe's note that its cave is in. */
+void *issngpu_exposure_mailbox(void);
+void issngpu_exposure_attached(void);
 void issngpu_set_spray_pose(int on);
 /* issn 0.3.6: issn.ini key_map (keys changed in the game's menu), "" when none. */
 const char *issngpu_saved_key_map(void);

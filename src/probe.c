@@ -774,6 +774,7 @@ static void install_view_tuning(Segment *segments, uint64_t count, uint64_t size
 }
 
 #include "hero_hook.h"
+#include "exposure_hook.h"
 extern const volatile unsigned char *issn_hero_health_flag(void);
 extern void issn_hero_attach(unsigned char *guest_image);
 
@@ -893,6 +894,32 @@ static void install_mouse_aim(Segment *segments, uint64_t count, uint64_t size) 
     runtime_mouse_aim_attach(image + ISSN_MOUSE_NO_FOLLOW, image + ISSN_MOUSE_OPTIONS + ISSN_MOUSE_INVERT_X,
                              image + ISSN_MOUSE_OPTIONS + ISSN_MOUSE_INVERT_Y);
     printf("Mouse aim: camera hook ready (tilt clamp %s)\n", free_tilt ? "off" : "on");
+}
+
+/* issn 11-04: the exposure meter's diagnostic hook (src/exposure_hook.h): the menu shows what the
+ * game meters and can hold it. ISSN_EXPOSURE_HOOK=0 leaves the code alone. */
+static void install_exposure_meter(Segment *segments, uint64_t count) {
+    const char *off = getenv("ISSN_EXPOSURE_HOOK");
+    if (off && off[0] == '0') return;
+    if (!mapped(segments, count, ISSN_EXPOSURE_EXPECTED_AT, sizeof(issn_exposure_expected)) ||
+        memcmp(image + ISSN_EXPOSURE_EXPECTED_AT, issn_exposure_expected, sizeof(issn_exposure_expected))) {
+        printf("Exposure meter: diagnostic hook unavailable (the code differs in this eboot.bin)\n");
+        return;
+    }
+    unsigned char *cave = allocate_cave(page_size);
+    if (!cave) return;
+    memcpy(cave, issn_exposure_cave, sizeof(issn_exposure_cave));
+    const uint64_t mailbox = (uint64_t)(uintptr_t)issngpu_exposure_mailbox();
+    const uint64_t resume = (uint64_t)(uintptr_t)(image + ISSN_EXPOSURE_SITE + ISSN_EXPOSURE_SITE_LENGTH);
+    memcpy(cave + ISSN_EXPOSURE_PATCH_MAILBOX, &mailbox, 8);
+    memcpy(cave + sizeof(issn_exposure_cave) - 8, &resume, 8);
+    protect(cave, page_size, 5);
+    if (!install_jump(ISSN_EXPOSURE_SITE, ISSN_EXPOSURE_SITE_LENGTH, cave)) {
+        printf("Exposure meter: diagnostic hook unavailable (cave out of jump range)\n");
+        return;
+    }
+    issngpu_exposure_attached();
+    printf("Exposure meter: diagnostic hook ready (Insert > Image > Exposure)\n");
 }
 
 /* Damage dealt/taken and green/blue/gold orb multipliers (src/damage_hook.h, src/orb_hook.h):
@@ -1356,6 +1383,7 @@ int main(int argc, char **argv) {
     if (gpu_enabled) install_view_tuning(segments, ns, size);
     if (gpu_enabled) install_mouse_aim(segments, ns, size);
     if (gpu_enabled) install_fov(segments, ns, size);
+    if (gpu_enabled) install_exposure_meter(segments, ns);
     if (gpu_enabled) install_hero_cheats(segments, ns, size);
     if (gpu_enabled) issngpu_apply_game_patches();
 #ifdef _WIN32
