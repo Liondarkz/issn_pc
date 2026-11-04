@@ -1210,6 +1210,67 @@ EXTRA = {
         'Original (default)': 'Original (padrão)',
         'Match my controller': 'Igual ao meu controle',
         "Replaces the PlayStation button icons inside the game with the ones of your controller. Works on a copy of two game files in the port's data folder (about 70 MB); your game folder is never changed. Applied when the game starts.": 'Troca os ícones de botões PlayStation dentro do jogo pelos do seu controle. Funciona com uma cópia de dois arquivos do jogo na pasta de dados do port (cerca de 70 MB); a pasta do jogo nunca é alterada. Aplicado quando o jogo inicia.',
+        # 0.3.7: OptiScaler (optional), installed by the launcher.
+        'OptiScaler (optional)':
+            'OptiScaler (opcional)',
+        "A separate program by the OptiScaler team that takes the port's XeSS input and turns it into another upscaler. Not part of the port: the launcher downloads it from the project's GitHub when you ask and can take it out again.":
+            'Um programa à parte, da equipe do OptiScaler, que pega a entrada do XeSS do port e transforma em outro upscaler. Não faz parte do port: o launcher baixa do GitHub do projeto quando você pede e pode tirar de novo.',
+        'OptiScaler output':
+            'Saída do OptiScaler',
+        'What OptiScaler makes of the XeSS input. FSR 2.2 is the one tested with the port; FSR 4 goes through DirectX 12 and needs a Radeon RX 7000 or 9000. Written to OptiScaler.ini at once; it applies when the game starts.':
+            'O que o OptiScaler faz com a entrada do XeSS. O FSR 2.2 é o testado com o port; o FSR 4 passa pelo DirectX 12 e precisa de uma Radeon RX 7000 ou 9000. Gravado no OptiScaler.ini na hora; vale quando o jogo abrir.',
+        'FSR 4 (Radeon RX 7000 / 9000, RDNA 3/4)':
+            'FSR 4 (Radeon RX 7000 / 9000, RDNA 3/4)',
+        'FSR 2.2 (tested with the port)':
+            'FSR 2.2 (testado com o port)',
+        'Download and install':
+            'Baixar e instalar',
+        'Update / install again':
+            'Atualizar / instalar de novo',
+        'Remove':
+            'Remover',
+        'How to use':
+            'Como usar',
+        'Not installed.':
+            'Não instalado.',
+        'bin\\winmm.dll is another program, not OptiScaler: the launcher leaves it alone.':
+            'bin\\winmm.dll é outro programa, não o OptiScaler: o launcher não mexe nele.',
+        'Installed: OptiScaler {} · output {} · its menu in the game: {}.':
+            'Instalado: OptiScaler {} · saída {} · menu dele no jogo: {}.',
+        "Unpacked by hand: Remove takes its files out; Download and install replaces it with the launcher's, set for the port.":
+            'Instalado à mão: Remover tira os arquivos dele; Baixar e instalar troca pelo do launcher, já configurado para o port.',
+        '{} is also a key of the port: install it again from here to move its menu to F8.':
+            '{} também é uma tecla do port: instale de novo por aqui para o menu dele ir para o F8.',
+        "⚠ The port's anti-aliasing is not XeSS, so OptiScaler gets nothing: choose XeSS in Anti-aliasing above.":
+            '⚠ O anti-aliasing do port não está em XeSS, então o OptiScaler não recebe nada: escolha XeSS em Anti-aliasing acima.',
+        'Close the game first: it is using the OptiScaler files.':
+            'Feche o jogo primeiro: ele está usando os arquivos do OptiScaler.',
+        'OptiScaler.ini could not be changed: {}':
+            'Não deu para mudar o OptiScaler.ini: {}',
+        'OptiScaler output: {} (the next time the game starts).':
+            'Saída do OptiScaler: {} (na próxima vez que o jogo abrir).',
+        "OptiScaler is a separate program by the OptiScaler team (GPL-3.0), not part of the port.\n\nThe launcher downloads its newest stable release from github.com/optiscaler/OptiScaler (about 55 MB), checks it and puts it in {}, set for the port: its menu on F8, the output you chose. The port's anti-aliasing is set to XeSS, which is what OptiScaler reads.\n\nDownload and install it now?":
+            'O OptiScaler é um programa à parte, da equipe do OptiScaler (GPL-3.0), e não faz parte do port.\n\nO launcher baixa a versão estável mais nova de github.com/optiscaler/OptiScaler (uns 55 MB), confere e coloca em {}, já configurado para o port: menu dele no F8 e a saída que você escolheu. O anti-aliasing do port passa para XeSS, que é o que o OptiScaler lê.\n\nBaixar e instalar agora?',
+        'Downloading OptiScaler {}… {{}}%':
+            'Baixando o OptiScaler {}… {{}}%',
+        'Installing OptiScaler… {}%':
+            'Instalando o OptiScaler… {}%',
+        'OptiScaler was not installed: {}':
+            'O OptiScaler não foi instalado: {}',
+        "OptiScaler {} is installed. The port's anti-aliasing is now XeSS.\n\nIn the game, F8 opens OptiScaler's menu (Insert stays the port's). Remove takes it out again.":
+            'O OptiScaler {} está instalado. O anti-aliasing do port agora é XeSS.\n\nNo jogo, o F8 abre o menu do OptiScaler (o Insert continua sendo do port). Remover tira ele de novo.',
+        'Looking for the newest OptiScaler…':
+            'Procurando o OptiScaler mais novo…',
+        "Remove OptiScaler? Its files leave the bin folder and the port runs as before. The port's anti-aliasing stays XeSS; change it above if you want.":
+            'Remover o OptiScaler? Os arquivos dele saem da pasta bin e o port fica como antes. O anti-aliasing do port continua em XeSS; mude acima se quiser.',
+        'OptiScaler was not removed completely: {}':
+            'O OptiScaler não foi removido por completo: {}',
+        'OptiScaler removed ({} files).':
+            'OptiScaler removido ({} arquivos).',
+        "OptiScaler is installed, but the port's anti-aliasing is not XeSS, so OptiScaler gets nothing and the game runs without it.\n\nSwitch the anti-aliasing to XeSS now?":
+            'O OptiScaler está instalado, mas o anti-aliasing do port não está em XeSS, então o OptiScaler não recebe nada e o jogo roda sem ele.\n\nMudar o anti-aliasing para XeSS agora?',
+        "OptiScaler (optional)\n\nWhat it is: a separate program (OptiScaler team, GPL-3.0) that takes the picture, depth and motion the port gives XeSS and runs another upscaler on them: FSR 4, FSR 3.1, XeSS, DLSS or FSR 2.2.\n\n1. Download and install. The port's anti-aliasing must be XeSS (the launcher sets it): with anything else OptiScaler gets nothing.\n2. Choose the output here (it applies when the game starts). The size the game draws at is still the port's 'FSR 4 / DLSS quality'.\n3. In the game, F8 opens OptiScaler's menu (output, sharpness, debug views). Insert is still the port's menu and Home its anti-aliasing switch.\n4. To go back: Remove. Every file it added leaves the bin folder.\n\nThird-party: problems with OptiScaler itself go to its project, not to the port.\nOpen the project page (source code and license)?":
+            "OptiScaler (opcional)\n\nO que é: um programa à parte (equipe do OptiScaler, GPL-3.0) que pega a imagem, a profundidade e o movimento que o port entrega ao XeSS e roda outro upscaler em cima: FSR 4, FSR 3.1, XeSS, DLSS ou FSR 2.2.\n\n1. Baixar e instalar. O anti-aliasing do port precisa estar em XeSS (o launcher já coloca): com qualquer outro, o OptiScaler não recebe nada.\n2. Escolha a saída aqui (vale quando o jogo abrir). O tamanho em que o jogo desenha continua sendo o 'Qualidade do FSR 4 / DLSS' do port.\n3. No jogo, o F8 abre o menu do OptiScaler (saída, nitidez, visões de debug). O Insert continua sendo o menu do port e o Home a troca de anti-aliasing.\n4. Para voltar: Remover. Todo arquivo que ele colocou sai da pasta bin.\n\nDe terceiros: problemas do próprio OptiScaler vão para o projeto dele, não para o port.\nAbrir a página do projeto (código e licença)?",
     },
     'es': {
         'Game multisampling': 'Multisampling del juego',
@@ -1428,6 +1489,67 @@ EXTRA = {
         'Match my controller': 'Igual que mi mando',
         "Replaces the PlayStation button icons inside the game with the ones of your controller. Works on a copy of two game files in the port's data folder (about 70 MB); your game folder is never changed. Applied when the game starts.":
             'Sustituye los iconos de botones de PlayStation dentro del juego por los de tu mando. Trabaja sobre una copia de dos archivos del juego en la carpeta de datos del port (unos 70 MB); tu carpeta del juego nunca se modifica. Se aplica al iniciar el juego.',
+        # 0.3.7: OptiScaler (optional), installed by the launcher.
+        'OptiScaler (optional)':
+            'OptiScaler (opcional)',
+        "A separate program by the OptiScaler team that takes the port's XeSS input and turns it into another upscaler. Not part of the port: the launcher downloads it from the project's GitHub when you ask and can take it out again.":
+            'Un programa aparte, del equipo de OptiScaler, que toma la entrada de XeSS del port y la convierte en otro escalador. No forma parte del port: el lanzador lo descarga del GitHub del proyecto cuando lo pides y puede quitarlo de nuevo.',
+        'OptiScaler output':
+            'Salida de OptiScaler',
+        'What OptiScaler makes of the XeSS input. FSR 2.2 is the one tested with the port; FSR 4 goes through DirectX 12 and needs a Radeon RX 7000 or 9000. Written to OptiScaler.ini at once; it applies when the game starts.':
+            'Lo que OptiScaler hace con la entrada de XeSS. FSR 2.2 es el probado con el port; FSR 4 pasa por DirectX 12 y necesita una Radeon RX 7000 o 9000. Se escribe en OptiScaler.ini al momento; vale al iniciar el juego.',
+        'FSR 4 (Radeon RX 7000 / 9000, RDNA 3/4)':
+            'FSR 4 (Radeon RX 7000 / 9000, RDNA 3/4)',
+        'FSR 2.2 (tested with the port)':
+            'FSR 2.2 (probado con el port)',
+        'Download and install':
+            'Descargar e instalar',
+        'Update / install again':
+            'Actualizar / instalar de nuevo',
+        'Remove':
+            'Quitar',
+        'How to use':
+            'Cómo usarlo',
+        'Not installed.':
+            'No instalado.',
+        'bin\\winmm.dll is another program, not OptiScaler: the launcher leaves it alone.':
+            'bin\\winmm.dll es otro programa, no OptiScaler: el lanzador no lo toca.',
+        'Installed: OptiScaler {} · output {} · its menu in the game: {}.':
+            'Instalado: OptiScaler {} · salida {} · su menú en el juego: {}.',
+        "Unpacked by hand: Remove takes its files out; Download and install replaces it with the launcher's, set for the port.":
+            'Instalado a mano: Quitar saca sus archivos; Descargar e instalar lo cambia por el del lanzador, configurado para el port.',
+        '{} is also a key of the port: install it again from here to move its menu to F8.':
+            '{} también es una tecla del port: instálalo de nuevo desde aquí para pasar su menú a F8.',
+        "⚠ The port's anti-aliasing is not XeSS, so OptiScaler gets nothing: choose XeSS in Anti-aliasing above.":
+            '⚠ El antialiasing del port no está en XeSS, así que OptiScaler no recibe nada: elige XeSS en Anti-aliasing, arriba.',
+        'Close the game first: it is using the OptiScaler files.':
+            'Cierra el juego primero: está usando los archivos de OptiScaler.',
+        'OptiScaler.ini could not be changed: {}':
+            'No se pudo cambiar OptiScaler.ini: {}',
+        'OptiScaler output: {} (the next time the game starts).':
+            'Salida de OptiScaler: {} (la próxima vez que se inicie el juego).',
+        "OptiScaler is a separate program by the OptiScaler team (GPL-3.0), not part of the port.\n\nThe launcher downloads its newest stable release from github.com/optiscaler/OptiScaler (about 55 MB), checks it and puts it in {}, set for the port: its menu on F8, the output you chose. The port's anti-aliasing is set to XeSS, which is what OptiScaler reads.\n\nDownload and install it now?":
+            'OptiScaler es un programa aparte, del equipo de OptiScaler (GPL-3.0), y no forma parte del port.\n\nEl lanzador descarga su versión estable más nueva de github.com/optiscaler/OptiScaler (unos 55 MB), la comprueba y la pone en {}, configurada para el port: su menú en F8 y la salida que elegiste. El antialiasing del port pasa a XeSS, que es lo que lee OptiScaler.\n\n¿Descargarlo e instalarlo ahora?',
+        'Downloading OptiScaler {}… {{}}%':
+            'Descargando OptiScaler {}… {{}}%',
+        'Installing OptiScaler… {}%':
+            'Instalando OptiScaler… {}%',
+        'OptiScaler was not installed: {}':
+            'OptiScaler no se instaló: {}',
+        "OptiScaler {} is installed. The port's anti-aliasing is now XeSS.\n\nIn the game, F8 opens OptiScaler's menu (Insert stays the port's). Remove takes it out again.":
+            'OptiScaler {} está instalado. El antialiasing del port ahora es XeSS.\n\nEn el juego, F8 abre el menú de OptiScaler (Insert sigue siendo del port). Quitar lo saca de nuevo.',
+        'Looking for the newest OptiScaler…':
+            'Buscando el OptiScaler más nuevo…',
+        "Remove OptiScaler? Its files leave the bin folder and the port runs as before. The port's anti-aliasing stays XeSS; change it above if you want.":
+            '¿Quitar OptiScaler? Sus archivos salen de la carpeta bin y el port queda como antes. El antialiasing del port sigue en XeSS; cámbialo arriba si quieres.',
+        'OptiScaler was not removed completely: {}':
+            'OptiScaler no se quitó del todo: {}',
+        'OptiScaler removed ({} files).':
+            'OptiScaler quitado ({} archivos).',
+        "OptiScaler is installed, but the port's anti-aliasing is not XeSS, so OptiScaler gets nothing and the game runs without it.\n\nSwitch the anti-aliasing to XeSS now?":
+            'OptiScaler está instalado, pero el antialiasing del port no está en XeSS, así que OptiScaler no recibe nada y el juego va sin él.\n\n¿Cambiar el antialiasing a XeSS ahora?',
+        "OptiScaler (optional)\n\nWhat it is: a separate program (OptiScaler team, GPL-3.0) that takes the picture, depth and motion the port gives XeSS and runs another upscaler on them: FSR 4, FSR 3.1, XeSS, DLSS or FSR 2.2.\n\n1. Download and install. The port's anti-aliasing must be XeSS (the launcher sets it): with anything else OptiScaler gets nothing.\n2. Choose the output here (it applies when the game starts). The size the game draws at is still the port's 'FSR 4 / DLSS quality'.\n3. In the game, F8 opens OptiScaler's menu (output, sharpness, debug views). Insert is still the port's menu and Home its anti-aliasing switch.\n4. To go back: Remove. Every file it added leaves the bin folder.\n\nThird-party: problems with OptiScaler itself go to its project, not to the port.\nOpen the project page (source code and license)?":
+            "OptiScaler (opcional)\n\nQué es: un programa aparte (equipo de OptiScaler, GPL-3.0) que toma la imagen, la profundidad y el movimiento que el port da a XeSS y ejecuta otro escalador sobre ellos: FSR 4, FSR 3.1, XeSS, DLSS o FSR 2.2.\n\n1. Descargar e instalar. El antialiasing del port debe estar en XeSS (el lanzador lo pone): con cualquier otro, OptiScaler no recibe nada.\n2. Elige la salida aquí (vale al iniciar el juego). El tamaño al que dibuja el juego sigue siendo 'FSR 4 / DLSS quality' del port.\n3. En el juego, F8 abre el menú de OptiScaler (salida, nitidez, vistas de depuración). Insert sigue siendo el menú del port e Inicio su cambio de antialiasing.\n4. Para volver: Quitar. Todo archivo que añadió sale de la carpeta bin.\n\nDe terceros: los problemas del propio OptiScaler van a su proyecto, no al port.\n¿Abrir la página del proyecto (código y licencia)?",
     },
 }
 

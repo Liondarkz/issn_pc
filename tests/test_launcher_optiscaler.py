@@ -13,9 +13,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from unittest import mock
+
 from paths import ROOT
 sys.path.insert(0, str(ROOT / 'launcher'))
 import issn_downloads as dl  # noqa: E402
+import issn_hardware  # noqa: E402
+import issn_launcher_win as launcher  # noqa: E402
 
 
 # ---- a small 7z writer (what 7-Zip makes of a release: text in LZMA2, DLLs through BCJ2) ----
@@ -325,7 +329,8 @@ class InstallTest(unittest.TestCase):
         self.assertIn('\r\nVulkanUpscaler=fsr22\r\n', ini)
         self.assertIn('\r\nShortcutKey=0x77\r\n', ini)
         self.assertEqual(dl.optiscaler_state(self.bin),
-                         {'version': 'v0.9.4', 'by_hand': False, 'upscaler': 'fsr22', 'foreign': False})
+                         {'version': 'v0.9.4', 'by_hand': False, 'upscaler': 'fsr22', 'menu_key': '0x77',
+                          'foreign': False})
         self.assertFalse((self.bin / '.optiscaler-new').exists())
 
     def test_remove_takes_out_everything_it_put_and_what_optiscaler_wrote(self):
@@ -434,6 +439,60 @@ class ReleaseTest(unittest.TestCase):
                 with self.assertRaises(OSError):
                     dl.download(bad, target, opener=opener)
                 self.assertEqual(list(Path(tmp).iterdir()), [])
+
+
+class LauncherTest(unittest.TestCase):
+    """The launcher's side: what it offers, and the line at the top of last_run.log."""
+
+    def test_outputs_follow_the_graphics_card(self):
+        def keys(name):
+            return [k for k, _t in launcher.optiscaler_choices(issn_hardware.Pc(gpu_name=name) if name else None)]
+        self.assertEqual(keys('AMD Radeon RX 9060 XT'), ['fsr4', 'fsr31', 'xess', 'fsr22'])
+        self.assertEqual(keys('NVIDIA GeForce RTX 4070'), ['fsr31', 'xess', 'dlss', 'fsr22'])
+        self.assertEqual(keys('NVIDIA GeForce GTX 1660'), ['fsr31', 'xess', 'fsr22'])
+        self.assertEqual(keys('Intel(R) Arc(TM) A770'), ['fsr31', 'xess', 'fsr22'])
+        self.assertEqual(keys(''), ['fsr4', 'fsr31', 'xess', 'fsr22'])  # not checked yet
+        self.assertEqual(launcher.APP_DEFAULTS['optiscaler_output'], 'fsr22')
+        self.assertEqual(set(dict(launcher.OPTISCALER_CHOICES)),
+                         set(dl.OPTISCALER_OUTPUTS))
+
+    def test_the_log_says_when_optiscaler_is_there(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bin_dir = port_bin(tmp)
+            archive = Path(tmp) / 'r.7z'
+            archive.write_bytes(release_7z()[0])
+            with mock.patch.object(launcher, 'WINDOWS', True), \
+                    mock.patch.object(launcher, 'optiscaler_bin', return_value=bin_dir):
+                self.assertEqual(launcher.optiscaler_log_line({'anti_aliasing': 'xess'}), '')
+                dl.install(archive, bin_dir, 'fsr4', 'v0.9.4')
+                line = launcher.optiscaler_log_line({'anti_aliasing': 'xess'})
+                self.assertEqual(line, 'OptiScaler v0.9.4 installed by the launcher: bin\\winmm.dll, '
+                                       'VulkanUpscaler=fsr31_12, menu key 0x77 (OptiScaler.ini)\n')
+                self.assertIn('not XeSS: OptiScaler gets no input', launcher.optiscaler_log_line({'anti_aliasing': 'fsr4'}))
+                dl.remove(bin_dir)
+                (bin_dir / 'winmm.dll').write_bytes(b'MZ other')
+                self.assertIn('another program', launcher.optiscaler_log_line({}))
+        with mock.patch.object(launcher, 'WINDOWS', False):
+            self.assertEqual(launcher.optiscaler_log_line({}), '')
+
+    def test_play_writes_the_line_first(self):
+        owner = launcher.Launcher.__new__(launcher.Launcher)
+        owner.process = None
+        owner.app = {**launcher.APP_DEFAULTS, 'game_dir': 'synthetic-game', 'anti_aliasing': 'game'}
+        for name in ('collect', 'offer_system_files', 'set_log', 'play_button', 'status', 'append',
+                     'offer_optiscaler_xess'):
+            setattr(owner, name, mock.Mock(return_value=True))
+        log = mock.Mock()
+        with mock.patch.object(launcher, 'game_info', return_value=('inFAMOUS Second Son', '01.07')), \
+                mock.patch.object(launcher, 'missing_game_files', return_value=[]), \
+                mock.patch.object(launcher, 'open_play_log', return_value=log), \
+                mock.patch.object(launcher, 'optiscaler_log_line', return_value='OptiScaler v0.9.4 installed\n'), \
+                mock.patch.object(launcher.subprocess, 'Popen', return_value=mock.Mock()), \
+                mock.patch.object(launcher, 'GameJob'), \
+                mock.patch.object(launcher.threading, 'Thread'):
+            owner.play()
+        log.write.assert_called_once_with('OptiScaler v0.9.4 installed\n')
+        owner.offer_optiscaler_xess.assert_called_once_with()
 
 
 if __name__ == '__main__':

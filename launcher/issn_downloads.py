@@ -874,21 +874,21 @@ def _dll_version(dll):
 
 def optiscaler_state(bin_dir):
     """None, or {'version', 'by_hand' (no optiscaler.json), 'upscaler' (VulkanUpscaler),
-    'foreign' (a winmm.dll that is not OptiScaler)}."""
+    'menu_key' (ShortcutKey), 'foreign' (a winmm.dll that is not OptiScaler)}."""
     bin_dir = Path(bin_dir)
     dll = bin_dir / 'winmm.dll'
     manifest = _manifest(bin_dir)
     if not dll.is_file():
         return None
     if manifest is None and not is_optiscaler(dll):
-        return {'version': '', 'by_hand': True, 'upscaler': None, 'foreign': True}
-    ini = bin_dir / 'OptiScaler.ini'
+        return {'version': '', 'by_hand': True, 'upscaler': None, 'menu_key': None, 'foreign': True}
     try:
-        upscaler = ini_get(_read_text(ini), 'Upscalers', 'VulkanUpscaler')
+        text = _read_text(bin_dir / 'OptiScaler.ini')
     except OSError:
-        upscaler = None
+        text = ''
     version = (manifest or {}).get('version') or _dll_version(dll)
-    return {'version': version, 'by_hand': manifest is None, 'upscaler': upscaler, 'foreign': False}
+    return {'version': version, 'by_hand': manifest is None, 'upscaler': ini_get(text, 'Upscalers', 'VulkanUpscaler'),
+            'menu_key': ini_get(text, 'Menu', 'ShortcutKey'), 'foreign': False}
 
 
 def _manifest(bin_dir):

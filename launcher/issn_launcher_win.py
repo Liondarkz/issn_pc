@@ -388,7 +388,7 @@ APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', s
                 'check_updates': False, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation',
                 'glyph_style': 'off', 'compute_priority': True, 'ordered_readback': False, 'draw_distance': '',
                 'perf_mode': '', 'render_height': '', 'upscale_quality': '', 'aniso': '', 'shader_compile': '', 'screen_shape': '',
-                'anti_aliasing': 'game'}
+                'anti_aliasing': 'game', 'optiscaler_output': 'fsr22'}
 
 # PS4 button, default key, default gamepad button (SDL names; src/runtime_pad.c). L2/R2 come
 # from the analog triggers and the left touchpad click (photo mode) from L1 + the right click's
@@ -700,6 +700,50 @@ def xess_missing():
     """Intel's files not yet in xess_folder()."""
     folder = xess_folder()
     return [name for name in XESS_FILES if not (folder / name).is_file()]
+
+
+# OptiScaler (optional, a separate program: issn_downloads): what it turns the port's XeSS input
+# into, written as VulkanUpscaler in bin\OptiScaler.ini. FSR 2.2 is the one tested on the port
+# (João, RX 9060 XT, 2026-11-04); FSR 4 goes through DX12 (RDNA 3/4); DLSS is offered on
+# NVIDIA RTX only.
+OPTISCALER_CHOICES = [('fsr4', ('FSR 4 (Radeon RX 7000 / 9000, RDNA 3/4)',)), ('fsr31', ('FSR 3.1',)),
+                      ('xess', ('XeSS',)), ('dlss', ('DLSS (NVIDIA RTX)',)),
+                      ('fsr22', ('FSR 2.2 (tested with the port)',))]
+
+
+def optiscaler_bin():
+    """Where OptiScaler goes: beside issn-probe.exe, which imports WINMM.dll."""
+    return dlss_folder().parent
+
+
+def optiscaler_choices(pc):
+    """The outputs for this graphics card (pc None: not checked yet). DLSS only on NVIDIA RTX;
+    FSR 4 not on NVIDIA or Intel cards."""
+    vendor = pc.vendor if pc is not None else ''
+    return [(key, text) for key, text in OPTISCALER_CHOICES
+            if not (key == 'dlss' and not (pc is not None and pc.dlss))
+            and not (key == 'fsr4' and vendor in ('nvidia', 'intel'))]
+
+
+def optiscaler_log_line(settings):
+    """The run log's first line when bin\\winmm.dll is there ('' otherwise)."""
+    if not WINDOWS:
+        return ''
+    try:
+        state = issn_downloads.optiscaler_state(optiscaler_bin())
+    except OSError:
+        return ''
+    if not state:
+        return ''
+    if state['foreign']:
+        return 'OptiScaler: not installed, but bin\\winmm.dll is there (another program, loaded by the game)\n'
+    line = ('OptiScaler {} installed {}: bin\\winmm.dll, VulkanUpscaler={}, menu key {} (OptiScaler.ini)'
+            .format(state['version'] or '(version unknown)', 'by hand' if state['by_hand'] else 'by the launcher',
+                    state['upscaler'] or '?', state['menu_key'] or '?'))
+    aa = settings.get('anti_aliasing', 'game')
+    if aa != 'xess':
+        line += f"; the port's anti-aliasing is {aa}, not XeSS: OptiScaler gets no input"
+    return line + '\n'
 
 
 def fsr4_folder():
@@ -1865,6 +1909,7 @@ class Launcher:
 
     def show_pc(self, pc):
         self.pc = pc
+        self.fill_optiscaler_box()
         unknown = _('not recognised')
         lines = [_('Graphics card: {}').format(pc.gpu_name or unknown),
                  _('Processor: {}').format(pc.cpu_name or unknown),
@@ -1982,11 +2027,264 @@ class Launcher:
                        "launcher downloads them from Intel's and NVIDIA's GitHub releases (XeSS SDK 3.0.2, about "
                        "60 MB; Streamline 2.14.16, about 35 MB) when you pick one, and checks each file."), top=6)
         self.var('anti_aliasing', 'app').trace_add('write', lambda *_a: self.anti_aliasing_picked())
+        self.build_optiscaler(f)
         self.section(f, _('Overlay'))
         self.check(f, 'show_fps', 'ini', _('Show performance overlay'),
                    _('Items, size and corner: in-game menu (Insert / R3+L2) > Overlay.'))
         self.note(f, _('Screenshots: F12 (saved in the user\\screenshots folder).'), top=10)
         self.refresh_dlss_state()
+
+    # ---- OptiScaler (optional, a separate program; issn_downloads does the files) -------------
+    def build_optiscaler(self, f):
+        """The OptiScaler section: its output, Download and install / Remove / How to use, the state."""
+        ttk = self.ttk
+        self.section(f, _('OptiScaler (optional)'))
+        self.note(f, _('A separate program by the OptiScaler team that takes the port\'s XeSS input and turns it '
+                       'into another upscaler. Not part of the port: the launcher downloads it from the project\'s '
+                       'GitHub when you ask and can take it out again.'), top=2)
+        var = self.var('optiscaler_output', 'app')
+        self.optiscaler_box = ttk.Combobox(f, state='readonly', width=44)
+        self.optiscaler_box.bind('<<ComboboxSelected>>', lambda _e: var.set(
+            self.optiscaler_values[self.optiscaler_box.current()]))
+        self.row(f, _('OptiScaler output'), self.optiscaler_box,
+                 _('What OptiScaler makes of the XeSS input. FSR 2.2 is the one tested with the port; FSR 4 '
+                   'goes through DirectX 12 and needs a Radeon RX 7000 or 9000. Written to OptiScaler.ini at '
+                   'once; it applies when the game starts.'), restart=True)
+        self.fill_optiscaler_box()
+        var.trace_add('write', lambda *_a: self.optiscaler_output_picked())
+        holder = ttk.Frame(f)
+        holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
+        self.optiscaler_install_button = ttk.Button(holder, text=_('Download and install'),
+                                                    command=self.install_optiscaler)
+        self.optiscaler_install_button.pack(side='left')
+        self.optiscaler_remove_button = ttk.Button(holder, text=_('Remove'), command=self.remove_optiscaler)
+        self.optiscaler_remove_button.pack(side='left', padx=6)
+        ttk.Button(holder, text=_('How to use'), command=self.optiscaler_help).pack(side='left')
+        self.optiscaler_label = ttk.Label(f, text='', style='Muted.TLabel', wraplength=self.px(680), justify='left')
+        self.optiscaler_label.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(6, 0))
+        self.optiscaler_busy = False
+        self.var('anti_aliasing', 'app').trace_add('write', lambda *_a: self.refresh_optiscaler())
+        self.refresh_optiscaler()
+
+    def fill_optiscaler_box(self):
+        """The outputs for this card (DLSS on NVIDIA RTX only); the choice stays when it is offered."""
+        box = getattr(self, 'optiscaler_box', None)
+        if box is None:
+            return
+        pc = getattr(self, 'pc', None)
+        var = self.var('optiscaler_output', 'app')
+        current = var.get()
+        options = optiscaler_choices(pc)
+        if current not in [key for key, _t in options]:
+            if pc is None:  # the card is not checked yet: the saved choice stays offered
+                options = [option for option in OPTISCALER_CHOICES if option in options or option[0] == current]
+            else:
+                current = 'fsr22'
+        self.optiscaler_values = [key for key, _t in options]
+        box.configure(values=[_(*text) for _k, text in options])
+        if current not in self.optiscaler_values:
+            current = 'fsr22'
+        box.current(self.optiscaler_values.index(current))
+        if var.get() != current:
+            var.set(current)  # a choice this card cannot use (DLSS on a Radeon)
+
+    def optiscaler_text(self, state):
+        if state is None:
+            return _('Not installed.')
+        if state['foreign']:
+            return _('bin\\winmm.dll is another program, not OptiScaler: the launcher leaves it alone.')
+        key = {'0x77': 'F8', '0x2d': 'Insert', '0x24': 'Home', 'auto': 'Insert'}.get(
+            (state['menu_key'] or 'auto').lower(), state['menu_key'] or 'Insert')
+        text = _('Installed: OptiScaler {} · output {} · its menu in the game: {}.').format(
+            state['version'] or '?', state['upscaler'] or '?', key)
+        if state['by_hand']:
+            text += ' ' + _('Unpacked by hand: Remove takes its files out; Download and install replaces it '
+                            'with the launcher\'s, set for the port.')
+        if key in ('Insert', 'Home'):
+            text += ' ' + _('{} is also a key of the port: install it again from here to move its menu to F8.').format(key)
+        if self.var('anti_aliasing', 'app').get() != 'xess':
+            text += ' ' + _("⚠ The port's anti-aliasing is not XeSS, so OptiScaler gets nothing: choose XeSS in "
+                            'Anti-aliasing above.')
+        return text
+
+    def refresh_optiscaler(self):
+        label = getattr(self, 'optiscaler_label', None)
+        if label is None or self.optiscaler_busy:
+            return
+        try:
+            state = issn_downloads.optiscaler_state(optiscaler_bin())
+        except OSError:
+            state = None
+        label.configure(text=self.optiscaler_text(state))
+        installed = state is not None and not state['foreign']
+        self.optiscaler_install_button.configure(
+            text=_('Update / install again') if installed else _('Download and install'),
+            state='disabled' if state and state['foreign'] else 'normal')
+        self.optiscaler_remove_button.configure(state='normal' if installed else 'disabled')
+
+    def optiscaler_show(self, text):
+        label = getattr(self, 'optiscaler_label', None)
+        if label is not None:
+            label.configure(text=text)
+        if not self.process:
+            self.status.configure(text=text, fg=TEXT)
+
+    def optiscaler_game_open(self):
+        if self.process:
+            self.messagebox.showinfo(APP_NAME, _('Close the game first: it is using the OptiScaler files.'))
+            return True
+        return False
+
+    def optiscaler_output_picked(self):
+        """A new output: into the installed OptiScaler.ini at once (DLSS: NVIDIA's files first)."""
+        output = self.var('optiscaler_output', 'app').get()
+        box = getattr(self, 'optiscaler_box', None)
+        if box is not None and output in getattr(self, 'optiscaler_values', []):
+            box.current(self.optiscaler_values.index(output))  # set from elsewhere (defaults)
+        try:
+            state = issn_downloads.optiscaler_state(optiscaler_bin())
+        except OSError:
+            state = None
+        if not state or state['foreign'] or self.optiscaler_busy:
+            return
+        if output == 'dlss' and upscaler_missing('dlss'):
+            self.download_upscaler('dlss', then=lambda: self.apply_optiscaler_output(output))
+            return
+        self.apply_optiscaler_output(output)
+
+    def apply_optiscaler_output(self, output):
+        try:
+            value = issn_downloads.set_output(optiscaler_bin(), output, dlss_folder() / 'nvngx_dlss.dll')
+        except OSError as error:
+            self.optiscaler_show(_('OptiScaler.ini could not be changed: {}').format(error))
+            return
+        self.refresh_optiscaler()
+        self.status.configure(text=_('OptiScaler output: {} (the next time the game starts).').format(value), fg=TEXT)
+
+    def install_optiscaler(self):
+        """Download and install: the newest stable release from the project's GitHub, set for the
+        port (issn_downloads.install); then the port's anti-aliasing goes to XeSS."""
+        if self.optiscaler_busy or self.optiscaler_game_open():
+            return
+        bin_dir = optiscaler_bin()
+        if not self.messagebox.askyesno(APP_NAME, _(
+                'OptiScaler is a separate program by the OptiScaler team (GPL-3.0), not part of the port.\n\n'
+                'The launcher downloads its newest stable release from github.com/optiscaler/OptiScaler '
+                '(about 55 MB), checks it and puts it in {}, set for the port: its menu on F8, the output you '
+                "chose. The port's anti-aliasing is set to XeSS, which is what OptiScaler reads.\n\n"
+                'Download and install it now?').format(bin_dir)):
+            return
+        self.optiscaler_busy = True
+        self.optiscaler_install_button.configure(state='disabled')
+        self.optiscaler_remove_button.configure(state='disabled')
+        output = self.var('optiscaler_output', 'app').get()
+        dlss_dll = dlss_folder() / 'nvngx_dlss.dll'
+
+        def progress(what):
+            def report(done, total):
+                percent = done * 100 // total if total else 0
+                if percent != report.shown:
+                    report.shown = percent
+                    self.ui_calls.put(lambda p=percent: self.optiscaler_show(what.format(p)))
+            report.shown = -1
+            return report
+
+        def work():
+            archive = None
+            try:
+                try:
+                    release = issn_downloads.optiscaler_release()
+                except (OSError, ValueError):
+                    release = issn_downloads.OPTISCALER_KNOWN  # GitHub's API unreachable: the tested one
+                name = re.sub(r'[^A-Za-z0-9._-]', '_', release.url.rsplit('/', 1)[-1]) or 'optiscaler.7z'
+                archive = Path(tempfile.gettempdir()) / 'issn-optiscaler' / name
+                issn_downloads.download(release, archive, progress(_('Downloading OptiScaler {}… {{}}%')
+                                                                   .format(release.tag)))
+                issn_downloads.install(archive, bin_dir, output, release.tag,
+                                       progress(_('Installing OptiScaler… {}%')), dlss_dll)
+            except (OSError, ValueError) as error:
+                self.ui_calls.put(lambda e=error: finish(e))
+                return
+            finally:
+                if archive is not None:
+                    try:
+                        archive.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+            self.ui_calls.put(lambda: finish(None, release.tag))
+
+        def finish(error, tag=''):
+            self.optiscaler_busy = False
+            self.refresh_optiscaler()
+            if error:
+                self.optiscaler_show(_('OptiScaler was not installed: {}').format(error))
+                return
+            if self.var('anti_aliasing', 'app').get() != 'xess':
+                self.var('anti_aliasing', 'app').set('xess')  # fetches XeSS's files when missing
+            self.collect()
+            if output == 'dlss' and upscaler_missing('dlss'):
+                self.download_upscaler('dlss', then=lambda: self.apply_optiscaler_output('dlss'))
+            self.refresh_optiscaler()
+            self.messagebox.showinfo(APP_NAME, _(
+                "OptiScaler {} is installed. The port's anti-aliasing is now XeSS.\n\nIn the game, F8 opens "
+                "OptiScaler's menu (Insert stays the port's). Remove takes it out again.").format(tag))
+        self.optiscaler_show(_('Looking for the newest OptiScaler…'))
+        threading.Thread(target=work, daemon=True).start()
+
+    def remove_optiscaler(self):
+        if self.optiscaler_busy or self.optiscaler_game_open():
+            return
+        if not self.messagebox.askyesno(APP_NAME, _(
+                "Remove OptiScaler? Its files leave the bin folder and the port runs as before. The port's "
+                'anti-aliasing stays XeSS; change it above if you want.')):
+            return
+        try:
+            removed = issn_downloads.remove(optiscaler_bin())
+        except OSError as error:
+            self.refresh_optiscaler()
+            self.messagebox.showerror(APP_NAME, _('OptiScaler was not removed completely: {}').format(error))
+            return
+        self.refresh_optiscaler()
+        self.optiscaler_show(_('OptiScaler removed ({} files).').format(len(removed)))
+
+    def offer_optiscaler_xess(self):
+        """At Play: OptiScaler installed but the port's anti-aliasing is not XeSS (it then gets
+        nothing). Asked once per launcher session; yes sets XeSS (its files download before the start)."""
+        if not WINDOWS or self.app.get('anti_aliasing') == 'xess' or getattr(self, 'optiscaler_asked', False):
+            return
+        try:
+            state = issn_downloads.optiscaler_state(optiscaler_bin())
+        except OSError:
+            return
+        if not state or state['foreign']:
+            return
+        self.optiscaler_asked = True
+        if self.messagebox.askyesno(APP_NAME, _(
+                "OptiScaler is installed, but the port's anti-aliasing is not XeSS, so OptiScaler gets "
+                'nothing and the game runs without it.\n\nSwitch the anti-aliasing to XeSS now?')):
+            self.quiet_anti_aliasing = True  # Play fetches XeSS's files itself, then starts
+            try:
+                self.var('anti_aliasing', 'app').set('xess')
+            finally:
+                self.quiet_anti_aliasing = False
+            self.collect()
+
+    def optiscaler_help(self):
+        if self.messagebox.askyesno(APP_NAME, _(
+                'OptiScaler (optional)\n\n'
+                "What it is: a separate program (OptiScaler team, GPL-3.0) that takes the picture, depth and "
+                'motion the port gives XeSS and runs another upscaler on them: FSR 4, FSR 3.1, XeSS, DLSS or '
+                'FSR 2.2.\n\n'
+                "1. Download and install. The port's anti-aliasing must be XeSS (the launcher sets it): with "
+                'anything else OptiScaler gets nothing.\n'
+                '2. Choose the output here (it applies when the game starts). The size the game draws at is '
+                "still the port's 'FSR 4 / DLSS quality'.\n"
+                "3. In the game, F8 opens OptiScaler's menu (output, sharpness, debug views). Insert is still "
+                "the port's menu and Home its anti-aliasing switch.\n"
+                '4. To go back: Remove. Every file it added leaves the bin folder.\n\n'
+                'Third-party: problems with OptiScaler itself go to its project, not to the port.\n'
+                'Open the project page (source code and license)?')):
+            open_url(issn_downloads.OPTISCALER_PAGE)
 
     def refresh_dlss_state(self):
         for key, label in getattr(self, 'vendor_state', {}).items():
@@ -2000,6 +2298,8 @@ class Launcher:
     def anti_aliasing_picked(self):
         """XeSS or DLSS chosen: their files download at once (not at Play)."""
         key = self.var('anti_aliasing', 'app').get()
+        if getattr(self, 'quiet_anti_aliasing', False):
+            return
         if key in UPSCALER_PACKAGES and WINDOWS and upscaler_missing(key):
             self.download_upscaler(key)
 
@@ -2915,6 +3215,7 @@ class Launcher:
             return
         if not self.offer_system_files():
             return
+        self.offer_optiscaler_xess()
         # XeSS / DLSS chosen without their files: fetched first, then the game starts (with the
         # game's own anti-aliasing if the download failed: the GPU library falls back).
         upscaler = self.app.get('anti_aliasing')
@@ -2950,6 +3251,16 @@ class Launcher:
         # file itself (its output goes straight to the file, which outlives the launcher).
         # Tester 2026-10-23: three runs in that mode left last_run.log at an older run.
         direct_log = open_direct_log(self.app) if self.app.get('close_on_play') else None
+        first_line = optiscaler_log_line(self.app)  # OptiScaler in bin\: said at the top of the log
+        if first_line:
+            self.append(first_line)
+            run_log.write(first_line)
+            if direct_log:
+                try:
+                    direct_log.write(first_line.encode('utf-8'))
+                    direct_log.flush()
+                except OSError:
+                    pass
         try:
             self.process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=game_environment(self.app),
                                             stdin=subprocess.DEVNULL,
@@ -3409,6 +3720,9 @@ def play_without_window(settings):
     when there is one and to <saves folder>/last_run.log."""
     attach_stdio()
     with open_run_log(settings) as log:
+        first_line = optiscaler_log_line(settings)
+        if first_line:
+            log.write(first_line)
         process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=game_environment(settings),
                                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT, creationflags=NO_WINDOW)
