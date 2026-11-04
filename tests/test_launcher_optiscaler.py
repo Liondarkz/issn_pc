@@ -464,6 +464,12 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(set(dict(launcher.OPTISCALER_CHOICES)),
                          set(dl.OPTISCALER_OUTPUTS))
 
+    def test_outputs_are_shown_by_their_names(self):
+        for value, name in (('fsr31_12', 'FSR 4'), ('ffx_12', 'FSR 4'), ('FFX', 'FSR 3.1'), ('fsr31', 'FSR 3.1'),
+                            ('xess', 'XeSS'), ('dlss', 'DLSS'), ('fsr22', 'FSR 2.2'), ('fsr21', 'fsr21'),
+                            (None, '?')):
+            self.assertEqual(launcher.optiscaler_output_name(value), name, value)
+
     def test_the_log_says_when_optiscaler_is_there(self):
         with tempfile.TemporaryDirectory() as tmp:
             bin_dir = port_bin(tmp)

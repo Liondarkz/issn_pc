@@ -711,6 +711,17 @@ OPTISCALER_CHOICES = [('fsr4', ('FSR 4 (Radeon RX 7000 / 9000, RDNA 3/4)',)), ('
                       ('fsr22', ('FSR 2.2 (tested with the port)',))]
 
 
+OPTISCALER_SHORT = {'fsr4': 'FSR 4', 'fsr31': 'FSR 3.1', 'xess': 'XeSS', 'dlss': 'DLSS', 'fsr22': 'FSR 2.2'}
+
+
+def optiscaler_output_name(value):
+    """A VulkanUpscaler value as the player knows it ('fsr31_12' -> 'FSR 4'); other values as they are."""
+    for key, names in issn_downloads.OPTISCALER_OUTPUTS.items():
+        if str(value or '').lower() in names:
+            return OPTISCALER_SHORT[key]
+    return value or '?'
+
+
 def optiscaler_bin():
     """Where OptiScaler goes: beside issn-probe.exe, which imports WINMM.dll."""
     return dlss_folder().parent
@@ -2096,7 +2107,7 @@ class Launcher:
         key = {'0x77': 'F8', '0x2d': 'Insert', '0x24': 'Home', 'auto': 'Insert'}.get(
             (state['menu_key'] or 'auto').lower(), state['menu_key'] or 'Insert')
         text = _('Installed: OptiScaler {} · output {} · its menu in the game: {}.').format(
-            state['version'] or '?', state['upscaler'] or '?', key)
+            state['version'] or '?', optiscaler_output_name(state['upscaler']), key)
         if state['by_hand']:
             text += ' ' + _('Unpacked by hand: Remove takes its files out; Download and install replaces it '
                             'with the launcher\'s, set for the port.')
@@ -2159,7 +2170,8 @@ class Launcher:
             self.optiscaler_show(_('OptiScaler.ini could not be changed: {}').format(error))
             return
         self.refresh_optiscaler()
-        self.status.configure(text=_('OptiScaler output: {} (the next time the game starts).').format(value), fg=TEXT)
+        self.status.configure(text=_('OptiScaler output: {} (the next time the game starts).').format(
+            optiscaler_output_name(value)), fg=TEXT)
 
     def install_optiscaler(self):
         """Download and install: the newest stable release from the project's GitHub, set for the
@@ -2225,6 +2237,8 @@ class Launcher:
             if output == 'dlss' and upscaler_missing('dlss'):
                 self.download_upscaler('dlss', then=lambda: self.apply_optiscaler_output('dlss'))
             self.refresh_optiscaler()
+            if not self.process:  # the bar still showed "Installing… 100%"
+                self.status.configure(text=_('OptiScaler {} installed.').format(tag), fg=TEXT)
             self.messagebox.showinfo(APP_NAME, _(
                 "OptiScaler {} is installed. The port's anti-aliasing is now XeSS.\n\nIn the game, F8 opens "
                 "OptiScaler's menu (Insert stays the port's). Remove takes it out again.").format(tag))
@@ -2280,9 +2294,11 @@ class Launcher:
                 '2. Choose the output here (it applies when the game starts). The size the game draws at is '
                 "still the port's 'FSR 4 / DLSS quality'.\n"
                 "3. In the game, F8 opens OptiScaler's menu (output, sharpness, debug views). Insert is still "
-                "the port's menu and Home its anti-aliasing switch.\n"
+                "the port's menu and Home its anti-aliasing switch. Page Up, Page Down and End are OptiScaler's (its "
+                "FPS counter and frame generation).\n"
                 '4. To go back: Remove. Every file it added leaves the bin folder.\n\n'
                 'Third-party: problems with OptiScaler itself go to its project, not to the port.\n'
+                'Project: github.com/optiscaler/OptiScaler · License: GPL-3.0\n'
                 'Open the project page (source code and license)?')):
             open_url(issn_downloads.OPTISCALER_PAGE)
 
