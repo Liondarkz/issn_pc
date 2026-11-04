@@ -1044,27 +1044,227 @@ void ChoiceBox() {
     ImGui::End();
 }
 
+// issn-axy (04/11): the port's own shader loading screen. The background is the player's dump
+// art (sce_sys/pic1.png, ISSN_LOADING_ART from run.py: read at run time, never shipped); without
+// it, a dark neon gradient. Texts follow the game language (ISSN_LANGUAGE: PS4 ids).
+enum class LoadLang { En, Pt, Es };
+
+LoadLang LoadingLanguage() {
+    static const LoadLang lang = [] {
+        const char* v = std::getenv("ISSN_LANGUAGE");
+        const int id = v ? std::atoi(v) : 1;
+        return id == 7 || id == 17 ? LoadLang::Pt : id == 3 || id == 20 ? LoadLang::Es : LoadLang::En;
+    }();
+    return lang;
+}
+
+const char* LoadText(const char* en, const char* pt, const char* es) {
+    switch (LoadingLanguage()) {
+    case LoadLang::Pt: return pt;
+    case LoadLang::Es: return es;
+    default: return en;
+    }
+}
+
+struct LoadingTip {
+    const char *en, *pt, *es;
+};
+// Only things the port does today (tested features of the menu and controls).
+constexpr LoadingTip LoadingTips[] = {
+    {"Insert (or R3 + L2) opens the port's menu at any time.",
+     "Insert (ou R3 + L2) abre o menu do port a qualquer momento.",
+     "Insert (o R3 + L2) abre el menú del port en cualquier momento."},
+    {"Cheats for health, powers and the Karma Bomb are in Insert > Game.",
+     "Cheats de vida, poderes e Karma Bomb ficam em Insert > Game.",
+     "Los trucos de vida, poderes y Karma Bomb están en Insert > Game."},
+    {"No motion sensor? The spray can works with the H key or the switch in Insert > Controls.",
+     "Controle sem sensor? A lata de spray funciona com a tecla H ou a chave em Insert > Controls.",
+     "¿Mando sin sensor? El spray funciona con la tecla H o el interruptor de Insert > Controls."},
+    {"F11 hides the on-screen overlay.",
+     "F11 esconde o overlay da tela.",
+     "F11 oculta el overlay de la pantalla."},
+    {"The shader cache grows as you play: the next starts load faster.",
+     "O cache de shaders cresce enquanto você joga: os próximos inícios carregam mais rápido.",
+     "La caché de shaders crece mientras juegas: los próximos inicios cargan más rápido."},
+};
+constexpr float LoadingTipSeconds = 7.0f;
+
+// The background art: decoded and made a texture on the present thread (imgui_mutex held,
+// before NewFrame); freed through choice_retired when the loading screen ends.
+ImTextureData* loading_art = nullptr;
+bool loading_art_tried = false;
+
+void UpdateLoadingArt() {
+    if (loading && !loading_art_tried) {
+        loading_art_tried = true;
+        const char* path = std::getenv("ISSN_LOADING_ART");
+        IssnPng::Image picture;
+        if (path && *path && IssnPng::LoadRgba(path, picture) && !picture.rgba.empty()) {
+            ImTextureData* tex = IM_NEW(ImTextureData)();
+            tex->Create(ImTextureFormat_RGBA32, picture.width, picture.height);
+            std::memcpy(tex->GetPixels(), picture.rgba.data(), picture.rgba.size());
+            ImGui::RegisterUserTexture(tex);
+            loading_art = tex;
+            std::printf("Loading screen: art %dx%d\n", picture.width, picture.height);
+        } else {
+            std::printf("Loading screen: no art (%s)\n", path && *path ? "unreadable" : "not set");
+        }
+        std::fflush(stdout);
+    }
+    if (!loading && loading_art) {
+        loading_art->WantDestroyNextFrame = true;
+        choice_retired.push_back(loading_art);
+        choice_retiring = true;
+        loading_art = nullptr;
+    }
+}
+
+ImU32 Rgba(int r, int g, int b, float a) {
+    return IM_COL32(r, g, b, int(std::clamp(a, 0.0f, 1.0f) * 255.0f + 0.5f));
+}
+
 void LoadingScreen() {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * 0.5f,
-                                   viewport->WorkPos.y + viewport->WorkSize.y * 0.5f),
-                            ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x * 0.4f, 0.0f), ImGuiCond_Always);
-    ImGui::SetNextWindowBgAlpha(0.0f);
-    ImGui::Begin("##loading", nullptr,
-                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
-                     ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoFocusOnAppearing);
-    const u32 done = loading_done, total = loading_total;
-    ImGui::SetWindowFontScale(1.6f);
-    ImGui::TextUnformatted(total ? "Loading shader cache..." : "Preparing graphics...");
-    ImGui::SetWindowFontScale(1.0f);
-    if (total) {
-        char count[64];
-        std::snprintf(count, sizeof(count), "%u%%", u32(u64(done) * 100 / total));
-        ImGui::ProgressBar(float(done) / float(total), ImVec2(-1.0f, 0.0f), count);
+    ImDrawList* draw = ImGui::GetBackgroundDrawList(const_cast<ImGuiViewport*>(viewport));
+    const ImVec2 p0 = viewport->Pos;
+    const ImVec2 size = viewport->Size;
+    const ImVec2 p1(p0.x + size.x, p0.y + size.y);
+    const float s = base_scale;
+    const float t = float(ImGui::GetTime());
+
+    // Background: the art covering the screen (cropped, never stretched), else a gradient.
+    if (loading_art && loading_art->Width > 0 && loading_art->Height > 0) {
+        const float art_aspect = float(loading_art->Width) / float(loading_art->Height);
+        const float screen_aspect = size.x / std::max(size.y, 1.0f);
+        ImVec2 uv0(0.0f, 0.0f), uv1(1.0f, 1.0f);
+        if (art_aspect > screen_aspect) {
+            const float keep = screen_aspect / art_aspect;
+            uv0.x = (1.0f - keep) * 0.5f;
+            uv1.x = 1.0f - uv0.x;
+        } else {
+            const float keep = art_aspect / screen_aspect;
+            uv0.y = (1.0f - keep) * 0.5f;
+            uv1.y = 1.0f - uv0.y;
+        }
+        draw->AddImage(loading_art->GetTexRef(), p0, p1, uv0, uv1, Rgba(200, 200, 205, 1.0f));
+    } else {
+        draw->AddRectFilledMultiColor(p0, p1, Rgba(18, 10, 28, 1.0f), Rgba(8, 8, 16, 1.0f),
+                                      Rgba(4, 4, 8, 1.0f), Rgba(30, 8, 30, 1.0f));
+        // A slow neon glow drifting across the lower half.
+        const float glow_x = p0.x + size.x * (0.3f + 0.2f * std::sin(t * 0.25f));
+        // Many faint discs, so the steps between them do not show as rings.
+        for (int i = 24; i > 0; --i) {
+            const float r = size.y * 0.023f * float(i);
+            draw->AddCircleFilled(ImVec2(glow_x, p0.y + size.y * 0.78f), r,
+                                  Rgba(230, 40, 140, 0.009f), 64);
+        }
     }
-    ImGui::TextDisabled("The first start after an update takes longer.");
-    ImGui::End();
+    // Shade the left and the bottom so the texts read over any art.
+    draw->AddRectFilledMultiColor(p0, ImVec2(p0.x + size.x * 0.6f, p1.y), Rgba(0, 0, 0, 0.55f),
+                                  Rgba(0, 0, 0, 0.0f), Rgba(0, 0, 0, 0.0f), Rgba(0, 0, 0, 0.55f));
+    draw->AddRectFilledMultiColor(ImVec2(p0.x, p0.y + size.y * 0.5f), p1, Rgba(0, 0, 0, 0.0f),
+                                  Rgba(0, 0, 0, 0.0f), Rgba(0, 0, 0, 0.88f), Rgba(0, 0, 0, 0.88f));
+
+    ImFont* font = ImGui::GetFont();
+    const ImU32 neon = Rgba(255, 64, 160, 1.0f), violet = Rgba(150, 70, 255, 1.0f);
+    const ImU32 white = Rgba(245, 245, 250, 1.0f), dim = Rgba(200, 200, 210, 0.72f);
+    const float margin = 64.0f * s;
+    const float bar_y = p1.y - margin;
+    const float bar_h = 6.0f * s;
+    const float left = p0.x + margin, right = p1.x - margin;
+
+    // Version, top right.
+    if (const char* version = std::getenv("ISSN_PORT_VERSION"); version && *version) {
+        char line[64];
+        std::snprintf(line, sizeof(line), "issn_pc v%s", version);
+        const float fs = 16.0f * s;
+        const ImVec2 ts = font->CalcTextSizeA(fs, FLT_MAX, 0.0f, line);
+        draw->AddText(font, fs, ImVec2(right - ts.x, p0.y + 28.0f * s), dim, line);
+    }
+
+    // Progress, eased toward the warm-up's count (it moves in steps).
+    const u32 done = loading_done, total = loading_total;
+    static float shown = 0.0f;
+    const float target = total ? std::clamp(float(done) / float(total), 0.0f, 1.0f) : 0.0f;
+    shown += (target - shown) * std::min(1.0f, ImGui::GetIO().DeltaTime * 6.0f);
+    if (target < shown) {
+        shown = target;
+    }
+
+    // Texts above the bar: tag, headline, note; the percentage on the right.
+    float y = bar_y - 22.0f * s;
+    const char* note = LoadText("The first start after an update takes longer.",
+                                "O primeiro início depois de uma atualização demora mais.",
+                                "El primer inicio después de una actualización tarda más.");
+    const float note_fs = 18.0f * s;
+    y -= note_fs;
+    draw->AddText(font, note_fs, ImVec2(left, y), dim, note);
+    const char* headline = total ? LoadText("Loading shaders", "Carregando shaders", "Cargando shaders")
+                                 : LoadText("Preparing graphics", "Preparando os gráficos",
+                                            "Preparando los gráficos");
+    const float head_fs = 40.0f * s;
+    y -= head_fs + 8.0f * s;
+    // Three dots that cycle, drawn after the headline.
+    char head_line[96];
+    const int dots = int(t * 2.0f) % 4;
+    std::snprintf(head_line, sizeof(head_line), "%s%.*s", headline, dots, "...");
+    draw->AddText(font, head_fs, ImVec2(left, y), white, head_line);
+    const float tag_fs = 15.0f * s;
+    y -= tag_fs + 10.0f * s;
+    draw->AddRectFilled(ImVec2(left, y + tag_fs * 0.2f), ImVec2(left + 3.0f * s, y + tag_fs * 1.05f), neon);
+    draw->AddText(font, tag_fs, ImVec2(left + 10.0f * s, y), neon,
+                  LoadText("INFAMOUS SECOND SON  ·  PC PORT", "INFAMOUS SECOND SON  ·  PORT DE PC",
+                           "INFAMOUS SECOND SON  ·  PORT DE PC"));
+    if (total) {
+        char percent[16];
+        std::snprintf(percent, sizeof(percent), "%u%%", u32(shown * 100.0f + 0.5f));
+        const float pct_fs = 40.0f * s;
+        const ImVec2 ts = font->CalcTextSizeA(pct_fs, FLT_MAX, 0.0f, percent);
+        draw->AddText(font, pct_fs, ImVec2(right - ts.x, bar_y - 22.0f * s - note_fs - 8.0f * s - pct_fs),
+                      white, percent);
+    }
+
+    // The bar: a faint track, a neon fill with a glow, and a light that sweeps the fill.
+    const float rounding = bar_h * 0.5f;
+    draw->AddRectFilled(ImVec2(left, bar_y), ImVec2(right, bar_y + bar_h), Rgba(255, 255, 255, 0.14f),
+                        rounding);
+    if (total) {
+        const float fill_x = left + (right - left) * shown;
+        if (fill_x > left + 1.0f) {
+            draw->AddRectFilled(ImVec2(left, bar_y - 4.0f * s), ImVec2(fill_x, bar_y + bar_h + 4.0f * s),
+                                Rgba(255, 64, 160, 0.18f), rounding * 3.0f);
+            draw->AddRectFilledMultiColor(ImVec2(left, bar_y), ImVec2(fill_x, bar_y + bar_h), violet,
+                                          neon, neon, violet);
+            const float sweep = std::fmod(t * 0.6f, 1.0f);
+            const float sx = left + (fill_x - left) * sweep;
+            const float half = std::min(60.0f * s, (fill_x - left) * 0.5f);
+            draw->AddRectFilledMultiColor(ImVec2(std::max(left, sx - half), bar_y),
+                                          ImVec2(sx, bar_y + bar_h), Rgba(255, 255, 255, 0.0f),
+                                          Rgba(255, 255, 255, 0.5f), Rgba(255, 255, 255, 0.5f),
+                                          Rgba(255, 255, 255, 0.0f));
+        }
+    } else {
+        // No count yet: a short segment that slides back and forth.
+        const float w = (right - left) * 0.18f;
+        const float pos = 0.5f + 0.5f * std::sin(t * 1.8f);
+        const float x = left + (right - left - w) * pos;
+        draw->AddRectFilledMultiColor(ImVec2(x, bar_y), ImVec2(x + w, bar_y + bar_h), violet, neon,
+                                      neon, violet);
+    }
+
+    // A tip under the bar, changing every few seconds (fades in and out).
+    constexpr int tip_count = int(sizeof(LoadingTips) / sizeof(LoadingTips[0]));
+    const int tip = int(t / LoadingTipSeconds) % tip_count;
+    const float phase = std::fmod(t, LoadingTipSeconds);
+    const float fade = std::clamp(std::min(phase, LoadingTipSeconds - phase) / 0.6f, 0.0f, 1.0f);
+    const LoadingTip& tip_text = LoadingTips[tip];
+    const float tip_fs = 17.0f * s;
+    const float tip_y = bar_y + bar_h + 14.0f * s;
+    const char* label = LoadText("TIP", "DICA", "CONSEJO");
+    draw->AddText(font, tip_fs, ImVec2(left, tip_y), Rgba(255, 64, 160, fade), label);
+    const float label_w = font->CalcTextSizeA(tip_fs, FLT_MAX, 0.0f, label).x + 12.0f * s;
+    draw->AddText(font, tip_fs, ImVec2(left + label_w, tip_y), Rgba(220, 220, 230, 0.85f * fade),
+                  LoadText(tip_text.en, tip_text.pt, tip_text.es));
 }
 
 void FpsCounter() {
@@ -1494,8 +1694,8 @@ void SetLoading(bool active, u32 done, u32 total) {
 
 bool Visible() {
     const auto& s = IssnSettings::Get();
-    return initialized && (loading || background_total || menu_open || text_entry_active || choice_active ||
-                           choice_retiring || s.show_fps || save_note_until.load() != 0 ||
+    return initialized && (loading || loading_art || background_total || menu_open || text_entry_active ||
+                           choice_active || choice_retiring || s.show_fps || save_note_until.load() != 0 ||
                            (s.actor_watch_supported && s.enemy_health_bar));
 }
 
@@ -1586,6 +1786,7 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
         base_scale = scale;
     }
 
+    UpdateLoadingArt();
     UpdateChoiceTextures();
     ImGui_ImplVulkan_NewFrame();
     ImGui::NewFrame();

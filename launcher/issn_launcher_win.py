@@ -1049,6 +1049,7 @@ def game_environment(s):
     env['ISSN_PATCHES_CONFIG'] = str(DATA_DIR / 'patches.json')
     # issn: a new key ('language' was saved as English by earlier launchers).
     env['ISSN_LANGUAGE'] = game_language(s)
+    env['ISSN_PORT_VERSION'] = VERSION  # the shader loading screen shows it
     if str(s['player_name']).strip():
         env['ISSN_USER_NAME'] = str(s['player_name']).strip()
     if s['hdr']:

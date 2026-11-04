@@ -361,6 +361,12 @@ def main():
             env.setdefault('ISSN_WINDOW_ICON', str(out / 'window_icon.bmp'))
         except (ImportError, OSError):
             pass
+        # issn-axy: the shader loading screen shows the dump's own background art (read from the
+        # player's game folder at run time, never shipped with the port).
+        for art in (game / 'sce_sys' / 'pic1.png', original_game / 'sce_sys' / 'pic1.png'):
+            if art.is_file():
+                env.setdefault('ISSN_LOADING_ART', str(art))
+                break
         # The temporal upscalers and motion vectors are not calibrated for this game yet: they stay
         # off unless the launcher's experimental switch is on (then issn.ini decides).
         if env.get('ISSN_EXPERIMENTAL_UPSCALER') != '1':
