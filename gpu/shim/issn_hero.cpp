@@ -62,6 +62,10 @@ void SmokeDash(unsigned char* hero, bool on) {
             return;
         }
     }
+    if (!hero) {
+        return; // no hero yet (boot, loading): with the switch on and nothing remembered, the
+                // check above let a null hero through (crash at start, 11-04)
+    }
     const float now = Get(hero, ISSN_DASH_SMOKE_RATIO);
     if (!(now > 0.0f && now < 100.0f)) {
         return; // not a ratio: leave it alone
