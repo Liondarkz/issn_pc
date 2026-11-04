@@ -43,6 +43,7 @@ FSR 3.1, XeSS, DLSS (NVIDIA RTX) or FSR 2.2 (the one tested with the port).
   when the game starts.
 - In the game, F8 opens OptiScaler's menu. Insert stays the port's menu and Home its anti-aliasing
   switch (a copy unpacked by hand uses Insert: install it from the launcher to move it to F8).
+  Page Up, Page Down and End are OptiScaler's own keys (its FPS counter and frame generation).
 - Remove: Graphics > OptiScaler (optional) > Remove takes out every file it put (listed in
   bin\optiscaler.json) and the port runs as before. Close the game first.
 - last_run.log starts with a line when OptiScaler is installed. Problems with OptiScaler itself
