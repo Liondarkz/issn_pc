@@ -9,7 +9,7 @@
  *   powers, the drains.)
  *
  * issn: synthetic motion (axylpup's SyntheticMotionLocked) for a keyboard or a pad without motion
- * sensors, for inFAMOUS Second Son's spray can: Z held (or L3+R3 / H to toggle) tilts the pad on
+ * sensors, for inFAMOUS Second Son's spray can: Z held (or H / the menu's switch to toggle) tilts the pad on
  * its side, a tap of Z or X held (L1 while tilted on a pad) rattles it, and the mouse or the right
  * stick aims while tilted. Pose, gravity and angular velocity come from one quaternion, so the
  * accelerometer, the gyroscope and the orientation always agree.
@@ -43,7 +43,7 @@ enum {
     CLICK_LEFT=0x40000000, CLICK_RIGHT=0x80000000,
     /* issn: rattles the pad (synth_motion) while held: keyboard X, or a mapped pad button. */
     SHAKE=0x20000000,
-    /* issn: turns the spray pose on and off (H; L3+R3 together on a pad). */
+    /* issn: turns the spray pose on and off (H; the menu's switch, issngpu_spray_pose). */
     SPRAY_POSE=0x10000000,
 };
 typedef struct { uint16_t x, y; uint8_t id, reserve[3]; } PadTouch;
@@ -112,9 +112,8 @@ static void integrate_orientation(float q[4], const float w[3], float dt) {
     if (n>0.0f) for (int i=0;i<4;++i) q[i]/=n;
 }
 
-/* issn: the L3+R3 / H toggle's edge (the synthetic motion sensor, synth_motion). */
+/* issn: the H toggle's edge (the synthetic motion sensor, synth_motion). */
 static int spray_chord_held;
-enum { SPRAY_CHORD_US=400000 }; /* L3+R3 held this long toggles the spray pose */
 
 /* The pad's light bar takes the last color the game set (ISSN_LIGHTBAR=0 leaves it alone); sent
  * again after a reconnection, and only when it changes. Called under lock. */
@@ -129,9 +128,9 @@ static void apply_light(SDL_Gamepad *g) {
 }
 
 /* issn: ISSN_PAD_EMULATION (launcher: Controls > Controller without touchpad): the touchpad
- * swipes and two fingers (Select/Back + right stick, + R1) and the spray pose (L3+R3) for pads
+ * swipes and two fingers (Select/Back + right stick, + R1) and the spray pose (the menu's switch) for pads
  * without a touchpad or motion sensors. auto (default): on when the pad lacks a touchpad or
- * motion sensors (Xbox, 8BitDo, ...), off on a DualShock 4 / DualSense, whose L3+R3 then reach the
+ * motion sensors (Xbox, 8BitDo, ...), off on a DualShock 4 / DualSense, whose buttons then reach the
  * game; 1: always; 0: never. */
 static int pad_emulation_auto=1; /* set when a gamepad opens */
 static bool pad_emulation(void) {
@@ -152,7 +151,7 @@ static void open_sensors(SDL_Gamepad *g) {
     printf("Runtime: gamepad motion sensors: %s%s%s\n",sensors ? "" : "none",
            (sensors & SENSOR_ACCEL) ? "accelerometer " : "", (sensors & SENSOR_GYRO) ? "gyroscope" : "");
     pad_emulation_auto=SDL_GetNumGamepadTouchpads(g)<=0 || !(sensors & SENSOR_ACCEL);
-    printf("Runtime: gamepad %s: touchpad emulation (Select + right stick, L3+R3 spray) %s\n",
+    printf("Runtime: gamepad %s: touchpad emulation (Select + right stick; spray can: Insert > Controls) %s\n",
            SDL_GetNumGamepadTouchpads(g)>0 ? "with a touchpad" : "without a touchpad",
            pad_emulation() ? "on" : "off");
     light.applied=0;
@@ -988,27 +987,23 @@ static void sample(PadData *d) {
     uint8_t *axes[4]={&d->left_x,&d->left_y,&d->right_x,&d->right_y};
     for (int i=0;i<4;++i) if (injected.stick[i]>=0) *axes[i]=(uint8_t)injected.stick[i];
     /* issn: the motion sensor of a pad without one, and of the keyboard (synth_motion). The pad
-     * is tilted while Z is held, while L3+R3 (pads without sensors) or H has toggled it on, and
-     * while it rattles; it rattles while X (a SHAKE source) is held, for 600 ms after a quick tap
-     * of Z, and on L1 while the pose is toggled on. A pad with real sensors keeps them. */
-    /* issn 11-04 (players: "the controller goes stiff out of nowhere after some move"): both sticks
-     * clicked together by accident in a fight turned the spray pose on, and from then on the right
-     * stick aimed an invisible can instead of the camera. L3+R3 must now be held SPRAY_CHORD_US
-     * (H on the keyboard still toggles at once), and the log says so. */
-    const bool chord=pad_emulation() && (d->buttons & BTN_L3) && (d->buttons & BTN_R3);
-    static uint64_t chord_since;
-    if (!chord) chord_since=0;
-    else if (!chord_since) chord_since=d->timestamp ? d->timestamp : 1;
-    if (chord || (d->buttons & SPRAY_POSE)) {
-        const bool ready=(d->buttons & SPRAY_POSE) || d->timestamp-chord_since>=SPRAY_CHORD_US;
-        if (!spray_chord_held && ready) {
+     * is tilted while Z is held, while the spray pose is on, and while it rattles; it rattles
+     * while X (a SHAKE source) is held, for 600 ms after a quick tap of Z, and on L1 while the pose
+     * is on. A pad with real sensors keeps them.
+     * issn 11-04: the spray pose is the menu's switch (Insert > Controls) and H on the keyboard.
+     * L3+R3 no longer toggles it: both sticks clicked together in a fight turned it on, and the
+     * right stick then aimed an invisible can instead of the camera ("the controller goes stiff");
+     * L3 and R3 now always reach the game. */
+    synth.pose_toggle=issngpu_spray_pose()!=0;
+    if (d->buttons & SPRAY_POSE) {
+        if (!spray_chord_held) {
             synth.pose_toggle=!synth.pose_toggle;
-            printf("Runtime: pad tilted (spray can) %s%s\n",synth.pose_toggle ? "on" : "off",
-                   chord ? " (L3+R3 held)" : " (H)");
+            issngpu_set_spray_pose(synth.pose_toggle);
+            printf("Runtime: pad tilted (spray can) %s (H)\n",synth.pose_toggle ? "on" : "off");
             fflush(stdout);
-            spray_chord_held=1;
         }
-        d->buttons&=~(BTN_L3|BTN_R3|SPRAY_POSE);
+        spray_chord_held=1;
+        d->buttons&=~SPRAY_POSE;
     } else {
         spray_chord_held=0;
     }
@@ -1023,7 +1018,7 @@ static void sample(PadData *d) {
     const bool tilt=z || synth.pose_toggle || rattle;
     const bool real_sensors=gamepad && (sensors & SENSOR_ACCEL) && motion_enabled;
     pad_tilted=tilt;
-    if (!real_sensors || tilt) { /* Z / X / L3+R3 also drive a pad that has sensors */
+    if (!real_sensors || tilt) { /* Z / X / the pose also drive a pad that has sensors */
         const bool stick_aims=tilt && !(d->buttons & CLICK_RIGHT);
         float ax=0.0f, ay=0.0f;
         if (stick_aims) {

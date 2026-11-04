@@ -2315,7 +2315,7 @@ class Launcher:
         self.row(f, _('Controller without touchpad'), self.choice(f, 'pad_emulation', 'app', PAD_EMULATION),
                  _('For Xbox, 8BitDo and other pads without a touchpad or motion sensors. Touchpad click: '
                    'Select/Back (with L1: the left side). Swipe: hold Select/Back and push the right stick. '
-                   'Two fingers: hold Select/Back + RB. Spray can: L3 + R3 held together tilts the pad, LB '
+                   'Two fingers: hold Select/Back + RB. Spray can: Insert > Controls > Spray can tilts the pad, LB '
                    'rattles it, the right stick aims. Automatic turns it off on a DualShock 4 or DualSense.'),
                  restart=True)
         self.row(f, _('Button icons'), self.choice(f, 'glyph_style', 'app', GLYPH_STYLES, width=44),
@@ -2338,7 +2338,7 @@ class Launcher:
                    'camera turns on its own while you do not touch the stick (drift).'),
                  restart=True)
         self.row(f, _('Spray can stick speed'), self.choice(f, 'spray_stick', 'app', SPRAY_STICK),
-                 _('How fast the right stick turns the spray can while the pad is tilted (L3 + R3). A light '
+                 _('How fast the right stick turns the spray can while the pad is tilted (Insert > Controls > Spray can). A light '
                    'push moves it a little, a full push at this speed. In the game, - / = change it too.'),
                  restart=True)
         self.note(f, _('Keyboard and mouse: WASD moves, IJKL turns the camera. Click in the game window and the '

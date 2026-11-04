@@ -522,6 +522,9 @@ void ControlsTab() {
                        "How far the camera turns per mouse movement. - / = also change it in play.");
         FloatSliderRow("Controller (right stick)", s.pad_sensitivity, 0.25f, 3.0f, "%.2fx",
                        "Below 1: slower camera. Above 1: the camera reacts more to small stick moves.");
+        CheckRow("Spray can: tilt the pad", s.spray_pose,
+                 "For controllers without motion sensors (Xbox, 8BitDo): holds the pad tilted for the "
+                 "graffiti; L1 shakes the can, the right stick aims. Turn it off when done. H on the keyboard.");
         ImGui::EndTable();
     }
     ImGui::SeparatorText("Keyboard");

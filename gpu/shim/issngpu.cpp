@@ -686,6 +686,14 @@ extern "C" void issngpu_set_mouse_sensitivity(float value) {
     IssnSettings::Save();
 }
 
+extern "C" int issngpu_spray_pose(void) {
+    return IssnSettings::Get().spray_pose.load(std::memory_order_relaxed) ? 1 : 0;
+}
+
+extern "C" void issngpu_set_spray_pose(int on) {
+    IssnSettings::Get().spray_pose = on != 0;
+}
+
 extern "C" float issngpu_pad_sensitivity(void) {
     return IssnSettings::Get().pad_sensitivity.load(std::memory_order_relaxed);
 }

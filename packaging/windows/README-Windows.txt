@@ -233,8 +233,8 @@ Controller
   light bar work as on the PS4.
 - Pads without a touchpad or motion sensors (Xbox, 8BitDo, ...), on by itself for them (launcher:
   Game > Controls > Controller without touchpad):
-  - Spray can: L3 + R3 held together tilts the pad like the spray can; L1 rattles it, the right
-    stick aims (launcher: Spray can stick speed; - / = in the game). L3 + R3 again levels it.
+  - Spray can: Insert > Controls > "Spray can: tilt the pad" tilts it like the spray can; L1 rattles it, the right
+    stick aims (launcher: Spray can stick speed; - / = in the game). Turn the switch off to level it (H on the keyboard does both).
   - Touchpad swipe (lift, push): hold Select/Back and push the right stick that way.
   - Two fingers on the touchpad (lifting the tree): hold Select/Back + RB (R1).
   - Touchpad click: Select/Back.

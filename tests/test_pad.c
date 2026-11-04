@@ -14,6 +14,9 @@ static float test_pad_sens=1.0f, test_mouse_sens=1.0f;
 float issngpu_pad_sensitivity(void) { return test_pad_sens; }
 float issngpu_mouse_sensitivity(void) { return test_mouse_sens; }
 void issngpu_set_mouse_sensitivity(float value) { test_mouse_sens=value; }
+static int test_spray_pose;
+int issngpu_spray_pose(void) { return test_spray_pose; }
+void issngpu_set_spray_pose(int on) { test_spray_pose=on; }
 uintptr_t runtime_lookup(const RuntimeExport *table, size_t count, const char *name) {
     (void)table; (void)count; (void)name;
     return 0;
@@ -317,14 +320,16 @@ int main(void) {
     usleep(20000);
     data=read_pad();
     assert(fabsf(data.angular_velocity[0])>0.09f && fabsf(data.angular_velocity[0])<0.18f);
-    /* issn 11-04: L3+R3 toggles only when held 400 ms (both stay hidden meanwhile): a quick
-     * click of both sticks in a fight no longer takes the right stick for the spray can. */
+    /* issn 11-04: L3+R3 reach the game and leave the pose alone; the pose source (H, the menu)
+     * turns it off. */
     inject(path,"l3 r3");
     data=read_pad();
-    assert(synth.pose_toggle && !(data.buttons & (BTN_L3|BTN_R3)));
-    usleep(450000);
+    assert(synth.pose_toggle && (data.buttons & (BTN_L3|BTN_R3))==(BTN_L3|BTN_R3));
+    inject(path,"spray_pose");
     data=read_pad();
-    assert(!synth.pose_toggle && !(data.buttons & (BTN_L3|BTN_R3)));
+    assert(!synth.pose_toggle && !test_spray_pose && !(data.buttons & SPRAY_POSE));
+    inject(path,"");
+    data=read_pad();
     /* issn 11-04: the menu's controller sensitivity on the right stick: 0.5 halves a full push,
      * 2 lifts a quarter push to about half (a full push stays full). */
     inject(path,"rx=255");

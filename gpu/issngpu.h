@@ -63,6 +63,10 @@ int issngpu_overlay_captures_input(void);
 float issngpu_mouse_sensitivity(void);
 void issngpu_set_mouse_sensitivity(float value);
 float issngpu_pad_sensitivity(void);
+/* issn 11-04: the spray can pose (pad tilted) for pads without motion sensors: the menu's
+ * switch (Insert > Controls) and H in play. Not saved. */
+int issngpu_spray_pose(void);
+void issngpu_set_spray_pose(int on);
 /* issn 0.3.6: issn.ini key_map (keys changed in the game's menu), "" when none. */
 const char *issngpu_saved_key_map(void);
 /* Number of symbols registered by the vendored libraries (diagnostics). */
