@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <chrono>
 #include <unordered_map>
@@ -900,12 +901,47 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
         // Left overlap, the image from cache is a possible subresource of the image requested
         if (auto mip = cache_image.info.MipOf(image_info); mip >= 0) {
             if (auto slice = cache_image.info.SliceOf(image_info, mip); slice >= 0) {
+                // issn 11-04 (dark night): what the game rendered into a slice of a layered image
+                // (shadow maps of the city's lights, probes) before the whole image was asked for.
+                // SHADPS4_SLICE_LOG=1: the first 32 of these merges in the log.
+                static const bool slice_log = [] {
+                    const char* v = std::getenv("SHADPS4_SLICE_LOG");
+                    return v && v[0] == '1';
+                }();
+                if (slice_log) {
+                    static std::atomic<u32> logged{0};
+                    if (logged.fetch_add(1, std::memory_order_relaxed) < 32) {
+                        LOG_WARNING(Render_Vulkan,
+                                    "SliceMerge: {} {}x{} {} at {:#x} (target {}) -> slice {} mip {} of "
+                                    "{}x{} {} layers {} at {:#x}{}",
+                                    vk::to_string(cache_image.info.pixel_format),
+                                    cache_image.info.size.width, cache_image.info.size.height,
+                                    +cache_image.info.props.is_depth, cache_image.info.guest_address,
+                                    +cache_image.binding.is_target, slice, mip, image_info.size.width,
+                                    image_info.size.height, vk::to_string(image_info.pixel_format),
+                                    image_info.resources.layers, image_info.guest_address,
+                                    merged_image_id ? "" : " (no merged image yet: contents lost)");
+                    }
+                }
+                // SHADPS4_SLICE_RT_COPY=1 (test, off by default until a run shows it): a slice
+                // bound as a render target also hands its contents to the larger image before it
+                // is freed (only same-kind images: color into color, depth into depth).
+                static const bool copy_targets = [] {
+                    const char* v = std::getenv("SHADPS4_SLICE_RT_COPY");
+                    return v && v[0] == '1';
+                }();
+
                 // We have a larger image created and a separate one, representing a subres of it
                 // bound as render target. In this case we need to rebind render target.
                 if (cache_image.binding.is_target) {
                     cache_image.binding.needs_rebind = 1u;
                     if (merged_image_id) {
-                        GetImage(merged_image_id).binding.is_target = 1u;
+                        auto& merged_image = GetImage(merged_image_id);
+                        merged_image.binding.is_target = 1u;
+                        if (copy_targets &&
+                            merged_image.info.props.is_depth == cache_image.info.props.is_depth) {
+                            merged_image.CopyMip(cache_image, mip, slice);
+                        }
                     }
 
                     FreeImage(cache_image_id);
