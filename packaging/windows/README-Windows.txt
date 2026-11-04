@@ -28,6 +28,26 @@ XeSS runs on Intel Arc, Radeon RX 5000 and later and GeForce GTX 10 and later; D
 NVIDIA RTX card. XeSS needs the Visual C++ 2015-2022 runtime (vc_redist.x64). Without the files
 the game keeps its own anti-aliasing.
 
+OptiScaler (optional, third-party)
+OptiScaler (https://github.com/optiscaler/OptiScaler, GPL-3.0) is a separate program by its own
+team, not part of the port and never in this zip. It takes the picture, depth and motion the port
+gives XeSS and runs another upscaler on them: FSR 4 (Radeon RX 7000 / 9000, through DirectX 12),
+FSR 3.1, XeSS, DLSS (NVIDIA RTX) or FSR 2.2 (the one tested with the port).
+- Install: Graphics > OptiScaler (optional) > Download and install. The launcher downloads the
+  newest stable release from the project's GitHub (about 55 MB), checks it and puts it in bin\:
+  OptiScaler.dll as winmm.dll, its DLLs beside it, OptiScaler.ini set for the port.
+- The port's anti-aliasing must be XeSS (Graphics > Anti-aliasing; the install sets it): with
+  anything else OptiScaler gets nothing. The size the game draws at is still the port's
+  FSR 4 / DLSS quality.
+- Output: Graphics > OptiScaler output, written to bin\OptiScaler.ini (VulkanUpscaler); it applies
+  when the game starts.
+- In the game, F8 opens OptiScaler's menu. Insert stays the port's menu and Home its anti-aliasing
+  switch (a copy unpacked by hand uses Insert: install it from the launcher to move it to F8).
+- Remove: Graphics > OptiScaler (optional) > Remove takes out every file it put (listed in
+  bin\optiscaler.json) and the port runs as before. Close the game first.
+- last_run.log starts with a line when OptiScaler is installed. Problems with OptiScaler itself
+  go to its project.
+
 What's new in 0.3.6.3
 - In-game menu (Insert, or R3 + L2 on a controller), Image tab: draw distance, texture filtering
   and frame generation change at once; anti-aliasing and upscaler quality are chosen there for the
