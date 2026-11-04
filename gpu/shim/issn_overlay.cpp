@@ -396,6 +396,19 @@ void GameTab() {
                  "sources.");
         CheckRow("Karma Bomb always ready", s.hero_karma,
                  "The Karma Bomb meter stays full.");
+        if (s.hero_neon_supported) {
+            CheckRow("Endless neon run", s.hero_neon_run,
+                     "Neon: hold the dash button and the run does not stop after 2 seconds. "
+                     "Releasing it stops the run.");
+        }
+        if (s.hero_video_supported) {
+            CheckRow("Endless video flight", s.hero_video_flight,
+                     "Video: hold the dash button and the flight does not stop after 1.5 seconds. "
+                     "Releasing it ends the flight.");
+        }
+        CheckRow("Long smoke dash", s.hero_smoke_dash,
+                 "Smoke: each dash goes 3 times as far. The smoke dash goes to a point picked when it "
+                 "starts, so holding the button does not make it longer.");
         ImGui::EndTable();
     } else if (!any_cheat) {
         ImGui::TextDisabled("No cheats for this game build.");

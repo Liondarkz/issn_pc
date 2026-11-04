@@ -219,6 +219,12 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.hero_powers = i != 0;
     } else if (key == "hero_karma") {
         v.hero_karma = i != 0;
+    } else if (key == "hero_neon_run") {
+        v.hero_neon_run = i != 0;
+    } else if (key == "hero_video_flight") {
+        v.hero_video_flight = i != 0;
+    } else if (key == "hero_smoke_dash") {
+        v.hero_smoke_dash = i != 0;
     } else if (key == "fov") {
         v.fov = IssnView::ClampFov(value.empty() ? 1.0f : f);
     } else if (key == "menu_anti_aliasing") {
@@ -458,6 +464,9 @@ void Save() {
     std::fprintf(file, "fov=%.3f\nsave_note=%d\n", v.fov.load(), int(v.save_note.load()));
     std::fprintf(file, "hero_health=%d\nhero_powers=%d\nhero_karma=%d\n", int(v.hero_health.load()),
                  int(v.hero_powers.load()), int(v.hero_karma.load()));
+    std::fprintf(file, "hero_neon_run=%d\nhero_video_flight=%d\nhero_smoke_dash=%d\n",
+                 int(v.hero_neon_run.load()), int(v.hero_video_flight.load()),
+                 int(v.hero_smoke_dash.load()));
     // For the launcher (next start): its own setting names and values.
     const auto pick = [](const auto& keys, int index) {
         const int n = int(sizeof(keys) / sizeof(keys[0]));

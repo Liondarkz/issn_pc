@@ -172,4 +172,7 @@ if [[ ${1:-} == --test ]]; then
     out/isa-f16c-test
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -I. -Isrc tests/test_redzone_guard.c -o out/redzone-guard-test
     out/redzone-guard-test
+    # Calls the stubs through inline asm too: no red zone.
+    "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -mno-red-zone -I. -Isrc tests/test_dash_hook.c -o out/dash-hook-test
+    out/dash-hook-test
 fi

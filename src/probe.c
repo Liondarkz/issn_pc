@@ -777,6 +777,32 @@ static void install_view_tuning(Segment *segments, uint64_t count, uint64_t size
 #include "exposure_hook.h"
 extern const volatile unsigned char *issn_hero_health_flag(void);
 extern void issn_hero_attach(unsigned char *guest_image);
+#include "dash_hook.h"
+extern const volatile unsigned char *issn_hero_neon_flag(void);
+extern const volatile unsigned char *issn_hero_tv_flag(void);
+extern void issn_hero_dash_supported(int neon, int tv);
+
+/* issn-axy: the neon run and the video flight go on while the dash button is held
+ * (src/dash_hook.h): two stubs that skip the game's time limits while the menu's switches are on.
+ * Each one only when its code is the expected one. */
+static void install_dash_cheats(Segment *segments, uint64_t count, uint64_t size) {
+    const int neon = mapped(segments, count, ISSN_DASH_NEON_SITE, sizeof(issn_dash_neon_code)) &&
+                     mapped(segments, count, ISSN_DASH_ABILITIES, 4) && issn_dash_neon_match(image, size);
+    const int tv = mapped(segments, count, ISSN_DASH_TV_SITE, sizeof(issn_dash_tv_code)) &&
+                   mapped(segments, count, ISSN_DASH_TV_LIMIT, 4) && issn_dash_tv_match(image, size);
+    int neon_on = 0, tv_on = 0;
+    if (neon || tv) {
+        unsigned char *stubs = allocate_cave(page_size);
+        if (neon) issn_dash_build_neon_stub(stubs, image, issn_hero_neon_flag());
+        if (tv) issn_dash_build_tv_stub(stubs + 256, image, issn_hero_tv_flag());
+        protect(stubs, page_size, 5);
+        neon_on = neon && install_jump(ISSN_DASH_NEON_SITE, ISSN_DASH_NEON_SITE_LENGTH, stubs);
+        tv_on = tv && install_jump(ISSN_DASH_TV_SITE, ISSN_DASH_TV_SITE_LENGTH, stubs + 256);
+    }
+    printf("Cheats: neon run %s, video flight %s\n", neon_on ? "ready" : "unavailable",
+           tv_on ? "ready" : "unavailable");
+    issn_hero_dash_supported(neon_on, tv_on);
+}
 
 /* issn: Delsin's cheats (src/hero_hook.h): a stub at SetHitPoints for infinite health; the shim
  * refills health, powers and the Karma Bomb meter. Silent for other builds. */
@@ -798,6 +824,7 @@ static void install_hero_cheats(Segment *segments, uint64_t count, uint64_t size
         printf("Cheats: unavailable (stub outside relative-jump range)\n");
         return;
     }
+    install_dash_cheats(segments, count, size);
     issn_hero_attach(image);
 }
 

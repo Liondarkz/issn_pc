@@ -3,9 +3,12 @@
 // probe's SetHitPoints stub), infinite powers and the Karma Bomb meter always full. The probe
 // verifies the 01.07 eboot, installs the stub and calls issn_hero_attach; a thread then follows
 // the menu's switches and refills the meters of the hero the game currently has.
+// 11-04 (src/dash_hook.h): the neon run and the video flight while the dash button is held (two
+// probe stubs read the flags below), and a long smoke dash (the hero's MAX_SMOKE_DASH_RATIO).
 #include "issn_settings.h"
 
 #include "../../src/hero_hook.h"
+#include "../../src/dash_hook.h"
 
 #include <chrono>
 #include <cstdint>
@@ -18,6 +21,14 @@ namespace {
 unsigned char* image = nullptr;
 // Read by the SetHitPoints stub: 1 while infinite health is on.
 volatile unsigned char health_flag = 0;
+// Read by the dash stubs (src/dash_hook.h): 1 while the switch is on.
+volatile unsigned char neon_flag = 0, tv_flag = 0;
+
+// The long smoke dash: the game's ratio (kept while the switch is on) times SmokeFactor. The
+// value is the game's again when the switch goes off, unless the game wrote another meanwhile.
+constexpr float SmokeFactor = 3.0f;
+unsigned char* smoke_hero = nullptr;
+float smoke_game = 1.0f, smoke_written = 0.0f;
 
 // A pointer the game keeps, read as it is now (null when there is no hero: menus, loading).
 unsigned char* Pointer(const unsigned char* at) {
@@ -40,14 +51,41 @@ void Fill(unsigned char* object, std::uint32_t current, std::uint32_t maximum) {
     }
 }
 
+void SmokeDash(unsigned char* hero, bool on) {
+    if (!on || hero != smoke_hero) {
+        // Off, or another hero object (a new one after loading): give the old one its value back.
+        if (smoke_hero && hero == smoke_hero && Get(hero, ISSN_DASH_SMOKE_RATIO) == smoke_written) {
+            std::memcpy(hero + ISSN_DASH_SMOKE_RATIO, &smoke_game, 4);
+        }
+        smoke_hero = nullptr;
+        if (!on || !hero) {
+            return;
+        }
+    }
+    const float now = Get(hero, ISSN_DASH_SMOKE_RATIO);
+    if (!(now > 0.0f && now < 100.0f)) {
+        return; // not a ratio: leave it alone
+    }
+    if (hero != smoke_hero || now != smoke_written) {
+        smoke_hero = hero; // first tick on, or the game set a new ratio (an upgrade)
+        smoke_game = now;
+        smoke_written = now * SmokeFactor;
+        std::memcpy(hero + ISSN_DASH_SMOKE_RATIO, &smoke_written, 4);
+    }
+}
+
 void Tick() {
     const auto& s = IssnSettings::Get();
     health_flag = s.hero_health.load() ? 1 : 0;
+    neon_flag = s.hero_neon_run.load() ? 1 : 0;
+    tv_flag = s.hero_video_flight.load() ? 1 : 0;
     const bool powers = s.hero_powers.load(), karma = s.hero_karma.load();
-    if (!health_flag && !powers && !karma) {
+    const bool smoke = s.hero_smoke_dash.load();
+    if (!health_flag && !powers && !karma && !smoke && !smoke_hero) {
         return;
     }
     unsigned char* hero = Pointer(image + ISSN_HERO_GLOBAL);
+    SmokeDash(hero, smoke);
     if (!hero) {
         return;
     }
@@ -69,6 +107,19 @@ void Tick() {
 
 extern "C" const volatile unsigned char* issn_hero_health_flag(void) {
     return &health_flag;
+}
+
+extern "C" const volatile unsigned char* issn_hero_neon_flag(void) {
+    return &neon_flag;
+}
+
+extern "C" const volatile unsigned char* issn_hero_tv_flag(void) {
+    return &tv_flag;
+}
+
+extern "C" void issn_hero_dash_supported(int neon, int tv) {
+    IssnSettings::Get().hero_neon_supported = neon != 0;
+    IssnSettings::Get().hero_video_supported = tv != 0;
 }
 
 extern "C" void issn_hero_attach(unsigned char* guest_image) {

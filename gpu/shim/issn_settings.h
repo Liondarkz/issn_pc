@@ -143,6 +143,10 @@ struct Values {
     /// Delsin's cheats (src/hero_hook.h, issn_hero.cpp), live; hero_supported once hooked.
     std::atomic<bool> hero_health{false}, hero_powers{false}, hero_karma{false};
     std::atomic<bool> hero_supported{false};
+    /// issn-axy 11-04 (src/dash_hook.h): neon run and video flight while the dash button is held,
+    /// a long smoke dash; *_supported once the probe's stubs are in.
+    std::atomic<bool> hero_neon_run{false}, hero_video_flight{false}, hero_smoke_dash{false};
+    std::atomic<bool> hero_neon_supported{false}, hero_video_supported{false};
     /// Field of view factor (src/fov_hook.h, issn_view.cpp), live; fov_supported once hooked.
     std::atomic<float> fov{1.0f};
     std::atomic<bool> fov_supported{false};
