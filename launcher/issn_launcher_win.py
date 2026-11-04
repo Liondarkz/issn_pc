@@ -365,7 +365,8 @@ INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1',
                 'live_resolution': 'auto', 'display_mode': 'windowed', 'vsync': '1', 'fps_limit': '0',
                 'async_shaders': '1', 'deferred_readback': '1', 'stale_readback': '1',
                 'render_resolution': 'native', 'engine_fps': '120',
-                'frames_queued': '1', 'cheat_very_hard': '0', 'cheat_double_jumps': '0'}
+                'frames_queued': '1', 'cheat_very_hard': '0', 'cheat_double_jumps': '0',
+                'mouse_sensitivity': '1.00', 'pad_sensitivity': '1.00'}
 DISPLAY_MODES = [('windowed', ('Windowed',)), ('borderless', ('Borderless',)), ('fullscreen', ('Fullscreen',))]
 # issn: frame pacing on screens without G-Sync / FreeSync (axylpup's 1.1 "Fifo (half refresh)",
 # vk_swapchain.cpp): every game frame is presented N times with V-Sync, so each stays exactly N
@@ -2314,7 +2315,7 @@ class Launcher:
         self.row(f, _('Controller without touchpad'), self.choice(f, 'pad_emulation', 'app', PAD_EMULATION),
                  _('For Xbox, 8BitDo and other pads without a touchpad or motion sensors. Touchpad click: '
                    'Select/Back (with L1: the left side). Swipe: hold Select/Back and push the right stick. '
-                   'Two fingers: hold Select/Back + RB. Spray can: L3 + R3 together tilts the pad, LB '
+                   'Two fingers: hold Select/Back + RB. Spray can: L3 + R3 held together tilts the pad, LB '
                    'rattles it, the right stick aims. Automatic turns it off on a DualShock 4 or DualSense.'),
                  restart=True)
         self.row(f, _('Button icons'), self.choice(f, 'glyph_style', 'app', GLYPH_STYLES, width=44),
@@ -2322,6 +2323,16 @@ class Launcher:
                    '(they follow your key changes above) and the mouse buttons; Automatic picks the keyboard '
                    'when no controller is connected at start, Xbox letters for Xbox and other pads.'),
                  restart=True)
+        # issn 11-04: the same sensitivities as the in-game menu (Insert > Controls), in issn.ini.
+        for key, title, low, high, hint in (
+                ('pad_sensitivity', _('Controller sensitivity'), 0.25, 3.0,
+                 _('The right stick (camera). Below 1: slower. Above 1: small stick moves turn the camera more. '
+                   'Also in the game: Insert > Controls.')),
+                ('mouse_sensitivity', _('Mouse sensitivity'), 0.1, 5.0,
+                 _('How far the camera turns per mouse movement. Also in the game: Insert > Controls, or - / =.'))):
+            spin = self.ttk.Spinbox(f, from_=low, to=high, increment=0.05, format='%.2f', width=8,
+                                    textvariable=self.var(key, 'ini'))
+            self.row(f, title, spin, hint)
         self.row(f, _('Stick dead zone'), self.choice(f, 'stick_deadzone', 'app', STICK_DEADZONE),
                  _('How far a stick must move before the game sees it. Raise it if Delsin walks or the '
                    'camera turns on its own while you do not touch the stick (drift).'),

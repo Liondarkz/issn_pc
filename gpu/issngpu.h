@@ -57,6 +57,12 @@ int issngpu_choice_poll(void);
 void issngpu_note_game_saved(const char *what);
 /* 1 while the in-game settings menu is open: the game's pad input is held neutral. */
 int issngpu_overlay_captures_input(void);
+/* issn 11-04: the menu's sensitivities, read live by runtime_pad.c. mouse: a factor on the mouse
+ * camera's degrees per pixel (1 = default); pad: the right stick (1 = the game's own feel).
+ * set_mouse: - / = in play change it (saved to issn.ini). */
+float issngpu_mouse_sensitivity(void);
+void issngpu_set_mouse_sensitivity(float value);
+float issngpu_pad_sensitivity(void);
 /* issn 0.3.6: issn.ini key_map (keys changed in the game's menu), "" when none. */
 const char *issngpu_saved_key_map(void);
 /* Number of symbols registered by the vendored libraries (diagnostics). */

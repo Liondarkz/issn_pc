@@ -147,6 +147,8 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.mouse_invert_y = i != 0;
     } else if (key == "mouse_sensitivity") {
         v.mouse_sensitivity = Clamp(value.empty() ? 1.0f : f, 0.05f, 10.0f);
+    } else if (key == "pad_sensitivity") {
+        v.pad_sensitivity = Clamp(value.empty() ? 1.0f : f, 0.25f, 3.0f);
     } else if (key == "mouse_smoothing") {
         v.mouse_smoothing = Clamp(f, 0.0f, 0.95f);
     } else if (key == "mouse_accel") {
@@ -283,7 +285,7 @@ void Load() {
         {"ISSN_STALE_READBACK", "stale_readback"},     {"ISSN_FSR1", "fsr1"},
         {"ISSN_RCAS", "rcas"},                        {"ISSN_FRAMES_AHEAD", "frames_queued"},
         {"ISSN_SHOW_FPS", "show_fps"},             {"ISSN_SENSOR_AIM", "sensor_aim"},
-        {"ISSN_MOUSE", "mouse_enabled"},           {"ISSN_MOUSE_SENS", "mouse_sensitivity"},
+        {"ISSN_MOUSE", "mouse_enabled"},           {"ISSN_MOUSE_SENS", "mouse_sensitivity"}, {"ISSN_PAD_SENS", "pad_sensitivity"},
         {"ISSN_MOUSE_INVERT_Y", "mouse_invert_y"}, {"ISSN_MOUSE_SMOOTHING", "mouse_smoothing"},
         {"ISSN_MOUSE_ACCEL", "mouse_accel"},       {"ISSN_MOUSE_DEADZONE", "mouse_deadzone"},
         {"ISSN_LOD_SCALE", "lod_scale"},           {"ISSN_LOD_BANDS", "lod_bands"},
@@ -477,9 +479,10 @@ void Save() {
     }
     std::fprintf(file,
                  "mouse_enabled=%d\nmouse_sensitivity=%.2f\nmouse_invert_y=%d\nmouse_smoothing=%.2f\n"
-                 "mouse_accel=%.2f\nmouse_deadzone=%.2f\nkey_map=%s\n",
+                 "mouse_accel=%.2f\nmouse_deadzone=%.2f\npad_sensitivity=%.2f\nkey_map=%s\n",
                  int(v.mouse_enabled.load()), v.mouse_sensitivity.load(), int(v.mouse_invert_y.load()),
-                 v.mouse_smoothing.load(), v.mouse_accel.load(), v.mouse_deadzone.load(), v.key_map.c_str());
+                 v.mouse_smoothing.load(), v.mouse_accel.load(), v.mouse_deadzone.load(),
+                 v.pad_sensitivity.load(), v.key_map.c_str());
     // Read by run.sh at start.
     std::fprintf(file, "live_resolution=%s\n", v.live_resolution < 0 ? "auto"
                                                   : v.live_resolution ? "1" : "0");

@@ -114,6 +114,7 @@ static void integrate_orientation(float q[4], const float w[3], float dt) {
 
 /* issn: the L3+R3 / H toggle's edge (the synthetic motion sensor, synth_motion). */
 static int spray_chord_held;
+enum { SPRAY_CHORD_US=400000 }; /* L3+R3 held this long toggles the spray pose */
 
 /* The pad's light bar takes the last color the game set (ISSN_LIGHTBAR=0 leaves it alone); sent
  * again after a reconnection, and only when it changes. Called under lock. */
@@ -346,6 +347,23 @@ static void play_swipe(PadData *d) {
     const float x=960.0f+swipe.dx*(p-0.5f)*1400.0f, y=471.0f+swipe.dy*(p-0.5f)*700.0f;
     if (d->touch_count<2) {
         d->touches[d->touch_count++]=(PadTouch){.x=(uint16_t)x,.y=(uint16_t)y,.id=swipe.id};
+    }
+}
+
+/* issn 11-04: the menu's controller sensitivity (Insert > Controls) on the right stick, after the
+ * swipes and the spray can took what they need from it. Below 1 the stick is scaled down (a slower
+ * camera); above 1 it follows a curve, |v|^(1/s): a full push stays a full push (the game's top
+ * speed), small moves count for more. */
+static void apply_pad_sensitivity(PadData *d) {
+    const float s=issngpu_pad_sensitivity();
+    if (!(s>0.0f) || fabsf(s-1.0f)<0.01f) return;
+    uint8_t *axes[2]={&d->right_x,&d->right_y};
+    for (int i=0;i<2;++i) {
+        const float v=((float)*axes[i]-127.5f)/127.5f;
+        if (fabsf(v)<0.004f) continue;
+        const float m=s<1.0f ? fabsf(v)*s : powf(fabsf(v),1.0f/s);
+        const int x=(int)lroundf(copysignf(fminf(m,1.0f),v)*127.5f+127.5f);
+        *axes[i]=(uint8_t)(x<0 ? 0 : x>255 ? 255 : x);
     }
 }
 
@@ -588,7 +606,7 @@ static void mouse_aim_tick(uint64_t now) {
 static void mouse_aim_motion(float dx, float dy, uint64_t now) {
     if (dx==0.0f && dy==0.0f) return;
     aim_last_motion=now;
-    const float k=aim_sens*(3.14159265f/180.0f)/100.0f;
+    const float k=aim_sens*issngpu_mouse_sensitivity()*(3.14159265f/180.0f)/100.0f;
     float yaw=dx*k*aim_sign_x, pitch=dy*k*aim_sign_y;
     if (aim_invert_x && *aim_invert_x) yaw=-yaw;
     if (aim_invert_y && *aim_invert_y) pitch=-pitch;
@@ -634,8 +652,10 @@ static void sample_mouse(PadData *d) {
                 printf("Spray can: %.2f degrees per 100 px, right stick %.0f degrees a second (- / =)\n",
                        spray_sens,spray_stick);
             } else {
-                aim_sens=fmaxf(0.5f,fminf(100.0f,aim_sens*(minus ? 0.8f : 1.25f)));
-                printf("Mouse aim: %.2f degrees per 100 px (- / =)\n",aim_sens);
+                /* issn 11-04: the menu's Mouse sensitivity (Insert > Controls), saved */
+                const float f=fmaxf(0.1f,fminf(5.0f,issngpu_mouse_sensitivity()*(minus ? 0.8f : 1.25f)));
+                issngpu_set_mouse_sensitivity(f);
+                printf("Mouse aim: sensitivity %.2fx, %.2f degrees per 100 px (- / =)\n",f,aim_sens*f);
             }
             fflush(stdout);
         }
@@ -971,13 +991,23 @@ static void sample(PadData *d) {
      * is tilted while Z is held, while L3+R3 (pads without sensors) or H has toggled it on, and
      * while it rattles; it rattles while X (a SHAKE source) is held, for 600 ms after a quick tap
      * of Z, and on L1 while the pose is toggled on. A pad with real sensors keeps them. */
+    /* issn 11-04 (players: "the controller goes stiff out of nowhere after some move"): both sticks
+     * clicked together by accident in a fight turned the spray pose on, and from then on the right
+     * stick aimed an invisible can instead of the camera. L3+R3 must now be held SPRAY_CHORD_US
+     * (H on the keyboard still toggles at once), and the log says so. */
     const bool chord=pad_emulation() && (d->buttons & BTN_L3) && (d->buttons & BTN_R3);
+    static uint64_t chord_since;
+    if (!chord) chord_since=0;
+    else if (!chord_since) chord_since=d->timestamp ? d->timestamp : 1;
     if (chord || (d->buttons & SPRAY_POSE)) {
-        if (!spray_chord_held) {
+        const bool ready=(d->buttons & SPRAY_POSE) || d->timestamp-chord_since>=SPRAY_CHORD_US;
+        if (!spray_chord_held && ready) {
             synth.pose_toggle=!synth.pose_toggle;
-            printf("Runtime: pad tilted (spray can) %s\n",synth.pose_toggle ? "on" : "off");
+            printf("Runtime: pad tilted (spray can) %s%s\n",synth.pose_toggle ? "on" : "off",
+                   chord ? " (L3+R3 held)" : " (H)");
+            fflush(stdout);
+            spray_chord_held=1;
         }
-        spray_chord_held=1;
         d->buttons&=~(BTN_L3|BTN_R3|SPRAY_POSE);
     } else {
         spray_chord_held=0;
@@ -1009,6 +1039,7 @@ static void sample(PadData *d) {
     if (!key_touch_held && finger.active) { finger.active=0; finger.travel=0.0f; } /* R let go, mouse still */
     if ((pad_emulation() || key_touch_held) && !finger.active) play_swipe(d); /* the keyboard has no touch surface either */
     play_click(d);
+    apply_pad_sensitivity(d);
     if (hold_after_capture) {
         if (d->buttons) d->buttons=0;
         else hold_after_capture=0;

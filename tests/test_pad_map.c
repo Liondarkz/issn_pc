@@ -6,6 +6,10 @@ volatile int runtime_snapshot_request; /* runtime_thread.c */
 
 int issngpu_overlay_captures_input(void) { return 0; }
 const char *issngpu_saved_key_map(void) { return ""; }
+static float test_pad_sens=1.0f, test_mouse_sens=1.0f;
+float issngpu_pad_sensitivity(void) { return test_pad_sens; }
+float issngpu_mouse_sensitivity(void) { return test_mouse_sens; }
+void issngpu_set_mouse_sensitivity(float value) { test_mouse_sens=value; }
 uintptr_t runtime_lookup(const RuntimeExport *table, size_t count, const char *name) {
     (void)table; (void)count; (void)name;
     return 0;

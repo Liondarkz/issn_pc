@@ -10,6 +10,10 @@ volatile int runtime_snapshot_request; /* runtime_thread.c */
 static int capture;
 int issngpu_overlay_captures_input(void) { return capture; }
 const char *issngpu_saved_key_map(void) { return ""; }
+static float test_pad_sens=1.0f, test_mouse_sens=1.0f;
+float issngpu_pad_sensitivity(void) { return test_pad_sens; }
+float issngpu_mouse_sensitivity(void) { return test_mouse_sens; }
+void issngpu_set_mouse_sensitivity(float value) { test_mouse_sens=value; }
 uintptr_t runtime_lookup(const RuntimeExport *table, size_t count, const char *name) {
     (void)table; (void)count; (void)name;
     return 0;
@@ -313,9 +317,28 @@ int main(void) {
     usleep(20000);
     data=read_pad();
     assert(fabsf(data.angular_velocity[0])>0.09f && fabsf(data.angular_velocity[0])<0.18f);
+    /* issn 11-04: L3+R3 toggles only when held 400 ms (both stay hidden meanwhile): a quick
+     * click of both sticks in a fight no longer takes the right stick for the spray can. */
     inject(path,"l3 r3");
     data=read_pad();
+    assert(synth.pose_toggle && !(data.buttons & (BTN_L3|BTN_R3)));
+    usleep(450000);
+    data=read_pad();
     assert(!synth.pose_toggle && !(data.buttons & (BTN_L3|BTN_R3)));
+    /* issn 11-04: the menu's controller sensitivity on the right stick: 0.5 halves a full push,
+     * 2 lifts a quarter push to about half (a full push stays full). */
+    inject(path,"rx=255");
+    test_pad_sens=0.5f;
+    data=read_pad();
+    assert(data.right_x>=185 && data.right_x<=197);
+    inject(path,"rx=160");
+    test_pad_sens=2.0f;
+    data=read_pad();
+    assert(data.right_x>=185 && data.right_x<=199);
+    inject(path,"rx=255");
+    data=read_pad();
+    assert(data.right_x==255);
+    test_pad_sens=1.0f;
     inject(path,"");
     for (int i=0;i<30;++i) { data=read_pad(); usleep(15000); }
     assert(near(data.acceleration[1],1.0f,0.05f));

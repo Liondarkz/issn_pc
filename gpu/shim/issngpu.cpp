@@ -677,6 +677,19 @@ extern "C" const char* issngpu_saved_key_map(void) {
     return copy.c_str();
 }
 
+extern "C" float issngpu_mouse_sensitivity(void) {
+    return IssnSettings::Get().mouse_sensitivity.load(std::memory_order_relaxed);
+}
+
+extern "C" void issngpu_set_mouse_sensitivity(float value) {
+    IssnSettings::Get().mouse_sensitivity = std::clamp(value, 0.05f, 10.0f);
+    IssnSettings::Save();
+}
+
+extern "C" float issngpu_pad_sensitivity(void) {
+    return IssnSettings::Get().pad_sensitivity.load(std::memory_order_relaxed);
+}
+
 extern "C" void issngpu_note_game_saved(const char* what) {
     IssnOverlay::NoteGameSaved(what ? what : "");
 }

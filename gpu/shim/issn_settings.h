@@ -159,6 +159,8 @@ struct Values {
     // the mouse turns the camera (right stick). Live from the menu.
     std::atomic<bool> mouse_enabled{true}, mouse_invert_y{false};
     std::atomic<float> mouse_sensitivity{1.0f}, mouse_smoothing{0.5f}, mouse_accel{0.0f}, mouse_deadzone{0.1f};
+    /// issn 11-04: right stick sensitivity (runtime_pad.c), live; 1 = the game's own feel.
+    std::atomic<float> pad_sensitivity{1.0f};
     /// Keyboard and mouse button remap (ISSN_KEY_MAP syntax); written by Load only, read once.
     std::string key_map;
 };

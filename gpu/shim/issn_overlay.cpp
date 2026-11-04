@@ -290,6 +290,18 @@ void InfoRow(const char* label, const char* text) {
     ImGui::PopID();
 }
 
+// issn 11-04: a float setting as a slider (sensitivities), live.
+void FloatSliderRow(const char* label, std::atomic<float>& value, float lo, float hi, const char* format,
+                    const char* help) {
+    Row(label);
+    float v = value;
+    if (ImGui::SliderFloat("##value", &v, lo, hi, format, ImGuiSliderFlags_AlwaysClamp)) {
+        Store(value, std::clamp(v, lo, hi), true);
+    }
+    Help(help);
+    ImGui::PopID();
+}
+
 void SliderRow(const char* label, std::atomic<int>& value, int lo, int hi, const char* format, const char* help) {
     Row(label);
     int v = value;
@@ -504,6 +516,14 @@ void AssignKey(int row, SDL_Scancode code) {
 
 void ControlsTab() {
     auto& s = IssnSettings::Get();
+    ImGui::SeparatorText("Sensitivity (changes at once)");
+    if (BeginRows("##sensitivity")) {
+        FloatSliderRow("Mouse", s.mouse_sensitivity, 0.1f, 5.0f, "%.2fx",
+                       "How far the camera turns per mouse movement. - / = also change it in play.");
+        FloatSliderRow("Controller (right stick)", s.pad_sensitivity, 0.25f, 3.0f, "%.2fx",
+                       "Below 1: slower camera. Above 1: the camera reacts more to small stick moves.");
+        ImGui::EndTable();
+    }
     ImGui::SeparatorText("Keyboard");
     ImGui::TextWrapped("Click Change, then press the key. Esc cancels. The mouse buttons stay L2 (aim) and R2 "
                        "(shoot); W/A/S/D move and the mouse turns the camera.");
@@ -701,7 +721,7 @@ void OverlayTab() {
     namespace P = IssnPerfStats;
     auto& s = IssnSettings::Get();
     if (BeginRows("##overlay_on")) {
-        CheckRow("Show overlay", s.show_fps, "The performance overlay in a corner of the screen.");
+        CheckRow("Show overlay", s.show_fps, "The performance overlay in a corner of the screen. F11 hides or shows it in play.");
         CheckRow("\"Game saved\" note", s.save_note,
                  "A short note at the top of the screen each time the game writes a save.");
         ImGui::EndTable();
@@ -1301,6 +1321,16 @@ bool HandleEvent(const SDL_Event& event) {
             Vulkan::Dlss::g_user_on.store(on, std::memory_order_relaxed);
             std::printf("Anti-aliasing: %s (Home)\n",
                         on ? Vulkan::Dlss::ModeName() : "the game's own");
+            std::fflush(stdout);
+            return true;
+        }
+        if (down && !event.key.repeat && event.key.key == SDLK_F11) {
+            // issn: F11 hides / shows the performance overlay (players who do not want the numbers
+            // on screen, 11-04); the menu's Overlay tab and the launcher have the same switch.
+            auto& s = IssnSettings::Get();
+            s.show_fps = !s.show_fps.load();
+            IssnSettings::Save();
+            std::printf("Performance overlay: %s (F11)\n", s.show_fps.load() ? "on" : "off");
             std::fflush(stdout);
             return true;
         }
