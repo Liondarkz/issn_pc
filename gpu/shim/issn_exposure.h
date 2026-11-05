@@ -35,4 +35,23 @@ TimeOfDay ReadTimeOfDay();
 /// Test: ask the game for the last good time of day (false when there is none).
 bool ForceLastGoodTimeOfDay();
 
+/// issn 11-05 (2): why the wanted one is not used. The manager looks the wanted id up in its table
+/// (+0x30 count, +0x38 buckets); found, it waits until the world section "<world>_x_<name>" is
+/// streamed in (eboot 0x3c4e40/0x3c4db0 on the table at .bss 0x7d37610); not found, it falls back.
+struct TodDetail {
+    bool known = false;
+    uint64_t wanted = 0;
+    uint32_t entries = 0;        ///< times of day in the manager's table
+    bool in_table = false;       ///< the wanted id is one of them
+    char name[48] = {};          ///< its name (atmosphere)
+    char section[112] = {};      ///< the world section the game waits for
+    int section_index = -1;      ///< -1: no such section (the game does not wait)
+    int section_state = 0;       ///< 0 no section, 1 ready, 2 waiting (not streamed in), 3 no object
+    uint8_t flags[4] = {};       ///< the section's bytes +0x44..+0x47
+    char list[400] = {};         ///< "id name, ..." of the table (for the log)
+};
+TodDetail ReadTodDetail();
+/// Test: ask the game for the next time of day in its table (cycles; false when the table is empty).
+bool ForceNextTimeOfDay();
+
 } // namespace IssnExposure

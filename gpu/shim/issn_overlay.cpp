@@ -818,6 +818,28 @@ void ImageTab() {
                 Help("A test for the saves that stay black: load a save where the city looks right first (its "
                      "time of day is remembered for this session), then load the dark one and press Apply.");
                 ImGui::PopID();
+                const auto d = IssnExposure::ReadTodDetail();
+                char why[160];
+                if (!d.in_table) {
+                    std::snprintf(why, sizeof(why), "not in the game's list (%u there)", d.entries);
+                } else {
+                    static const char* const states[] = {"no section to wait for", "section ready",
+                                                         "waiting for its section", "section missing"};
+                    std::snprintf(why, sizeof(why), "%s: %s", d.name, states[d.section_state & 3]);
+                }
+                InfoRow("Why", why);
+                if (d.section[0]) {
+                    InfoRow("Section", d.section);
+                }
+                Row("Try the next one (test)");
+                ImGui::BeginDisabled(d.entries == 0);
+                if (ImGui::SmallButton("Next##tod")) {
+                    IssnExposure::ForceNextTimeOfDay();
+                }
+                ImGui::EndDisabled();
+                Help("Asks the game for the next time of day in its list (it cycles). It works on the dark "
+                     "save alone: press it a few times and see whether the city lights up.");
+                ImGui::PopID();
             }
             ImGui::EndTable();
         }
