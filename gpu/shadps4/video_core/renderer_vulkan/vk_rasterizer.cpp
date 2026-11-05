@@ -1880,12 +1880,31 @@ void Rasterizer::DlssResolve() {
                 return Fsr4Aa::Input{image.GetImage(), *view.image_view, image.info.size.width,
                                      image.info.size.height, image.info.pixel_format};
             };
+            // issn 11-04: phase 4 is the emulator's Halton offset (memory_patcher.cpp JitterFrame),
+            // which also runs with FSR 4 / XeSS (Dlss::Enabled covers them). This branch read only
+            // the game's 2 phases, so they got jitter 0 while the camera moved up to +-0.5 px each
+            // frame: a soft picture. Now as DLSS: the exact offset, a new history on a switch.
             float jx = 0.0f, jy = 0.0f;
-            if (dlss_phase_in == 1 || dlss_phase_in == 2) {
+            const bool explicit_jitter = dlss_phase_in == 4;
+            dlss_reset_pending |= explicit_jitter != dlss_last_explicit;
+            dlss_last_explicit = explicit_jitter;
+            if (explicit_jitter) {
+                jx = dlss_jitter_in[0];
+                jy = dlss_jitter_in[1];
+            } else if (dlss_phase_in == 1 || dlss_phase_in == 2) {
                 const float j = dlss_phase_in == 1 ? 0.25f : -0.25f;
                 const u32 combo = Dlss::g_jitter_combo.load(std::memory_order_relaxed);
                 jx = (combo & 1) ? -j : j;
                 jy = (combo & 2) ? -j : j;
+            }
+            // ISSN_JITTER_LOG=1 (test): the first 8 frames' jitter as the upscaler gets it.
+            static const bool jitter_log = [] {
+                const char* v = std::getenv("ISSN_JITTER_LOG");
+                return v && v[0] == '1';
+            }();
+            if (jitter_log && dlss_evaluated < 8) {
+                LOG_WARNING(Render_Vulkan, "{}: jitter phase {} -> ({:+.3f}, {:+.3f}) render px",
+                            Dlss::ModeName(), dlss_phase_in, jx, jy);
             }
             if (use_xess && !xess) {
                 xess = std::make_unique<Xess::Upscaler>(instance, scheduler);
