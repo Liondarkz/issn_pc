@@ -515,6 +515,7 @@ static ABI int32_t trophy_unlock(int32_t ctx,int32_t handle,int32_t id,int32_t *
     pthread_mutex_lock(&trophy_lock);
     trophies_open();
     int result=trophy_book_unlock(&trophies,id,when,&earned);
+    if (result==1) { printf("Runtime: trophy %d asked again (already unlocked)\n",id); fflush(stdout); }
     if (result==0) {
         printf("Runtime: trophy %d unlocked\n",id);
         if (earned>=0) printf("Runtime: trophy %d unlocked (platinum)\n",earned);
@@ -541,10 +542,13 @@ static ABI int32_t trophy_info(int32_t ctx,int32_t handle,int32_t id,void *detai
 static ABI int32_t trophy_unlock_state(int32_t ctx,int32_t handle,uint32_t *flags,uint32_t *count) {
     if (!flags || !count) return TROPHY_INVALID;
     if (ctx<=0 || handle<=0) return TROPHY_INVALID;
+    static int asked;
     pthread_mutex_lock(&trophy_lock);
     trophies_open();
     memcpy(flags,trophies.flags,sizeof(trophies.flags));
     *count=(uint32_t)(trophies.total>0 ? trophies.total : 0);
+    /* issn 11-05: whether and when the game checks (a save made elsewhere unlocked nothing). */
+    if (asked++<8) { printf("Runtime: trophies: the game asked which are unlocked (%d)\n",trophy_book_count(&trophies)); fflush(stdout); }
     pthread_mutex_unlock(&trophy_lock);
     return 0;
 }
