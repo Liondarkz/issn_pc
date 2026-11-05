@@ -137,6 +137,10 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.reactive_max = Clamp(f, 0.0f, 1.0f);
     } else if (key == "debug_view") {
         v.debug_view = std::clamp(i, 0, DebugViewCount - 1);
+    } else if (key == "motion_blur") {
+        v.motion_blur = i != 0;
+    } else if (key == "chromatic_aberration") {
+        v.chromatic_aberration = i != 0;
     } else if (key == "show_fps") {
         v.show_fps = i != 0;
     } else if (key == "save_note") {
@@ -463,6 +467,8 @@ void Save() {
                  v.far_clip.load(), v.mip_lod_bias.load(), v.lod_bands[0].load(), v.lod_bands[1].load(),
                  v.lod_bands[2].load(), v.lod_bands[3].load(), v.lod_bands[4].load(), v.lod_bands[5].load());
     std::fprintf(file, "fov=%.3f\nsave_note=%d\n", v.fov.load(), int(v.save_note.load()));
+    std::fprintf(file, "motion_blur=%d\nchromatic_aberration=%d\n", int(v.motion_blur.load()),
+                 int(v.chromatic_aberration.load()));
     std::fprintf(file, "hero_health=%d\nhero_powers=%d\nhero_karma=%d\n", int(v.hero_health.load()),
                  int(v.hero_powers.load()), int(v.hero_karma.load()));
     std::fprintf(file, "hero_neon_run=%d\nhero_video_flight=%d\nhero_smoke_dash=%d\n",

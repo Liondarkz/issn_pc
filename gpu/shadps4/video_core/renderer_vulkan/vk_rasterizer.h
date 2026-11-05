@@ -16,6 +16,7 @@
 #include "video_core/page_manager.h"
 #include "video_core/renderer_vulkan/vk_bindless.h"
 #include "video_core/renderer_vulkan/vk_native_bindings.h"
+#include "video_core/renderer_vulkan/issn_postfx.h"
 #include "video_core/renderer_vulkan/vk_occlusion.h"
 #include "shader_recompiler/native_emit.h"
 #include "video_core/renderer_vulkan/vk_pipeline_cache.h"
@@ -332,6 +333,15 @@ public:
     void DeriveNeoIdBuffer(VideoCore::Image& id_image);
     /// SHADPS4_DLSS: the back-side action that replaces the T2x resolve draw.
     void DlssResolve();
+    /// issn 11-04 (issn_postfx.h): the switches for motion blur and chromatic aberration and the
+    /// list of full-screen passes. Back thread, with the draw's stages bound; true = the draw is
+    /// done here (copied or dropped).
+    bool PostFxDraw(const GraphicsPipeline* pipeline);
+    bool PostFxDispatch(const ComputePipeline* pipeline);
+    /// The T2x resolve (the game's own or replaced): the frame's list is published.
+    void PostFxPublish();
+    std::vector<PostFx::Pass> postfx_frame;
+    u64 postfx_log_ns{};
     u64 dlss_calls{};
     u64 dlss_missing{};
     u8 dlss_phase_in{};                   ///< the phase of the action being executed

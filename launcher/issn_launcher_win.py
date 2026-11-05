@@ -358,7 +358,7 @@ def heading_text(text, every_language=False):
 # launcher's own settings.json (passed to run.py as environment variables).
 
 INI_FLAGS = {'cheat_double_jumps', 'cheat_very_hard', 'object_motion', 'show_fps', 'vsync', 'async_shaders', 'deferred_readback',
-             'stale_readback'}
+             'stale_readback', 'motion_blur', 'chromatic_aberration'}
 # The graphics keys are also in the in-game menu (Insert / R3+L2); run.py reads the startup ones.
 INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1',
                 'object_motion': '1', 'show_fps': '1', 'output_res': '1920x1080',
@@ -366,7 +366,8 @@ INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1',
                 'async_shaders': '1', 'deferred_readback': '1', 'stale_readback': '1',
                 'render_resolution': 'native', 'engine_fps': '120',
                 'frames_queued': '1', 'cheat_very_hard': '0', 'cheat_double_jumps': '0',
-                'mouse_sensitivity': '1.00', 'pad_sensitivity': '1.00'}
+                'mouse_sensitivity': '1.00', 'pad_sensitivity': '1.00',
+                'motion_blur': '1', 'chromatic_aberration': '1'}
 DISPLAY_MODES = [('windowed', ('Windowed',)), ('borderless', ('Borderless',)), ('fullscreen', ('Fullscreen',))]
 # issn: frame pacing on screens without G-Sync / FreeSync (axylpup's 1.1 "Fifo (half refresh)",
 # vk_swapchain.cpp): every game frame is presented N times with V-Sync, so each stays exactly N
@@ -2029,6 +2030,14 @@ class Launcher:
                    "9000 and a recent Mesa (RADV); without it the game keeps its own."), restart=True)
         self.note(f, _('Off: no anti-aliasing at all, the sharpest picture with jagged edges (no smearing in '
                        'motion).'), top=2)
+        # issn 11-04 (Discord poll): the game's own effects (gpu issn_postfx.h), also in the game's menu.
+        self.section(f, _('Effects'))
+        self.check(f, 'motion_blur', 'ini', _('Motion blur'),
+                   _('The blur when the camera or Delsin moves fast. Off gives a sharp picture in motion; '
+                     'it also changes at once in the game (Insert > Image).'))
+        self.check(f, 'chromatic_aberration', 'ini', _('Chromatic aberration'),
+                   _('The red and blue fringes toward the edges of the screen. Turning it off helps players '
+                     'who feel sick with it; it also changes at once in the game (Insert > Image).'))
         if not WINDOWS:  # DLSS (Streamline) is Windows only
             self.section(f, _('Overlay'))
             self.check(f, 'show_fps', 'ini', _('Show performance overlay'),

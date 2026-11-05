@@ -27,6 +27,12 @@ BASE_SFO = sfo_bytes(TITLE_ID='CUSA01623', APP_VER='01.00')
 
 
 class ControlMapTest(unittest.TestCase):
+    def test_effects_default_on_and_are_flags(self):
+        # issn 11-04: motion blur and chromatic aberration (issn.ini, gpu issn_postfx.h).
+        for key in ('motion_blur', 'chromatic_aberration'):
+            self.assertEqual(launcher.INI_DEFAULTS[key], '1')
+            self.assertIn(key, launcher.INI_FLAGS)
+
     def test_new_cheats_default_to_disabled(self):
         self.assertEqual(launcher.INI_DEFAULTS['cheat_double_jumps'], '0')
         self.assertEqual(launcher.INI_DEFAULTS['cheat_very_hard'], '0')

@@ -34,6 +34,7 @@ extern "C" const char* runtime_pad_key_name(const char* button);
 #include "imgui_impl_vulkan.h"
 #include "video_core/renderdoc.h"
 #include "video_core/renderer_vulkan/vk_dlss.h"
+#include "video_core/renderer_vulkan/issn_postfx.h"
 #include "video_core/renderer_vulkan/issn_framegen.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
@@ -629,6 +630,22 @@ void PictureRows() {
                       "Ground and walls seen at an angle stay sharp in the distance.");
             if (s.menu_aniso != before) IssnSettings::ApplyLiveChoices();
         }
+        // issn 11-04 (Discord poll): the game's motion blur and chromatic aberration, live.
+        namespace P = Vulkan::PostFx;
+        const auto effect_row = [&](const char* label, std::atomic<bool>& value, P::Effect effect,
+                                    const char* help) {
+            if (P::Known(effect)) {
+                const bool before = value;
+                CheckRow(label, value, help);
+                if (value != before) IssnSettings::ApplyLiveChoices();
+            } else {
+                InfoRow(label, "not found yet (Find post effects, below)");
+            }
+        };
+        effect_row("Motion blur", s.motion_blur, P::MotionBlur,
+                   "The blur when the camera or Delsin moves fast. Off: a sharp picture in motion.");
+        effect_row("Chromatic aberration", s.chromatic_aberration, P::Chromatic,
+                   "The red and blue fringes toward the edges of the screen.");
         static const char* const fg_labels[] = {"Off", "On (test)"};
         if (Vulkan::FrameGen::Wanted()) {
             const int before = s.menu_frame_gen;
@@ -669,6 +686,83 @@ void PictureRows() {
     }
 }
 
+// issn 11-04 (video_core issn_postfx.h): the full-screen passes of the last frame up to the T2x
+// resolve, each with a live "off", to find which ones are the motion blur and the chromatic
+// aberration. Collected only while this header is open.
+void PostFxTest() {
+    namespace P = Vulkan::PostFx;
+    const bool open = ImGui::CollapsingHeader("Find post effects (test)");
+    Help("Lists the game's full-screen passes after the scene and before the HUD. Turn them off one at "
+         "a time and watch what disappears; send the hash of the motion blur and of the colour fringes.");
+    P::g_collect.store(open, std::memory_order_relaxed);
+    if (!open) {
+        return;
+    }
+    std::vector<P::Pass> passes;
+    u64 frame = 0;
+    {
+        std::scoped_lock lock{P::g_list.mutex};
+        passes = P::g_list.last;
+        frame = P::g_list.frame;
+    }
+    if (BeginRows("##postfx_mode")) {
+        static const char* const mode_labels[] = {"Copy its input (as the switches do)", "Skip the draw"};
+        ChoiceRow("When off", P::g_test_mode, mode_labels, nullptr, 2,
+                  "Copy: the pass's target gets the picture it read, so the effect alone goes away. "
+                  "Skip: nothing is drawn (can leave an old picture).");
+        ImGui::EndTable();
+    }
+    if (passes.empty()) {
+        ImGui::TextDisabled(frame ? "No full-screen pass before the resolve in the last frame."
+                                  : "Waiting for a frame (play, not a menu or loading screen).");
+        return;
+    }
+    if (ImGui::Button("Write the list to the log")) {
+        std::printf("PostFx: %zu full-screen passes before the T2x resolve (frame %llu)\n", passes.size(),
+                    static_cast<unsigned long long>(frame));
+        for (size_t i = 0; i < passes.size(); ++i) {
+            const auto& p = passes[i];
+            std::printf("PostFx %2zu: %s_%08llx -> %#llx %ux%u f%#x, %u inputs%s\n", i,
+                        p.compute ? "cs" : "fs", static_cast<unsigned long long>(p.hash),
+                        static_cast<unsigned long long>(p.target), unsigned(p.width), unsigned(p.height),
+                        unsigned(p.fmt), unsigned(p.inputs),
+                        P::IsTestOff(p.hash) ? " [off]" : "");
+            for (unsigned k = 0; k < p.inputs; ++k) {
+                std::printf("           in %#llx %ux%u f%#x\n", static_cast<unsigned long long>(p.in[k].addr),
+                            unsigned(p.in[k].width), unsigned(p.in[k].height), unsigned(p.in[k].fmt));
+            }
+        }
+        std::fflush(stdout);
+    }
+    Help("Writes this list (with the inputs) to user\\last_run.log.");
+    if (!ImGui::BeginTable("##postfx", 4, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
+        return;
+    }
+    ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthStretch, 0.08f);
+    ImGui::TableSetupColumn("shader", ImGuiTableColumnFlags_WidthStretch, 0.34f);
+    ImGui::TableSetupColumn("target", ImGuiTableColumnFlags_WidthStretch, 0.40f);
+    ImGui::TableSetupColumn("off", ImGuiTableColumnFlags_WidthStretch, 0.18f);
+    for (size_t i = 0; i < passes.size(); ++i) {
+        const auto& p = passes[i];
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("%zu", i);
+        ImGui::TableNextColumn();
+        ImGui::Text("%s_%08llx", p.compute ? "cs" : "fs", static_cast<unsigned long long>(p.hash));
+        ImGui::TableNextColumn();
+        ImGui::Text("%ux%u, %u in", unsigned(p.width), unsigned(p.height), unsigned(p.inputs));
+        ImGui::TableNextColumn();
+        ImGui::PushID(static_cast<int>(i));
+        bool off = P::IsTestOff(p.hash);
+        if (ImGui::Checkbox("##off", &off)) {
+            P::SetTestOff(p.hash, off);
+        }
+        ImGui::PopID();
+    }
+    ImGui::EndTable();
+}
+
 void ImageTab() {
     namespace G = IssnGraphics;
     auto& s = IssnSettings::Get();
@@ -690,6 +784,7 @@ void ImageTab() {
         InfoRow("Window", text);
         ImGui::EndTable();
     }
+    PostFxTest();
     // issn 11-04: the game's exposure meter (src/exposure_hook.h), for the dark-night reports.
     if (const auto e = IssnExposure::Read(); e.attached) {
         ImGui::SeparatorText("Exposure (test)");

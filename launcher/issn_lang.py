@@ -1284,6 +1284,14 @@ EXTRA = {
             'Desligado (sem anti-aliasing)',
         'Off: no anti-aliasing at all, the sharpest picture with jagged edges (no smearing in motion).':
             'Desligado: nenhum anti-aliasing, a imagem mais nítida com bordas serrilhadas (sem borrão em movimento).',
+        'Motion blur':
+            'Desfoque de movimento',
+        'Chromatic aberration':
+            'Aberração cromática',
+        'The blur when the camera or Delsin moves fast. Off gives a sharp picture in motion; it also changes at once in the game (Insert > Image).':
+            'O borrão quando a câmera ou o Delsin se movem rápido. Desligado deixa a imagem nítida em movimento; também muda na hora no jogo (Insert > Image).',
+        'The red and blue fringes toward the edges of the screen. Turning it off helps players who feel sick with it; it also changes at once in the game (Insert > Image).':
+            'As franjas vermelhas e azuis perto das bordas da tela. Desligar ajuda quem passa mal com elas; também muda na hora no jogo (Insert > Image).',
     },
     'es': {
         'Game multisampling': 'Multisampling del juego',
@@ -1569,6 +1577,16 @@ EXTRA = {
             'Desactivado (sin antialiasing)',
         'Off: no anti-aliasing at all, the sharpest picture with jagged edges (no smearing in motion).':
             'Desactivado: ningún antialiasing, la imagen más nítida con bordes dentados (sin borrón en movimiento).',
+        'Effects':
+            'Efectos',
+        'Motion blur':
+            'Desenfoque de movimiento',
+        'Chromatic aberration':
+            'Aberración cromática',
+        'The blur when the camera or Delsin moves fast. Off gives a sharp picture in motion; it also changes at once in the game (Insert > Image).':
+            'El desenfoque cuando la cámara o Delsin se mueven rápido. Desactivado da una imagen nítida en movimiento; también cambia al momento en el juego (Insert > Image).',
+        'The red and blue fringes toward the edges of the screen. Turning it off helps players who feel sick with it; it also changes at once in the game (Insert > Image).':
+            'Los bordes rojos y azules cerca de los lados de la pantalla. Desactivarla ayuda a quien se marea con ella; también cambia al momento en el juego (Insert > Image).',
     },
 }
 

@@ -1662,6 +1662,9 @@ void Rasterizer::DlssResolve() {
     // a plain copy of the tonemap output (the game without its temporal AA for that frame).
     ++dlss_calls;
     ++dlss_phases[dlss_phase_in & 3];
+    if (PostFx::Active()) [[unlikely]] {
+        PostFxPublish(); // the end of the scene's post chain (issn_postfx.h)
+    }
     {
         // issn-axy: more than 100 ms since the last resolve (Home switched it off, a menu, a
         // load): FSR's history is another picture, so it starts over.
@@ -2114,6 +2117,239 @@ void Rasterizer::DlssResolve() {
     }
 }
 
+// ---- issn 11-04: motion blur / chromatic aberration switches and the pass list (issn_postfx.h) --
+
+namespace {
+u16 PostFxFormat(AmdGpu::DataFormat data, AmdGpu::NumberFormat number) {
+    return static_cast<u16>(static_cast<u32>(data) | (static_cast<u32>(number) << 8));
+}
+
+/// A shader's textures as the pass list shows them (at most 4).
+template <typename Bound>
+u8 PostFxInputs(const Bound& bound, std::array<PostFx::Input, 4>& in) {
+    u8 n = 0;
+    if (!bound.info) {
+        return 0;
+    }
+    for (const auto& desc : bound.info->images) {
+        if (n == in.size()) {
+            break;
+        }
+        if (desc.is_written) {
+            continue;
+        }
+        const AmdGpu::Image image = desc.GetSharp(bound);
+        if (!image.Valid() || image.Address() == 0) {
+            continue;
+        }
+        in[n++] = PostFx::Input{static_cast<VAddr>(image.Address()),
+                                static_cast<u16>(image.width + 1), static_cast<u16>(image.height + 1),
+                                PostFxFormat(image.GetDataFmt(), image.GetNumberFmt())};
+    }
+    return n;
+}
+} // namespace
+
+bool Rasterizer::PostFxDraw(const GraphicsPipeline* pipeline) {
+    u64 ps = 0, vs = 0;
+    for (const auto* stage : pipeline->GetStages()) {
+        if (!stage) {
+            continue;
+        }
+        if (stage->l_stage == Shader::LogicalStage::Fragment) {
+            ps = stage->pgm_hash;
+        } else if (stage->l_stage == Shader::LogicalStage::Vertex) {
+            vs = stage->pgm_hash;
+        }
+    }
+    if (ps == Dlss::ResolvePsHash) {
+        PostFxPublish(); // the game's own T2x resolve: the end of the scene's post chain
+        return false;
+    }
+    const auto& regs = liverpool->BackRegs();
+    const auto& cb = regs.color_buffers[0];
+    const VAddr target = cb.Address();
+    const auto hint = liverpool->BackCbExtent(0);
+    const u32 width = hint.width ? hint.width : cb.Pitch();
+    const u32 height = hint.height ? hint.height : cb.Height();
+    // A full-screen pass: one triangle or quad into a colour target at least a quarter of the
+    // game's width (blur chains run at 1/2 and 1/4 size).
+    const bool full_screen = target != 0 && regs.num_indices <= 6 &&
+                             regs.num_instances.NumInstances() <= 1 &&
+                             width * 4 >= Dlss::g_game_width.load(std::memory_order_relaxed);
+    const PostFx::Action action = full_screen ? PostFx::Decide(ps) : PostFx::Action::Draw;
+    const auto& fs = GetBoundStage(Shader::LogicalStage::Fragment);
+    PostFx::Pass pass{};
+    if (full_screen && (PostFx::g_collect.load(std::memory_order_relaxed) || PostFx::LogEnabled())) {
+        pass.hash = ps;
+        pass.vs_hash = vs;
+        pass.target = target;
+        pass.width = static_cast<u16>(width);
+        pass.height = static_cast<u16>(height);
+        pass.fmt = PostFxFormat(cb.GetDataFmt(), cb.GetNumberFmt());
+        pass.action = static_cast<u8>(action);
+        pass.inputs = PostFxInputs(fs, pass.in);
+        if (postfx_frame.size() < PostFx::MaxPasses) {
+            postfx_frame.push_back(pass);
+        }
+    }
+    if (action == PostFx::Action::Draw) {
+        return false;
+    }
+    if (action == PostFx::Action::Copy) {
+        // The pass's own output replaced by its input of the target's size: the picture as it was
+        // before the effect. Without such an input the draw is dropped (the target keeps what it
+        // had), so the test can still show what the pass does.
+        if (pass.hash == 0) {
+            pass.inputs = PostFxInputs(fs, pass.in);
+        }
+        VideoCore::TextureCache::ImageDesc out_desc{cb, hint};
+        auto& out = texture_cache.GetImage(texture_cache.FindImage(out_desc, true));
+        VideoCore::Image* in = nullptr;
+        for (u8 i = 0; i < pass.inputs && !in; ++i) {
+            if (pass.in[i].addr == target) {
+                continue;
+            }
+            if (const VideoCore::ImageId id = texture_cache.FindImageAtSize(
+                    pass.in[i].addr, out.info.size.width, out.info.size.height, out.info.pixel_format)) {
+                in = &texture_cache.GetImage(id);
+            }
+        }
+        for (u8 i = 0; i < pass.inputs && !in; ++i) {
+            if (pass.in[i].addr == target) {
+                continue;
+            }
+            if (const VideoCore::ImageId id = texture_cache.FindImageAtSize(
+                    pass.in[i].addr, out.info.size.width, out.info.size.height)) {
+                VideoCore::Image& image = texture_cache.GetImage(id);
+                if (!(image.aspect_mask & vk::ImageAspectFlagBits::eDepth)) {
+                    in = &image;
+                }
+            }
+        }
+        if (in) {
+            if (native_batch.open) [[unlikely]] {
+                NativeClose(12);
+            }
+            rs_memo.valid = false;
+            scheduler.EndRendering();
+            if (in->info.pixel_format == out.info.pixel_format) {
+                out.CopyImage(*in);
+            } else {
+                in->Transit(vk::ImageLayout::eTransferSrcOptimal, vk::AccessFlagBits2::eTransferRead, {});
+                out.Transit(vk::ImageLayout::eTransferDstOptimal, vk::AccessFlagBits2::eTransferWrite, {});
+                const vk::ImageSubresourceLayers layers{.aspectMask = vk::ImageAspectFlagBits::eColor,
+                                                        .mipLevel = 0,
+                                                        .baseArrayLayer = 0,
+                                                        .layerCount = 1};
+                const vk::ImageBlit blit{
+                    .srcSubresource = layers,
+                    .srcOffsets = std::array{vk::Offset3D{0, 0, 0},
+                                             vk::Offset3D{s32(in->info.size.width),
+                                                          s32(in->info.size.height), 1}},
+                    .dstSubresource = layers,
+                    .dstOffsets = std::array{vk::Offset3D{0, 0, 0},
+                                             vk::Offset3D{s32(out.info.size.width),
+                                                          s32(out.info.size.height), 1}},
+                };
+                scheduler.AcquireCommandBuffer().Handle().blitImage(
+                    in->GetImage(), vk::ImageLayout::eTransferSrcOptimal, out.GetImage(),
+                    vk::ImageLayout::eTransferDstOptimal, blit, vk::Filter::eNearest);
+            }
+            out.flags |= VideoCore::ImageFlagBits::GpuModified;
+            out.flags &= ~VideoCore::ImageFlagBits::Dirty;
+        }
+    }
+    ResetBindings();
+    return true;
+}
+
+bool Rasterizer::PostFxDispatch(const ComputePipeline* pipeline) {
+    u64 cs = 0;
+    for (const auto* stage : pipeline->GetStages()) {
+        if (stage) {
+            cs = stage->pgm_hash;
+        }
+    }
+    const auto& bound = GetBoundStage(Shader::LogicalStage::Compute);
+    // A full-screen compute pass writes an image at least a quarter of the game's width.
+    VAddr target = 0;
+    u32 width = 0, height = 0;
+    u16 fmt = 0;
+    if (bound.info) {
+        for (const auto& desc : bound.info->images) {
+            if (!desc.is_written) {
+                continue;
+            }
+            const AmdGpu::Image image = desc.GetSharp(bound);
+            if (image.Valid() && image.Address() != 0) {
+                target = image.Address();
+                width = u32(image.width) + 1;
+                height = u32(image.height) + 1;
+                fmt = PostFxFormat(image.GetDataFmt(), image.GetNumberFmt());
+                break;
+            }
+        }
+    }
+    const bool full_screen =
+        target != 0 && width * 4 >= Dlss::g_game_width.load(std::memory_order_relaxed);
+    const PostFx::Action action = full_screen ? PostFx::Decide(cs) : PostFx::Action::Draw;
+    if (full_screen && (PostFx::g_collect.load(std::memory_order_relaxed) || PostFx::LogEnabled()) &&
+        postfx_frame.size() < PostFx::MaxPasses) {
+        PostFx::Pass pass{};
+        pass.hash = cs;
+        pass.target = target;
+        pass.width = static_cast<u16>(width);
+        pass.height = static_cast<u16>(height);
+        pass.fmt = fmt;
+        pass.compute = 1;
+        // Compute passes are only dropped: they write in place, so there is nothing to copy.
+        pass.action = static_cast<u8>(action == PostFx::Action::Draw ? action : PostFx::Action::Drop);
+        pass.inputs = PostFxInputs(bound, pass.in);
+        postfx_frame.push_back(pass);
+    }
+    return action != PostFx::Action::Draw;
+}
+
+void Rasterizer::PostFxPublish() {
+    if (!PostFx::g_collect.load(std::memory_order_relaxed) && !PostFx::LogEnabled()) {
+        postfx_frame.clear();
+        return;
+    }
+    {
+        std::scoped_lock lock{PostFx::g_list.mutex};
+        PostFx::g_list.last.swap(postfx_frame);
+        ++PostFx::g_list.frame;
+    }
+    postfx_frame.clear();
+    if (!PostFx::LogEnabled()) {
+        return;
+    }
+    const u64 now_ns = u64(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                               std::chrono::steady_clock::now().time_since_epoch())
+                               .count());
+    if (postfx_log_ns != 0 && now_ns - postfx_log_ns < 1'000'000'000) {
+        return;
+    }
+    postfx_log_ns = now_ns;
+    std::scoped_lock lock{PostFx::g_list.mutex};
+    const auto& list = PostFx::g_list.last;
+    LOG_INFO(Render_Vulkan, "PostFx: {} full-screen passes before the T2x resolve (frame {})",
+             list.size(), PostFx::g_list.frame);
+    static constexpr const char* actions[] = {"", " [copied]", " [dropped]"};
+    for (size_t i = 0; i < list.size(); ++i) {
+        const auto& p = list[i];
+        std::string inputs;
+        for (u8 k = 0; k < p.inputs; ++k) {
+            inputs += fmt::format(" {:#x} {}x{} f{:#x}", p.in[k].addr, p.in[k].width, p.in[k].height,
+                                  p.in[k].fmt);
+        }
+        LOG_INFO(Render_Vulkan, "PostFx {:2}: {}_{:08x} (vs_{:08x}) -> {:#x} {}x{} f{:#x}; in:{}{}", i,
+                 p.compute ? "cs" : "fs", p.hash, p.vs_hash, p.target, p.width, p.height, p.fmt,
+                 inputs.empty() ? " none" : inputs, actions[std::min<u8>(p.action, 2)]);
+    }
+}
+
 bool Rasterizer::FilterDraw() {
     // The classifier reads the front's registers (it runs where the pipeline lookup runs); the
     // actions read the back's through BackRegs().
@@ -2502,6 +2738,11 @@ void Rasterizer::Draw(bool is_indexed, u32 index_offset) {
         return;
     }
     BindStageData(pipeline);
+    if (PostFx::Active()) [[unlikely]] {
+        if (PostFxDraw(pipeline)) {
+            return;
+        }
+    }
     DrawTail(pipeline, is_indexed, index_offset, sample, t_entry, t_pipeline, pipeline_ns);
 }
 
@@ -2699,6 +2940,12 @@ void Rasterizer::ExecuteDraw(const SplitDraw& draw,
             return false;
         }
         bound_stages = stages;
+        // issn 11-04: motion blur / chromatic aberration off, the pass list (issn_postfx.h).
+        if (PostFx::Active() && !draw.args.is_indirect) [[unlikely]] {
+            if (PostFxDraw(draw.pipeline)) {
+                return false;
+            }
+        }
         // SHADPS4_DRAW_REPEAT_STATS=1: census of draws whose binding inputs repeat the previous
         // draw's (scripts/patch/draw-repeat-census-2026-10-02.py).
         static const bool repeat_stats = [] {
@@ -9130,6 +9377,12 @@ void Rasterizer::DispatchDirectTail(const ComputePipeline* pipeline) {
     const auto& cs = GetBoundStage(Shader::LogicalStage::Compute);
     if (ExecuteShaderHLE(cs, liverpool->BackRegs(), cs_program, *this)) {
         return;
+    }
+    if (PostFx::Active()) [[unlikely]] {
+        if (PostFxDispatch(pipeline)) {
+            ResetBindings();
+            return;
+        }
     }
     const bool pb_census = VideoCore::g_pb_census != 0;
     if (pb_census) [[unlikely]] {
