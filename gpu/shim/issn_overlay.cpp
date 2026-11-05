@@ -644,10 +644,12 @@ void PictureRows() {
     }
     ImGui::SeparatorText("Needs a restart (Apply and restart, below)");
     if (BeginRows("##next_start")) {
-        static const char* const aa_labels[] = {"The game's own", "FSR 4 (AMD)", "XeSS (Intel)", "DLSS (NVIDIA RTX)"};
-        ChoiceRow("Anti-aliasing / upscaler", s.menu_anti_aliasing, aa_labels, nullptr, 4,
+        static const char* const aa_labels[] = {"The game's own", "FSR 4 (AMD)", "XeSS (Intel)", "DLSS (NVIDIA RTX)",
+                                                "Off (none)"};
+        ChoiceRow("Anti-aliasing / upscaler", s.menu_anti_aliasing, aa_labels, nullptr, 5,
                   "FSR 4, XeSS or DLSS give the sharpest picture and allow the quality below and frame "
-                  "generation. The launcher fetches XeSS / DLSS files when needed.");
+                  "generation. The launcher fetches XeSS / DLSS files when needed. Off: no anti-aliasing "
+                  "at all (sharp, with jagged edges).");
         static const char* const quality_labels[] = {"Off (game resolution)", "Quality (screen / 1.5)",
                                                      "Balanced (screen / 1.7)", "Performance (screen / 2)",
                                                      "Ultra Performance (screen / 3)"};
@@ -721,6 +723,9 @@ const char* AntiAliasingName() {
     const char* xess = std::getenv("ISSN_XESS");
     if (xess && xess[0] == '1') {
         return "XeSS (Intel)";
+    }
+    if (Vulkan::Dlss::AaOff()) {
+        return "Off";
     }
     return "The game's own (SMAA T2x)";
 }

@@ -134,7 +134,8 @@ def environment(options):
 # issn-axy (tester 10-31): "Apply and restart" in the menu also starts the anti-aliasing, the
 # upscaler quality and frame generation chosen there (menu_* keys, the launcher's values). The
 # launcher's own start keeps its environment; a menu restart (restart_unconfirmed=1) takes these.
-AA_SWITCHES = ('SHADPS4_DLSS', 'SHADPS4_DLSS_UPSCALE', 'ISSN_FSR4', 'ISSN_XESS')
+AA_SWITCHES = ('SHADPS4_DLSS', 'SHADPS4_DLSS_UPSCALE', 'ISSN_FSR4', 'ISSN_XESS', 'ISSN_AA_OFF')
+UPSCALER_SWITCHES = AA_SWITCHES[:4]  # frame generation needs one of these
 UPSCALE_FACTORS = ('1.5', '1.7', '2', '3')
 
 
@@ -145,14 +146,16 @@ def menu_environment(ini, windows):
         return {}, ()
     aa = ini.get('menu_anti_aliasing', 'game')
     env = {}
-    if aa == 'fsr4':
+    if aa == 'off':
+        env['ISSN_AA_OFF'] = '1'
+    elif aa == 'fsr4':
         env['ISSN_FSR4'] = '1'
     elif aa == 'xess' and windows:
         env['ISSN_XESS'] = '1'
     elif aa == 'dlss' and windows:
         env['SHADPS4_DLSS'] = '1'
         env['SHADPS4_DLSS_UPSCALE'] = '1'
-    if ini.get('menu_frame_gen') == '1' and any(k in env for k in AA_SWITCHES):
+    if ini.get('menu_frame_gen') == '1' and any(k in env for k in UPSCALER_SWITCHES):
         env['ISSN_FRAME_GEN'] = '1'
     if ini.get('menu_upscale_quality') in UPSCALE_FACTORS:
         env['ISSN_UPSCALE_FACTOR'] = ini['menu_upscale_quality']

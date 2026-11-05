@@ -323,7 +323,8 @@ void ReadLaunchChoices() {
     auto& v = Get();
     // The launcher passes its choices as these variables (launcher/issn_launcher_win.py
     // game_environment); the menu starts from them where issn.ini has no menu_* key yet.
-    v.startup_anti_aliasing = Env("SHADPS4_DLSS")[0] == '1' ? 3
+    v.startup_anti_aliasing = Env("ISSN_AA_OFF")[0] == '1'    ? 4
+                              : Env("SHADPS4_DLSS")[0] == '1' ? 3
                               : Env("ISSN_XESS")[0] == '1' ? 2
                               : Env("ISSN_FSR4")[0] == '1' ? 1
                                                            : 0;

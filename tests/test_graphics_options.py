@@ -78,7 +78,14 @@ class MenuEnvironmentTest(unittest.TestCase):
             {'menu_anti_aliasing': 'dlss', 'menu_upscale_quality': '1.5', 'menu_frame_gen': '1'}, True)
         self.assertEqual(env, {'SHADPS4_DLSS': '1', 'SHADPS4_DLSS_UPSCALE': '1', 'ISSN_FRAME_GEN': '1',
                                'ISSN_UPSCALE_FACTOR': '1.5'})
-        self.assertEqual(set(off), {'ISSN_FSR4', 'ISSN_XESS'})
+        self.assertEqual(set(off), {'ISSN_FSR4', 'ISSN_XESS', 'ISSN_AA_OFF'})
+
+    def test_off_has_no_frame_gen(self):
+        # issn 11-04: anti-aliasing "Off" - no T2x, and frame generation needs an upscaler.
+        env, off = g.menu_environment({'menu_anti_aliasing': 'off', 'menu_frame_gen': '1'}, True)
+        self.assertEqual(env, {'ISSN_AA_OFF': '1'})
+        self.assertIn('ISSN_FRAME_GEN', off)
+        self.assertIn('SHADPS4_DLSS', off)
 
     def test_games_own_turns_the_switches_off(self):
         env, off = g.menu_environment({'menu_anti_aliasing': 'game', 'menu_frame_gen': '1'}, True)

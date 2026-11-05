@@ -51,6 +51,13 @@ class ControlMapTest(unittest.TestCase):
         env = launcher.game_environment({**base, 'anti_aliasing': 'fsr4'})
         self.assertEqual(env['ISSN_FSR4'], '1')
         self.assertNotIn('SHADPS4_DLSS', env)
+        # issn 11-04: Off - no anti-aliasing at all, and no frame generation without an upscaler.
+        env = launcher.game_environment({**base, 'anti_aliasing': 'off', 'frame_gen': True})
+        self.assertEqual(env['ISSN_AA_OFF'], '1')
+        self.assertNotIn('ISSN_FSR4', env)
+        self.assertNotIn('ISSN_FRAME_GEN', env)
+        self.assertIn('off', [value for value, _text in launcher.ANTI_ALIASING])
+        self.assertNotIn('ISSN_AA_OFF', launcher.game_environment({**base, 'anti_aliasing': 'fsr4'}))
         with unittest.mock.patch.object(launcher, 'WINDOWS', True):
             env = launcher.game_environment({**base, 'anti_aliasing': 'dlss', 'ui_language': 'en'})
         self.assertEqual((env['SHADPS4_DLSS'], env['SHADPS4_DLSS_UPSCALE']), ('1', '1'))

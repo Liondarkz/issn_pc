@@ -1117,8 +1117,11 @@ void JitterFrame() {
     const double ratio = now.width > 0 ? std::max(1.0, double(ref.width) / now.width) : 1.0;
     const u32 phases = std::clamp(u32(std::lround(8.0 * ratio * ratio)), 8u, 64u);
     g_jitter_k = (g_jitter_k + 1) % phases;
-    const float jx = Halton(g_jitter_k + 1, 2) - 0.5f; // render px, (-0.5, 0.5)
-    const float jy = Halton(g_jitter_k + 1, 3) - 0.5f;
+    // Anti-aliasing "Off" (vk_dlss.h AaOff): the patch holds the camera at the pixel centre - the
+    // game's own 2 phases would make the un-anti-aliased picture shake by half a pixel.
+    const bool still = Vulkan::Dlss::AaOff();
+    const float jx = still ? 0.0f : Halton(g_jitter_k + 1, 2) - 0.5f; // render px, (-0.5, 0.5)
+    const float jy = still ? 0.0f : Halton(g_jitter_k + 1, 3) - 0.5f;
     // The image moves by (-X/2, +Y/2) px for numerators (X, Y) (study sec. 2).
     struct Slot {
         float x, y;

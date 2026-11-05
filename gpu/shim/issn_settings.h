@@ -189,7 +189,7 @@ bool GraphicsNeedRestart();
 void Save();
 
 /// The launcher's choices the menu offers (menu_* keys; the values are the launcher's own).
-inline constexpr const char* AntiAliasingKeys[] = {"game", "fsr4", "xess", "dlss"};
+inline constexpr const char* AntiAliasingKeys[] = {"game", "fsr4", "xess", "dlss", "off"};
 inline constexpr const char* UpscaleQualityKeys[] = {"", "1.5", "1.7", "2", "3"};
 inline constexpr const char* AnisoKeys[] = {"", "4", "8", "16"};
 inline constexpr const char* DrawDistanceKeys[] = {"0.6", "", "1.5", "2.0"};

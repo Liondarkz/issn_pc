@@ -967,6 +967,10 @@ bool Instance::CreateDevice() {
     if (dlss_device || Dlss::Mode() == 2) {
         Dlss::DeviceCreated(*instance, physical_device, *device, queue_family_index, 0);
     }
+    if (Dlss::AaOff()) {
+        // Anti-aliasing "Off": nothing to load (DeviceCreated's stub off Windows sets nothing).
+        Dlss::g_ready.store(true, std::memory_order_relaxed);
+    }
     if (Dlss::Mode() == 3) {
         // ISSN_FSR4: the T2x resolve is replaced once the device can run the model.
         Fsr4Aa::SetDeviceSupported(fsr4_ok);

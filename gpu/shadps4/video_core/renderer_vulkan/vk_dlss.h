@@ -40,6 +40,13 @@ inline int Mode() {
         if (v && (v[0] == '1' || v[0] == '2')) {
             return v[0] - '0';
         }
+        // issn 11-04 (Discord poll): ISSN_AA_OFF=1 - anti-aliasing "Off", the player's name for
+        // mode 2: the T2x resolve becomes a plain copy of the tonemap output and the camera
+        // jitter is held at zero (memory_patcher.cpp JitterFrame), so the picture stays still.
+        const char* off = std::getenv("ISSN_AA_OFF");
+        if (off && off[0] == '1') {
+            return 2;
+        }
         // issn-axy: ISSN_FSR4=1 - FSR 4 Native AA in the same slot (issn_fsr4.h).
         const char* fsr4 = std::getenv("ISSN_FSR4");
         if (fsr4 && fsr4[0] == '1') {
@@ -58,6 +65,10 @@ inline bool Enabled() {
 inline bool OwnUpscaler() {
     return Mode() == 3 || Mode() == 4;
 }
+/// Anti-aliasing "Off" (ISSN_AA_OFF=1 or SHADPS4_DLSS=2): no T2x, no upscaler, no jitter.
+inline bool AaOff() {
+    return Mode() == 2;
+}
 /// The name players see for the running mode.
 inline const char* ModeName() {
     switch (Mode()) {
@@ -65,6 +76,8 @@ inline const char* ModeName() {
         return "FSR 4";
     case 4:
         return "XeSS";
+    case 2:
+        return "Off";
     default:
         return "DLSS";
     }

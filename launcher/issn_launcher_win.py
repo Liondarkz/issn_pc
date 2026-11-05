@@ -629,7 +629,8 @@ SHADER_COMPILE = [('', ('In the background: no stutter, new things can appear a 
 # port (third_party/fsr4); DLSS needs NVIDIA's Streamline files in dlss_folder(), XeSS Intel's
 # libxess.dll in xess_folder().
 ANTI_ALIASING = [('game', ("The game's own (SMAA T2x)",)), ('fsr4', ('FSR 4 (AMD Radeon RX 7000 / 9000)',)),
-                 ('xess', ('XeSS (Intel; also Radeon and GeForce)',)), ('dlss', ('DLSS (NVIDIA RTX)',))]
+                 ('xess', ('XeSS (Intel; also Radeon and GeForce)',)), ('dlss', ('DLSS (NVIDIA RTX)',)),
+                 ('off', ('Off (no anti-aliasing)',))]
 # NVIDIA's Streamline (DLSS) and Intel's libxess.dll are Windows only: on Linux they are not offered.
 if not WINDOWS:
     ANTI_ALIASING = [option for option in ANTI_ALIASING if option[0] not in ('dlss', 'xess')]
@@ -1090,10 +1091,12 @@ def game_environment(s):
     if s['user_dir']:
         env['ISSN_USER_DIR'] = s['user_dir']
     # issn-axy: the anti-aliasing choice (ANTI_ALIASING); an inherited switch never mixes them.
-    for name in ('SHADPS4_DLSS', 'SHADPS4_DLSS_UPSCALE', 'ISSN_FSR4', 'ISSN_XESS'):
+    for name in ('SHADPS4_DLSS', 'SHADPS4_DLSS_UPSCALE', 'ISSN_FSR4', 'ISSN_XESS', 'ISSN_AA_OFF'):
         env.pop(name, None)
     anti_aliasing = s.get('anti_aliasing', 'game')
-    if anti_aliasing == 'fsr4':
+    if anti_aliasing == 'off':
+        env['ISSN_AA_OFF'] = '1'  # issn 11-04: the T2x resolve becomes a plain copy, no jitter
+    elif anti_aliasing == 'fsr4':
         env['ISSN_FSR4'] = '1'
     elif anti_aliasing == 'xess' and WINDOWS:
         env['ISSN_XESS'] = '1'
@@ -1172,7 +1175,7 @@ def game_environment(s):
         env['ISSN_SAVE_BACKUP'] = '0'
     # issn-axy: FSR 3.1 frame generation (gpu issn_framegen.h); it needs FSR 4, XeSS or DLSS.
     env.pop('ISSN_FRAME_GEN', None)
-    if s.get('frame_gen') and s.get('anti_aliasing', 'game') != 'game':
+    if s.get('frame_gen') and s.get('anti_aliasing', 'game') not in ('game', 'off'):
         env['ISSN_FRAME_GEN'] = '1'
     env.pop('ISSN_STICK_DEADZONE', None)
     if s.get('stick_deadzone') in {value for value, _text in STICK_DEADZONE if value}:
@@ -1970,7 +1973,8 @@ class Launcher:
                  _('Frame rate limit: {}').format(next((_(*text) for value, text in FPS_LIMITS
                                                          if value == chosen['ini']['fps_limit']),
                                                         chosen['ini']['fps_limit'])),
-                 _('Anti-aliasing: {}').format('FSR 4' if app['anti_aliasing'] == 'fsr4' else _("the game's own")),
+                 _('Anti-aliasing: {}').format('FSR 4' if app['anti_aliasing'] == 'fsr4' else _('Off')
+                                               if app['anti_aliasing'] == 'off' else _("the game's own")),
                  _('Performance mode: {}').format({'': _('off'), 'low': _('Balanced'), 'office': _('Maximum')}[app['perf_mode']]),
                  _('Texture filtering: {}x').format(app['aniso'])]
         if goal == 'recommended':
@@ -2023,6 +2027,8 @@ class Launcher:
                    "game keeps its own.") if WINDOWS else
                  _("Replaces the game's own temporal anti-aliasing. FSR 4 (included) needs a Radeon RX 7000 or "
                    "9000 and a recent Mesa (RADV); without it the game keeps its own."), restart=True)
+        self.note(f, _('Off: no anti-aliasing at all, the sharpest picture with jagged edges (no smearing in '
+                       'motion).'), top=2)
         if not WINDOWS:  # DLSS (Streamline) is Windows only
             self.section(f, _('Overlay'))
             self.check(f, 'show_fps', 'ini', _('Show performance overlay'),
