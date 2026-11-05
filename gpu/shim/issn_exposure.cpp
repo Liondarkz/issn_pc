@@ -6,6 +6,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include "../../src/exposure_hook.h"
@@ -275,7 +276,118 @@ bool ForceNextTimeOfDay() {
     return true;
 }
 
+namespace {
+// issn 11-05 (3): the black-city fix. Tested by João on Lvcn's save (24%, "Drogas no Lixo"): the
+// game wants time_of_day_dismal, whose world section (world_seaport_x_time_of_day_dismal) never
+// finishes streaming in (flags 3 1 1 0: on its way, for ever), so the manager waits for ever and
+// no time of day is in use: no sky, no ambient light, black city. Asking for early_morning lit it
+// at once. Fix: when the wanted one has waited for its section with nothing in use for 30 s, ask
+// for another (and the next one when that one also hangs 15 s). ISSN_TOD_RESCUE=0 turns it off.
+constexpr const char* kRescueOrder[] = {
+    "time_of_day_blustery", "time_of_day_early_morning", "time_of_day_hazy_sunset",
+    "time_of_day_sunset_candy", "time_of_day_hdr_night",
+};
+struct RescueState {
+    uint64_t stuck_id = 0;
+    std::chrono::steady_clock::time_point since{};
+    uint64_t asked[8] = {};
+    int asked_count = 0;
+    bool last_was_ours = false;
+    char status[160] = "nothing to do";
+};
+RescueState g_rescue;
+std::atomic<int> g_rescues{0};
+
+bool RescueEnabled() {
+    static const bool on = [] {
+        const char* e = std::getenv("ISSN_TOD_RESCUE");
+        return !(e && e[0] == '0');
+    }();
+    return on;
+}
+
+void RescueTick() {
+    if (!RescueEnabled() || MemoryPatcher::g_eboot_address == 0) {
+        return;
+    }
+    using Clock = std::chrono::steady_clock;
+    static auto next = Clock::now();
+    const auto now = Clock::now();
+    if (now < next) {
+        return;
+    }
+    next = now + std::chrono::seconds(1);
+    auto& r = g_rescue;
+    const TimeOfDay t = ReadTimeOfDay();
+    const TodDetail d = ReadTodDetail();
+    const bool stuck = d.in_table && d.section_state == 2 && t.current == ~0ull;
+    if (!stuck) {
+        if (r.stuck_id != 0 && t.lighting) {
+            std::snprintf(r.status, sizeof(r.status), "%s", g_rescues.load() ? "fixed (see the log)" : "nothing to do");
+        }
+        r.stuck_id = 0;
+        return;
+    }
+    if (d.wanted != r.stuck_id) {
+        r.last_was_ours = false;
+        for (int i = 0; i < r.asked_count; ++i) {
+            r.last_was_ours = r.last_was_ours || r.asked[i] == d.wanted;
+        }
+        r.stuck_id = d.wanted;
+        r.since = now;
+        std::printf("Black-city fix: '%s' waits for its section '%s' and no time of day is in use\n",
+                    d.name, d.section);
+        std::fflush(stdout);
+    }
+    const auto waited = std::chrono::duration_cast<std::chrono::seconds>(now - r.since).count();
+    const long long limit = r.last_was_ours ? 15 : 30;
+    if (waited < limit) {
+        std::snprintf(r.status, sizeof(r.status), "'%s' stuck for %llds (acts at %llds)", d.name,
+                      static_cast<long long>(waited), limit);
+        return;
+    }
+    // The first one of the list in the game's table, not tried yet this session.
+    const uintptr_t state = MemoryPatcher::g_eboot_address + TodState;
+    TodNode nodes[64];
+    const int n = WalkTable(state, nodes, 64);
+    for (const char* want : kRescueOrder) {
+        for (int i = 0; i < n; ++i) {
+            char name[40];
+            NameOf(nodes[i].obj, name, sizeof(name));
+            if (std::strcmp(name, want) != 0 || nodes[i].id == d.wanted) {
+                continue;
+            }
+            bool tried = false;
+            for (int k = 0; k < r.asked_count; ++k) {
+                tried = tried || r.asked[k] == nodes[i].id;
+            }
+            if (tried) {
+                continue;
+            }
+            const uint64_t id = nodes[i].id;
+            std::memcpy(reinterpret_cast<void*>(state + 0x10), &id, 8);
+            if (r.asked_count < 8) {
+                r.asked[r.asked_count++] = id;
+            }
+            g_rescues.fetch_add(1);
+            std::printf("Black-city fix: '%s' hung %llds waiting for its section; asked the game for '%s'\n",
+                        d.name, static_cast<long long>(waited), name);
+            std::fflush(stdout);
+            std::snprintf(r.status, sizeof(r.status), "'%s' hung: asked for '%s'", d.name, name);
+            r.stuck_id = 0;
+            return;
+        }
+    }
+    std::snprintf(r.status, sizeof(r.status), "'%s' stuck, no other time of day left to try", d.name);
+}
+} // namespace
+
+const char* RescueStatus() {
+    return RescueEnabled() ? g_rescue.status : "off (ISSN_TOD_RESCUE=0)";
+}
+
 void Tick() {
+    RescueTick();
     if (!g_attached.load(std::memory_order_relaxed)) {
         return;
     }

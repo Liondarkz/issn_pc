@@ -18,7 +18,8 @@ struct Reading {
 Reading Read();
 /// On: the game keeps the value metered now; off: it meters again.
 void Hold(bool on);
-/// Called each presented frame: a log line now and then (every 5 s for 2 minutes, then every 30 s).
+/// Called each presented frame: the black-city fix (once a second), and a log line now and then
+/// (every 5 s for 2 minutes, then every 30 s).
 void Tick();
 
 /// issn 11-05: the game's time-of-day (atmosphere) state, eboot .bss 0x7f8e800 (manager at
@@ -53,5 +54,7 @@ struct TodDetail {
 TodDetail ReadTodDetail();
 /// Test: ask the game for the next time of day in its table (cycles; false when the table is empty).
 bool ForceNextTimeOfDay();
+/// The black-city fix (in Tick, on by default; ISSN_TOD_RESCUE=0 off): what it is doing now.
+const char* RescueStatus();
 
 } // namespace IssnExposure

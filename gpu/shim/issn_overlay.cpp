@@ -809,15 +809,7 @@ void ImageTab() {
                               static_cast<unsigned long long>(t.current), t.fallback ? " (fallback)" : "",
                               t.lighting ? "loaded" : "NONE");
                 InfoRow("Time of day", text);
-                Row("Use the last good one (test)");
-                ImGui::BeginDisabled(t.last_good == 0);
-                if (ImGui::SmallButton("Apply##tod")) {
-                    IssnExposure::ForceLastGoodTimeOfDay();
-                }
-                ImGui::EndDisabled();
-                Help("A test for the saves that stay black: load a save where the city looks right first (its "
-                     "time of day is remembered for this session), then load the dark one and press Apply.");
-                ImGui::PopID();
+                InfoRow("Black-city fix", IssnExposure::RescueStatus());
                 const auto d = IssnExposure::ReadTodDetail();
                 char why[160];
                 if (!d.in_table) {
@@ -837,8 +829,8 @@ void ImageTab() {
                     IssnExposure::ForceNextTimeOfDay();
                 }
                 ImGui::EndDisabled();
-                Help("Asks the game for the next time of day in its list (it cycles). It works on the dark "
-                     "save alone: press it a few times and see whether the city lights up.");
+                Help("Asks the game for the next time of day in its list (it cycles). The black-city fix "
+                     "does this by itself after 30 s when the game's choice never loads.");
                 ImGui::PopID();
             }
             ImGui::EndTable();
