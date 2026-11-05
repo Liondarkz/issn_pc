@@ -195,6 +195,6 @@ struct List {
     u64 frame = 0;          ///< published frames
 };
 inline List g_list;
-constexpr size_t MaxPasses = 96;
+constexpr size_t MaxPasses = 64; ///< the last ones before the resolve (older ones drop out)
 
 } // namespace Vulkan::PostFx

@@ -2191,9 +2191,12 @@ bool Rasterizer::PostFxDraw(const GraphicsPipeline* pipeline) {
         pass.fmt = PostFxFormat(cb.GetDataFmt(), cb.GetNumberFmt());
         pass.action = static_cast<u8>(action);
         pass.inputs = PostFxInputs(fs, pass.in);
-        if (postfx_frame.size() < PostFx::MaxPasses) {
-            postfx_frame.push_back(pass);
+        // issn 11-05: the last MaxPasses before the resolve (the post effects sit at the end; a
+        // frame of João's had 96 before them, the lights' tiles included, and the list stopped).
+        if (postfx_frame.size() >= PostFx::MaxPasses) {
+            postfx_frame.erase(postfx_frame.begin());
         }
+        postfx_frame.push_back(pass);
     }
     if (action == PostFx::Action::Draw) {
         return false;
@@ -2296,8 +2299,10 @@ bool Rasterizer::PostFxDispatch(const ComputePipeline* pipeline) {
     const bool full_screen =
         target != 0 && width * 4 >= Dlss::g_game_width.load(std::memory_order_relaxed);
     const PostFx::Action action = full_screen ? PostFx::Decide(cs) : PostFx::Action::Draw;
-    if (full_screen && (PostFx::g_collect.load(std::memory_order_relaxed) || PostFx::LogEnabled()) &&
-        postfx_frame.size() < PostFx::MaxPasses) {
+    if (full_screen && (PostFx::g_collect.load(std::memory_order_relaxed) || PostFx::LogEnabled())) {
+        if (postfx_frame.size() >= PostFx::MaxPasses) {
+            postfx_frame.erase(postfx_frame.begin()); // the last MaxPasses (see PostFxDraw)
+        }
         PostFx::Pass pass{};
         pass.hash = cs;
         pass.target = target;
