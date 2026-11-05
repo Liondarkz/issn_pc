@@ -802,6 +802,23 @@ void ImageTab() {
                  "into the dark place. If it is not dark any more, the darkness comes from the metering. Turn "
                  "it off afterwards (it is not saved).");
             ImGui::PopID();
+            // issn 11-05: the time of day's lighting (the dark saves never load it).
+            const auto t = IssnExposure::ReadTimeOfDay();
+            if (t.known) {
+                std::snprintf(text, sizeof(text), "%#llx%s, lighting %s",
+                              static_cast<unsigned long long>(t.current), t.fallback ? " (fallback)" : "",
+                              t.lighting ? "loaded" : "NONE");
+                InfoRow("Time of day", text);
+                Row("Use the last good one (test)");
+                ImGui::BeginDisabled(t.last_good == 0);
+                if (ImGui::SmallButton("Apply##tod")) {
+                    IssnExposure::ForceLastGoodTimeOfDay();
+                }
+                ImGui::EndDisabled();
+                Help("A test for the saves that stay black: load a save where the city looks right first (its "
+                     "time of day is remembered for this session), then load the dark one and press Apply.");
+                ImGui::PopID();
+            }
             ImGui::EndTable();
         }
     }
