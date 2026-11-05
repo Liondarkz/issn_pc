@@ -1,5 +1,5 @@
-inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.6.3
-========================================================
+inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.7
+======================================================
 
 A test build: the game plays from the start, at about 90-105 FPS standing in the open city on a
 Ryzen 7 3700X + RX 9060 XT. The first start prepares the shaders once (a few minutes, with a
@@ -27,6 +27,55 @@ bin\dlss next to issn-probe.exe. Graphics > Download XeSS now / Download DLSS no
 XeSS runs on Intel Arc, Radeon RX 5000 and later and GeForce GTX 10 and later; DLSS needs an
 NVIDIA RTX card. XeSS needs the Visual C++ 2015-2022 runtime (vc_redist.x64). Without the files
 the game keeps its own anti-aliasing.
+
+OptiScaler (optional, third-party)
+OptiScaler (https://github.com/optiscaler/OptiScaler, GPL-3.0) is a separate program by its own
+team, not part of the port and never in this zip. It takes the picture, depth and motion the port
+gives XeSS and runs another upscaler on them: FSR 4 (Radeon RX 7000 / 9000, through DirectX 12),
+FSR 3.1, XeSS, DLSS (NVIDIA RTX) or FSR 2.2 (the one tested with the port).
+- Install: Graphics > OptiScaler (optional) > Download and install. The launcher downloads the
+  newest stable release from the project's GitHub (about 55 MB), checks it and puts it in bin\:
+  OptiScaler.dll as winmm.dll, its DLLs beside it, OptiScaler.ini set for the port.
+- The port's anti-aliasing must be XeSS (Graphics > Anti-aliasing; the install sets it): with
+  anything else OptiScaler gets nothing. The size the game draws at is still the port's
+  FSR 4 / DLSS quality.
+- Output: Graphics > OptiScaler output, written to bin\OptiScaler.ini (VulkanUpscaler); it applies
+  when the game starts.
+- In the game, F8 opens OptiScaler's menu. Insert stays the port's menu and Home its anti-aliasing
+  switch (a copy unpacked by hand uses Insert: install it from the launcher to move it to F8).
+  Page Up, Page Down and End are OptiScaler's own keys (its FPS counter and frame generation).
+- Remove: Graphics > OptiScaler (optional) > Remove takes out every file it put (listed in
+  bin\optiscaler.json) and the port runs as before. Close the game first.
+- last_run.log starts with a line when OptiScaler is installed. Problems with OptiScaler itself
+  go to its project.
+
+What's new in 0.3.7
+- Black city fix: in some saves the game asks for a time of day (the grey "dismal" sky) whose part
+  of the map never finishes loading, so no sky or ambient light is in use and the city stays
+  black. After 30 seconds the port asks the game for a similar one (rainy "blustery") and the city
+  lights up by itself. Insert > Image > Exposure shows what it did (ISSN_TOD_RESCUE=0 turns it off).
+- 4K: the game's exposure meter gets room for 4K, so the picture no longer goes dark and back.
+- Achievements: the game's trophies pop up with their icon, are kept on this PC
+  (user\trophies.txt) and the launcher has an Achievements page with the percentage.
+- Field of view in the menu, with the aim following it (on by default).
+- The port's own shader loading screen (art, progress bar, tips).
+- Cheats (Game tab): infinite health now also stops the hits themselves (no gray screen), a new
+  "Infinite missiles" switch (God Mode turns it on too), the Karma Bomb stays ready; endless neon
+  run and video flight while the dash button is held, long smoke dash.
+- Anti-aliasing "Off" (launcher and menu): no T2x and a still camera.
+- OptiScaler (optional): install, remove and choose its output from the launcher (see above).
+- In-game menu: VSync and the frame rate limit change at once; Apply and restart starts the
+  anti-aliasing, quality and frame generation chosen there; a note says when the launcher's frame
+  pacing caps the game.
+- Controls: mouse and controller sensitivity (menu and launcher); F11 hides the performance
+  overlay; L3 + R3 always reach the game, the spray can pose of pads without a motion sensor is a
+  menu switch (and the H key).
+- Video memory limit in the launcher (Performance), for cards of 6 GB or less.
+- FSR 4 only turns on with AMD Radeon cards.
+- Save backup: a switch in the launcher, and none when the savedata folder is far bigger than the
+  game's saves.
+- A crash right after the start with a game folder whose all_shaders.xpps does not match the
+  01.07 eboot.bin now says so in the log.
 
 What's new in 0.3.6.3
 - In-game menu (Insert, or R3 + L2 on a controller), Image tab: draw distance, texture filtering
@@ -233,8 +282,8 @@ Controller
   light bar work as on the PS4.
 - Pads without a touchpad or motion sensors (Xbox, 8BitDo, ...), on by itself for them (launcher:
   Game > Controls > Controller without touchpad):
-  - Spray can: L3 + R3 together tilts the pad like the spray can; L1 rattles it, the right
-    stick aims (launcher: Spray can stick speed; - / = in the game). L3 + R3 again levels it.
+  - Spray can: Insert > Controls > "Spray can: tilt the pad" tilts it like the spray can; L1 rattles it, the right
+    stick aims (launcher: Spray can stick speed; - / = in the game). Turn the switch off to level it (H on the keyboard does both).
   - Touchpad swipe (lift, push): hold Select/Back and push the right stick that way.
   - Two fingers on the touchpad (lifting the tree): hold Select/Back + RB (R1).
   - Touchpad click: Select/Back.

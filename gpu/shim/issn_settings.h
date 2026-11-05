@@ -51,6 +51,8 @@ struct Values {
     std::atomic<bool> show_fps{false};
     /// "Game saved" note in a corner when the game writes a save (issn_overlay.cpp).
     std::atomic<bool> save_note{true};
+    /// issn 11-04: the trophy popup (icon and name) when the game unlocks a trophy.
+    std::atomic<bool> trophy_note{true};
     /// Sensor mode's aiming speed (the graffiti cursor), percent of the default: 25..200.
     std::atomic<int> sensor_aim{100};
     /// The graffiti guide was shown once; the menu's Controls tab opens it again.
@@ -143,6 +145,17 @@ struct Values {
     /// Delsin's cheats (src/hero_hook.h, issn_hero.cpp), live; hero_supported once hooked.
     std::atomic<bool> hero_health{false}, hero_powers{false}, hero_karma{false};
     std::atomic<bool> hero_supported{false};
+    /// issn-axy 11-04 (src/dash_hook.h): neon run and video flight while the dash button is held,
+    /// a long smoke dash; *_supported once the probe's stubs are in.
+    std::atomic<bool> hero_neon_run{false}, hero_video_flight{false}, hero_smoke_dash{false};
+    std::atomic<bool> hero_neon_supported{false}, hero_video_supported{false};
+    /// 11-05: infinite missiles (src/hero_hook.h); which of the probe's checks passed.
+    std::atomic<bool> hero_missiles{false};
+    std::atomic<bool> hero_missiles_supported{false}, hero_karma_supported{false},
+        hero_no_hit_supported{false};
+    /// issn 11-04 (video_core issn_postfx.h): the game's motion blur and chromatic aberration,
+    /// live from the menu and the launcher (issn.ini motion_blur / chromatic_aberration).
+    std::atomic<bool> motion_blur{true}, chromatic_aberration{true};
     /// Field of view factor (src/fov_hook.h, issn_view.cpp), live; fov_supported once hooked.
     std::atomic<float> fov{1.0f};
     std::atomic<bool> fov_supported{false};
@@ -159,6 +172,10 @@ struct Values {
     // the mouse turns the camera (right stick). Live from the menu.
     std::atomic<bool> mouse_enabled{true}, mouse_invert_y{false};
     std::atomic<float> mouse_sensitivity{1.0f}, mouse_smoothing{0.5f}, mouse_accel{0.0f}, mouse_deadzone{0.1f};
+    /// issn 11-04: right stick sensitivity (runtime_pad.c), live; 1 = the game's own feel.
+    std::atomic<float> pad_sensitivity{1.0f};
+    /// issn 11-04: the spray can pose for pads without motion sensors (runtime_pad.c), not saved.
+    std::atomic<bool> spray_pose{false};
     /// Keyboard and mouse button remap (ISSN_KEY_MAP syntax); written by Load only, read once.
     std::string key_map;
 };
@@ -181,7 +198,7 @@ bool GraphicsNeedRestart();
 void Save();
 
 /// The launcher's choices the menu offers (menu_* keys; the values are the launcher's own).
-inline constexpr const char* AntiAliasingKeys[] = {"game", "fsr4", "xess", "dlss"};
+inline constexpr const char* AntiAliasingKeys[] = {"game", "fsr4", "xess", "dlss", "off"};
 inline constexpr const char* UpscaleQualityKeys[] = {"", "1.5", "1.7", "2", "3"};
 inline constexpr const char* AnisoKeys[] = {"", "4", "8", "16"};
 inline constexpr const char* DrawDistanceKeys[] = {"0.6", "", "1.5", "2.0"};

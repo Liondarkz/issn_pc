@@ -2,6 +2,7 @@
 #undef NDEBUG /* the checks are asserts; release builds define NDEBUG */
 #include "../src/runtime_services.c"
 #include <assert.h>
+#include <sys/stat.h>
 
 uintptr_t runtime_lookup(const RuntimeExport *table, size_t count, const char *nid) { (void)table; (void)count; (void)nid; return 0; }
 int issngpu_text_input_begin(const char *text, const char *prompt) { (void)text; (void)prompt; return 0; }
@@ -13,6 +14,12 @@ static int choice_next=-1;
 int issngpu_choice_begin(const char *title, const char *const *items, const char *const *images, int count, int focus) { (void)title; (void)items; (void)images; (void)focus; return count>0; }
 int issngpu_choice_poll(void) { return choice_next; }
 void issngpu_note_game_saved(const char *what) { (void)what; }
+static int trophy_popups, trophy_popup_last=-1;
+void issngpu_note_trophy(int id, const char *name, const char *grade, const void *png, uint64_t size) {
+    (void)name; (void)grade; (void)png; (void)size; ++trophy_popups; trophy_popup_last=id;
+}
+static char user_dir[256];
+const char *runtime_file_user_dir(void) { return user_dir; }
 int runtime_savedata_param(int32_t user, const char *dir, void *param) { (void)user; (void)dir; (void)param; return -1; }
 int runtime_savedata_icon(int32_t user, const char *dir, char *out, size_t size) { (void)user; (void)dir; (void)out; (void)size; return -1; }
 
@@ -77,10 +84,24 @@ int main(void) {
     assert(playgo_todo(handle,&chunk,1)==0 && playgo_todo(handle,NULL,1)==PLAYGO_BAD_POINTER);
     assert(playgo_close(handle)==0 && playgo_close(handle)==PLAYGO_BAD_HANDLE && playgo_terminate()==0);
 
-    /* Trophies: nothing unlocked. */
+    /* Trophies: none on a new PC; an unlock is kept in user/trophies.txt, shown once, and a
+     * second unlock of it is refused like on the console. No trophy file: count unknown (0). */
+    snprintf(user_dir,sizeof(user_dir),"out/services-test-user");
+    mkdir(user_dir,0755);
+    char book[300]; snprintf(book,sizeof(book),"%s/trophies.txt",user_dir); remove(book);
+    static char no_file[]="ISSN_TROPHY_FILE="; putenv(no_file);
     uint32_t flags[4]={~0u,~0u,~0u,~0u}, count=7;
     assert(trophy_unlock_state(1,1,flags,&count)==0 && !flags[0] && !flags[3] && count==0);
     assert(trophy_unlock_state(1,1,NULL,&count)==TROPHY_INVALID && trophy_release(0)==TROPHY_INVALID);
+    int32_t platinum=7;
+    assert(trophy_unlock(1,1,5,&platinum)==0 && platinum==-1 && trophy_popups==1 && trophy_popup_last==5);
+    assert(trophy_unlock(1,1,5,&platinum)==TROPHY_ALREADY_UNLOCKED && trophy_popups==1);
+    assert(trophy_unlock(1,1,40,&platinum)==0 && trophy_popups==2);
+    assert(trophy_unlock_state(1,1,flags,&count)==0 && flags[0]==1u<<5 && flags[1]==1u<<8);
+    FILE *kept=fopen(book,"r"); char line[128]; int lines=0;
+    assert(kept);
+    while (fgets(line,sizeof(line),kept)) if (line[0]!='#') ++lines;
+    fclose(kept); assert(lines==2);
 
     float ratio=0; assert(safe_area(&ratio)==0 && ratio==1.0f && safe_area(NULL)==SYSTEM_PARAMETER);
     puts("services test: ok");

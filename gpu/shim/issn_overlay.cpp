@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -20,6 +21,7 @@
 #include "issn_actors.h"
 #include "issn_graphics.h"
 #include "issn_perf_stats.h"
+#include "issn_exposure.h"
 #include "../../src/actor_hook.h"
 
 extern IssnActorSlot issn_actor_slots[2];
@@ -33,9 +35,11 @@ extern "C" const char* runtime_pad_key_name(const char* button);
 #include "imgui_impl_vulkan.h"
 #include "video_core/renderdoc.h"
 #include "video_core/renderer_vulkan/vk_dlss.h"
+#include "video_core/renderer_vulkan/issn_postfx.h"
 #include "video_core/renderer_vulkan/issn_framegen.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
+#include "video_core/renderer_vulkan/vk_swapchain.h"
 
 // DejaVu Sans (Cyrillic), embedded (third_party/fonts, Bitstream Vera license).
 #ifdef _WIN32
@@ -289,6 +293,18 @@ void InfoRow(const char* label, const char* text) {
     ImGui::PopID();
 }
 
+// issn 11-04: a float setting as a slider (sensitivities), live.
+void FloatSliderRow(const char* label, std::atomic<float>& value, float lo, float hi, const char* format,
+                    const char* help) {
+    Row(label);
+    float v = value;
+    if (ImGui::SliderFloat("##value", &v, lo, hi, format, ImGuiSliderFlags_AlwaysClamp)) {
+        Store(value, std::clamp(v, lo, hi), true);
+    }
+    Help(help);
+    ImGui::PopID();
+}
+
 void SliderRow(const char* label, std::atomic<int>& value, int lo, int hi, const char* format, const char* help) {
     Row(label);
     int v = value;
@@ -366,22 +382,49 @@ void GameTab() {
     ImGui::SeparatorText("Cheats");
     if (s.hero_supported && BeginRows("##hero")) {
         Row("God Mode");
-        bool god = s.hero_health.load() && s.hero_powers.load();
+        const bool missiles_row = s.hero_missiles_supported.load();
+        bool god = s.hero_health.load() && s.hero_powers.load() &&
+                   (!missiles_row || s.hero_missiles.load());
         if (ImGui::Checkbox("##value", &god)) {
             s.hero_health = god;
             s.hero_powers = god;
+            if (missiles_row) {
+                s.hero_missiles = god;
+            }
             dirty = true;
         }
-        Help("Infinite health and infinite powers together.");
+        Help("Infinite health, powers and missiles together.");
         ImGui::PopID();
         CheckRow("Infinite health", s.hero_health,
-                 "Delsin does not lose health (falls and scripted deaths still happen). Only Delsin "
-                 "is protected.");
+                 s.hero_no_hit_supported.load()
+                     ? "Enemy hits do not reach Delsin: no health loss and no gray screen. Scripted "
+                       "deaths still happen. Only Delsin is protected."
+                     : "Delsin does not lose health (falls and scripted deaths still happen). Only "
+                       "Delsin is protected.");
         CheckRow("Infinite powers", s.hero_powers,
                  "The energy of the power in use stays full: no need to drain smoke, neon or other "
                  "sources.");
-        CheckRow("Karma Bomb always ready", s.hero_karma,
-                 "The Karma Bomb meter stays full.");
+        if (missiles_row) {
+            CheckRow("Infinite missiles", s.hero_missiles,
+                     "The missiles (the heavy shots with their own ammo) never run out.");
+        }
+        if (s.hero_karma_supported.load()) {
+            CheckRow("Karma Bomb always ready", s.hero_karma,
+                     "The Karma Bomb stays ready: after using it, it is ready again at once.");
+        }
+        if (s.hero_neon_supported) {
+            CheckRow("Endless neon run", s.hero_neon_run,
+                     "Neon: hold the dash button and the run does not stop after 2 seconds. "
+                     "Releasing it stops the run.");
+        }
+        if (s.hero_video_supported) {
+            CheckRow("Endless video flight", s.hero_video_flight,
+                     "Video: hold the dash button and the flight does not stop after 1.5 seconds. "
+                     "Releasing it ends the flight.");
+        }
+        CheckRow("Long smoke dash", s.hero_smoke_dash,
+                 "Smoke: each dash goes 3 times as far. The smoke dash goes to a point picked when it "
+                 "starts, so holding the button does not make it longer.");
         ImGui::EndTable();
     } else if (!any_cheat) {
         ImGui::TextDisabled("No cheats for this game build.");
@@ -503,6 +546,17 @@ void AssignKey(int row, SDL_Scancode code) {
 
 void ControlsTab() {
     auto& s = IssnSettings::Get();
+    ImGui::SeparatorText("Sensitivity (changes at once)");
+    if (BeginRows("##sensitivity")) {
+        FloatSliderRow("Mouse", s.mouse_sensitivity, 0.1f, 5.0f, "%.2fx",
+                       "How far the camera turns per mouse movement. - / = also change it in play.");
+        FloatSliderRow("Controller (right stick)", s.pad_sensitivity, 0.25f, 3.0f, "%.2fx",
+                       "Below 1: slower camera. Above 1: the camera reacts more to small stick moves.");
+        CheckRow("Spray can: tilt the pad", s.spray_pose,
+                 "For controllers without motion sensors (Xbox, 8BitDo): holds the pad tilted for the "
+                 "graffiti; L1 shakes the can, the right stick aims. Turn it off when done. H on the keyboard.");
+        ImGui::EndTable();
+    }
     ImGui::SeparatorText("Keyboard");
     ImGui::TextWrapped("Click Change, then press the key. Esc cancels. The mouse buttons stay L2 (aim) and R2 "
                        "(shoot); W/A/S/D move and the mouse turns the camera.");
@@ -569,9 +623,8 @@ void PictureRows() {
         static const float fov_values[] = {0.9f, 1.0f, 1.1f, 1.15f, 1.2f, 1.3f, 1.4f};
         if (s.fov_supported) {
             FloatChoiceRow("Field of view", s.fov, fov_labels, fov_values, 7,
-                           "How much of the city the camera shows. Picture only: aiming and the camera "
-                           "itself stay as they are.");
-        } // hidden otherwise (src/probe.c install_fov: off unless ISSN_FOV=1 for now)
+                           "How much of the city the camera shows. Aiming follows the wider view.");
+        } // hidden otherwise (another eboot build, a field of view patch on, or ISSN_FOV_MENU=0)
         static const char* const distance_labels[] = {"Short (faster)", "Original", "Long (less pop-in)",
                                                       "Very long (slower)"};
         if (s.view_supported) {
@@ -592,6 +645,22 @@ void PictureRows() {
                       "Ground and walls seen at an angle stay sharp in the distance.");
             if (s.menu_aniso != before) IssnSettings::ApplyLiveChoices();
         }
+        // issn 11-04 (Discord poll): the game's motion blur and chromatic aberration, live.
+        namespace P = Vulkan::PostFx;
+        const auto effect_row = [&](const char* label, std::atomic<bool>& value, P::Effect effect,
+                                    const char* help) {
+            if (P::Known(effect)) {
+                const bool before = value;
+                CheckRow(label, value, help);
+                if (value != before) IssnSettings::ApplyLiveChoices();
+            } else {
+                InfoRow(label, "not found yet (Find post effects, below)");
+            }
+        };
+        effect_row("Motion blur", s.motion_blur, P::MotionBlur,
+                   "The blur when the camera or Delsin moves fast. Off: a sharp picture in motion.");
+        effect_row("Chromatic aberration", s.chromatic_aberration, P::Chromatic,
+                   "The red and blue fringes toward the edges of the screen.");
         static const char* const fg_labels[] = {"Off", "On (test)"};
         if (Vulkan::FrameGen::Wanted()) {
             const int before = s.menu_frame_gen;
@@ -605,12 +674,14 @@ void PictureRows() {
         }
         ImGui::EndTable();
     }
-    ImGui::SeparatorText("Next start (restart the game from the launcher)");
+    ImGui::SeparatorText("Needs a restart (Apply and restart, below)");
     if (BeginRows("##next_start")) {
-        static const char* const aa_labels[] = {"The game's own", "FSR 4 (AMD)", "XeSS (Intel)", "DLSS (NVIDIA RTX)"};
-        ChoiceRow("Anti-aliasing / upscaler", s.menu_anti_aliasing, aa_labels, nullptr, 4,
+        static const char* const aa_labels[] = {"The game's own", "FSR 4 (AMD)", "XeSS (Intel)", "DLSS (NVIDIA RTX)",
+                                                "Off (none)"};
+        ChoiceRow("Anti-aliasing / upscaler", s.menu_anti_aliasing, aa_labels, nullptr, 5,
                   "FSR 4, XeSS or DLSS give the sharpest picture and allow the quality below and frame "
-                  "generation. The launcher fetches XeSS / DLSS files when needed.");
+                  "generation. The launcher fetches XeSS / DLSS files when needed. Off: no anti-aliasing "
+                  "at all (sharp, with jagged edges).");
         static const char* const quality_labels[] = {"Off (game resolution)", "Quality (screen / 1.5)",
                                                      "Balanced (screen / 1.7)", "Performance (screen / 2)",
                                                      "Ultra Performance (screen / 3)"};
@@ -626,8 +697,85 @@ void PictureRows() {
                          (!Vulkan::FrameGen::Wanted() && s.menu_frame_gen != s.startup_frame_gen);
     if (changed) {
         ImGui::TextColored(ImVec4(1.0f, 0.78f, 0.3f, 1.0f),
-                           "Changed: close the game and press Play in the launcher to use them.");
+                           "Changed: press \"Apply and restart\" below (unsaved progress is lost).");
     }
+}
+
+// issn 11-04 (video_core issn_postfx.h): the full-screen passes of the last frame up to the T2x
+// resolve, each with a live "off", to find which ones are the motion blur and the chromatic
+// aberration. Collected only while this header is open.
+void PostFxTest() {
+    namespace P = Vulkan::PostFx;
+    const bool open = ImGui::CollapsingHeader("Find post effects (test)");
+    Help("Lists the game's full-screen passes after the scene and before the HUD. Turn them off one at "
+         "a time and watch what disappears; send the hash of the motion blur and of the colour fringes.");
+    P::g_collect.store(open, std::memory_order_relaxed);
+    if (!open) {
+        return;
+    }
+    std::vector<P::Pass> passes;
+    u64 frame = 0;
+    {
+        std::scoped_lock lock{P::g_list.mutex};
+        passes = P::g_list.last;
+        frame = P::g_list.frame;
+    }
+    if (BeginRows("##postfx_mode")) {
+        static const char* const mode_labels[] = {"Copy its input (as the switches do)", "Skip the draw"};
+        ChoiceRow("When off", P::g_test_mode, mode_labels, nullptr, 2,
+                  "Copy: the pass's target gets the picture it read, so the effect alone goes away. "
+                  "Skip: nothing is drawn (can leave an old picture).");
+        ImGui::EndTable();
+    }
+    if (passes.empty()) {
+        ImGui::TextDisabled(frame ? "No full-screen pass before the resolve in the last frame."
+                                  : "Waiting for a frame (play, not a menu or loading screen).");
+        return;
+    }
+    if (ImGui::Button("Write the list to the log")) {
+        std::printf("PostFx: %zu full-screen passes before the T2x resolve (frame %llu)\n", passes.size(),
+                    static_cast<unsigned long long>(frame));
+        for (size_t i = 0; i < passes.size(); ++i) {
+            const auto& p = passes[i];
+            std::printf("PostFx %2zu: %s_%08llx -> %#llx %ux%u f%#x, %u inputs%s\n", i,
+                        p.compute ? "cs" : "fs", static_cast<unsigned long long>(p.hash),
+                        static_cast<unsigned long long>(p.target), unsigned(p.width), unsigned(p.height),
+                        unsigned(p.fmt), unsigned(p.inputs),
+                        P::IsTestOff(p.hash) ? " [off]" : "");
+            for (unsigned k = 0; k < p.inputs; ++k) {
+                std::printf("           in %#llx %ux%u f%#x\n", static_cast<unsigned long long>(p.in[k].addr),
+                            unsigned(p.in[k].width), unsigned(p.in[k].height), unsigned(p.in[k].fmt));
+            }
+        }
+        std::fflush(stdout);
+    }
+    Help("Writes this list (with the inputs) to user\\last_run.log.");
+    if (!ImGui::BeginTable("##postfx", 4, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
+        return;
+    }
+    ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthStretch, 0.08f);
+    ImGui::TableSetupColumn("shader", ImGuiTableColumnFlags_WidthStretch, 0.34f);
+    ImGui::TableSetupColumn("target", ImGuiTableColumnFlags_WidthStretch, 0.40f);
+    ImGui::TableSetupColumn("off", ImGuiTableColumnFlags_WidthStretch, 0.18f);
+    for (size_t i = 0; i < passes.size(); ++i) {
+        const auto& p = passes[i];
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("%zu", i);
+        ImGui::TableNextColumn();
+        ImGui::Text("%s_%08llx", p.compute ? "cs" : "fs", static_cast<unsigned long long>(p.hash));
+        ImGui::TableNextColumn();
+        ImGui::Text("%ux%u, %u in", unsigned(p.width), unsigned(p.height), unsigned(p.inputs));
+        ImGui::TableNextColumn();
+        ImGui::PushID(static_cast<int>(i));
+        bool off = P::IsTestOff(p.hash);
+        if (ImGui::Checkbox("##off", &off)) {
+            P::SetTestOff(p.hash, off);
+        }
+        ImGui::PopID();
+    }
+    ImGui::EndTable();
 }
 
 void ImageTab() {
@@ -638,7 +786,7 @@ void ImageTab() {
     if (BeginRows("##display")) {
         ChoiceRow("Display mode", s.display_mode, G::DisplayModeNames.data(), nullptr, G::DisplayModeCount,
                   "Windowed, borderless window or exclusive fullscreen.");
-        CheckRow("VSync (on restart)", s.vsync, "Waits for the monitor: no tearing, a little more input delay.");
+        CheckRow("VSync", s.vsync, "Waits for the monitor: no tearing, a little more input delay.");
         ImGui::EndTable();
     }
     const int iw = s.image_width, ih = s.image_height, ww = s.window_width, wh = s.window_height;
@@ -651,20 +799,57 @@ void ImageTab() {
         InfoRow("Window", text);
         ImGui::EndTable();
     }
-}
-
-// issn-axy: the new GPU core reads the frame rate limit (its vblank rate) and VSync (the present
-// mode) when it starts, so both apply on restart; the old core's live options are gone.
-struct StartupGraphics {
-    int fps_limit = -1;
-    bool vsync = false;
-};
-StartupGraphics& Startup() {
-    static StartupGraphics startup = [] {
-        const auto& s = IssnSettings::Get();
-        return StartupGraphics{s.fps_limit.load(), s.vsync.load()};
-    }();
-    return startup;
+    PostFxTest();
+    // issn 11-04: the game's exposure meter (src/exposure_hook.h), for the dark-night reports.
+    if (const auto e = IssnExposure::Read(); e.attached) {
+        ImGui::SeparatorText("Exposure (test)");
+        if (BeginRows("##exposure")) {
+            char text[96];
+            std::snprintf(text, sizeof(text), "%.4g (tile sum %.4g, %u rows)", e.value, e.sum, e.rows);
+            InfoRow("Metered now", text);
+            Row("Hold this exposure");
+            bool held = e.held;
+            if (ImGui::Checkbox("##hold", &held)) {
+                IssnExposure::Hold(held);
+            }
+            Help("A test for the dark night: hold it where the picture looks right (in daylight), then walk "
+                 "into the dark place. If it is not dark any more, the darkness comes from the metering. Turn "
+                 "it off afterwards (it is not saved).");
+            ImGui::PopID();
+            // issn 11-05: the time of day's lighting (the dark saves never load it).
+            const auto t = IssnExposure::ReadTimeOfDay();
+            if (t.known) {
+                std::snprintf(text, sizeof(text), "%#llx%s, lighting %s",
+                              static_cast<unsigned long long>(t.current), t.fallback ? " (fallback)" : "",
+                              t.lighting ? "loaded" : "NONE");
+                InfoRow("Time of day", text);
+                InfoRow("Black-city fix", IssnExposure::RescueStatus());
+                const auto d = IssnExposure::ReadTodDetail();
+                char why[160];
+                if (!d.in_table) {
+                    std::snprintf(why, sizeof(why), "not in the game's list (%u there)", d.entries);
+                } else {
+                    static const char* const states[] = {"no section to wait for", "section ready",
+                                                         "waiting for its section", "section missing"};
+                    std::snprintf(why, sizeof(why), "%s: %s", d.name, states[d.section_state & 3]);
+                }
+                InfoRow("Why", why);
+                if (d.section[0]) {
+                    InfoRow("Section", d.section);
+                }
+                Row("Try the next one (test)");
+                ImGui::BeginDisabled(d.entries == 0);
+                if (ImGui::SmallButton("Next##tod")) {
+                    IssnExposure::ForceNextTimeOfDay();
+                }
+                ImGui::EndDisabled();
+                Help("Asks the game for the next time of day in its list (it cycles). The black-city fix "
+                     "does this by itself after 30 s when the game's choice never loads.");
+                ImGui::PopID();
+            }
+            ImGui::EndTable();
+        }
+    }
 }
 
 const char* AntiAliasingName() {
@@ -680,14 +865,16 @@ const char* AntiAliasingName() {
     if (xess && xess[0] == '1') {
         return "XeSS (Intel)";
     }
+    if (Vulkan::Dlss::AaOff()) {
+        return "Off";
+    }
     return "The game's own (SMAA T2x)";
 }
 
 void PerformanceTab() {
     namespace G = IssnGraphics;
     auto& s = IssnSettings::Get();
-    Startup();
-    ImGui::SeparatorText("Applied on restart");
+    ImGui::SeparatorText("Changes at once");
     if (BeginRows("##restart")) {
         static const char* const fps_labels[] = {"30", "60", "120", "240", "Unlimited"};
         ChoiceRow("Frame rate limit", s.fps_limit, fps_labels, G::FpsLimits.data(), int(G::FpsLimits.size()),
@@ -697,7 +884,17 @@ void PerformanceTab() {
     ImGui::SeparatorText("Information");
     if (BeginRows("##perf_info")) {
         InfoRow("Anti-aliasing", AntiAliasingName());
-        InfoRow("Change it in", "the Image tab (next start) or the launcher");
+        InfoRow("Change it in", "the Image tab (Apply and restart) or the launcher");
+        // Frame pacing (launcher, SHADPS4_VSYNC_DIVIDER) shows every game frame N refreshes with
+        // V-Sync forced on: the game tops out at refresh / N whatever the limit and VSync say, and
+        // the counter shows the screen's rate (tester 10-31: "100 FPS (game 50)" at limit 60).
+        if (const u32 divider = Vulkan::VsyncDivider(); divider > 1) {
+            static char pacing[96];
+            std::snprintf(pacing, sizeof(pacing), "on: game = screen refresh / %u", divider);
+            InfoRow("Frame pacing", pacing);
+            InfoRow("Note", "keeps VSync on, ignores the limit");
+            InfoRow("Turn it off in", "the launcher (Frame pacing: Normal)");
+        }
         ImGui::EndTable();
     }
 }
@@ -706,9 +903,11 @@ void OverlayTab() {
     namespace P = IssnPerfStats;
     auto& s = IssnSettings::Get();
     if (BeginRows("##overlay_on")) {
-        CheckRow("Show overlay", s.show_fps, "The performance overlay in a corner of the screen.");
+        CheckRow("Show overlay", s.show_fps, "The performance overlay in a corner of the screen. F11 hides or shows it in play.");
         CheckRow("\"Game saved\" note", s.save_note,
                  "A short note at the top of the screen each time the game writes a save.");
+        CheckRow("Trophy popup", s.trophy_note,
+                 "The trophy's icon and name in a top corner for a few seconds when the game unlocks one.");
         ImGui::EndTable();
     }
     ImGui::BeginDisabled(!s.show_fps);
@@ -779,8 +978,11 @@ void OverlayTab() {
 // Startup options changed since this launch (applied by "Apply and restart").
 int RestartChanges() {
     const auto& s = IssnSettings::Get();
-    const auto& startup = Startup();
-    return (s.fps_limit != startup.fps_limit) + (s.vsync != startup.vsync);
+    // issn-axy: the anti-aliasing, upscaler quality and (when it is not live) frame generation
+    // chosen in the Image tab; run.py starts them on a menu restart (graphics_options.py).
+    // Frame rate limit and VSync change at once (the vblank thread and the swapchain follow them).
+    return (s.menu_anti_aliasing != s.startup_anti_aliasing) + (s.menu_upscale_quality != s.startup_upscale_quality) +
+           (!Vulkan::FrameGen::Wanted() && s.menu_frame_gen != s.startup_frame_gen);
 }
 
 void Menu() {
@@ -1003,27 +1205,227 @@ void ChoiceBox() {
     ImGui::End();
 }
 
+// issn-axy (04/11): the port's own shader loading screen. The background is the player's dump
+// art (sce_sys/pic1.png, ISSN_LOADING_ART from run.py: read at run time, never shipped); without
+// it, a dark neon gradient. Texts follow the game language (ISSN_LANGUAGE: PS4 ids).
+enum class LoadLang { En, Pt, Es };
+
+LoadLang LoadingLanguage() {
+    static const LoadLang lang = [] {
+        const char* v = std::getenv("ISSN_LANGUAGE");
+        const int id = v ? std::atoi(v) : 1;
+        return id == 7 || id == 17 ? LoadLang::Pt : id == 3 || id == 20 ? LoadLang::Es : LoadLang::En;
+    }();
+    return lang;
+}
+
+const char* LoadText(const char* en, const char* pt, const char* es) {
+    switch (LoadingLanguage()) {
+    case LoadLang::Pt: return pt;
+    case LoadLang::Es: return es;
+    default: return en;
+    }
+}
+
+struct LoadingTip {
+    const char *en, *pt, *es;
+};
+// Only things the port does today (tested features of the menu and controls).
+constexpr LoadingTip LoadingTips[] = {
+    {"Insert (or R3 + L2) opens the port's menu at any time.",
+     "Insert (ou R3 + L2) abre o menu do port a qualquer momento.",
+     "Insert (o R3 + L2) abre el menú del port en cualquier momento."},
+    {"Cheats for health, powers and the Karma Bomb are in Insert > Game.",
+     "Cheats de vida, poderes e Karma Bomb ficam em Insert > Game.",
+     "Los trucos de vida, poderes y Karma Bomb están en Insert > Game."},
+    {"No motion sensor? The spray can works with the H key or the switch in Insert > Controls.",
+     "Controle sem sensor? A lata de spray funciona com a tecla H ou a chave em Insert > Controls.",
+     "¿Mando sin sensor? El spray funciona con la tecla H o el interruptor de Insert > Controls."},
+    {"F11 hides the on-screen overlay.",
+     "F11 esconde o overlay da tela.",
+     "F11 oculta el overlay de la pantalla."},
+    {"The shader cache grows as you play: the next starts load faster.",
+     "O cache de shaders cresce enquanto você joga: os próximos inícios carregam mais rápido.",
+     "La caché de shaders crece mientras juegas: los próximos inicios cargan más rápido."},
+};
+constexpr float LoadingTipSeconds = 7.0f;
+
+// The background art: decoded and made a texture on the present thread (imgui_mutex held,
+// before NewFrame); freed through choice_retired when the loading screen ends.
+ImTextureData* loading_art = nullptr;
+bool loading_art_tried = false;
+
+void UpdateLoadingArt() {
+    if (loading && !loading_art_tried) {
+        loading_art_tried = true;
+        const char* path = std::getenv("ISSN_LOADING_ART");
+        IssnPng::Image picture;
+        if (path && *path && IssnPng::LoadRgba(path, picture) && !picture.rgba.empty()) {
+            ImTextureData* tex = IM_NEW(ImTextureData)();
+            tex->Create(ImTextureFormat_RGBA32, picture.width, picture.height);
+            std::memcpy(tex->GetPixels(), picture.rgba.data(), picture.rgba.size());
+            ImGui::RegisterUserTexture(tex);
+            loading_art = tex;
+            std::printf("Loading screen: art %dx%d\n", picture.width, picture.height);
+        } else {
+            std::printf("Loading screen: no art (%s)\n", path && *path ? "unreadable" : "not set");
+        }
+        std::fflush(stdout);
+    }
+    if (!loading && loading_art) {
+        loading_art->WantDestroyNextFrame = true;
+        choice_retired.push_back(loading_art);
+        choice_retiring = true;
+        loading_art = nullptr;
+    }
+}
+
+ImU32 Rgba(int r, int g, int b, float a) {
+    return IM_COL32(r, g, b, int(std::clamp(a, 0.0f, 1.0f) * 255.0f + 0.5f));
+}
+
 void LoadingScreen() {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * 0.5f,
-                                   viewport->WorkPos.y + viewport->WorkSize.y * 0.5f),
-                            ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x * 0.4f, 0.0f), ImGuiCond_Always);
-    ImGui::SetNextWindowBgAlpha(0.0f);
-    ImGui::Begin("##loading", nullptr,
-                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
-                     ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoFocusOnAppearing);
-    const u32 done = loading_done, total = loading_total;
-    ImGui::SetWindowFontScale(1.6f);
-    ImGui::TextUnformatted(total ? "Loading shader cache..." : "Preparing graphics...");
-    ImGui::SetWindowFontScale(1.0f);
-    if (total) {
-        char count[64];
-        std::snprintf(count, sizeof(count), "%u%%", u32(u64(done) * 100 / total));
-        ImGui::ProgressBar(float(done) / float(total), ImVec2(-1.0f, 0.0f), count);
+    ImDrawList* draw = ImGui::GetBackgroundDrawList(const_cast<ImGuiViewport*>(viewport));
+    const ImVec2 p0 = viewport->Pos;
+    const ImVec2 size = viewport->Size;
+    const ImVec2 p1(p0.x + size.x, p0.y + size.y);
+    const float s = base_scale;
+    const float t = float(ImGui::GetTime());
+
+    // Background: the art covering the screen (cropped, never stretched), else a gradient.
+    if (loading_art && loading_art->Width > 0 && loading_art->Height > 0) {
+        const float art_aspect = float(loading_art->Width) / float(loading_art->Height);
+        const float screen_aspect = size.x / std::max(size.y, 1.0f);
+        ImVec2 uv0(0.0f, 0.0f), uv1(1.0f, 1.0f);
+        if (art_aspect > screen_aspect) {
+            const float keep = screen_aspect / art_aspect;
+            uv0.x = (1.0f - keep) * 0.5f;
+            uv1.x = 1.0f - uv0.x;
+        } else {
+            const float keep = art_aspect / screen_aspect;
+            uv0.y = (1.0f - keep) * 0.5f;
+            uv1.y = 1.0f - uv0.y;
+        }
+        draw->AddImage(loading_art->GetTexRef(), p0, p1, uv0, uv1, Rgba(200, 200, 205, 1.0f));
+    } else {
+        draw->AddRectFilledMultiColor(p0, p1, Rgba(18, 10, 28, 1.0f), Rgba(8, 8, 16, 1.0f),
+                                      Rgba(4, 4, 8, 1.0f), Rgba(30, 8, 30, 1.0f));
+        // A slow neon glow drifting across the lower half.
+        const float glow_x = p0.x + size.x * (0.3f + 0.2f * std::sin(t * 0.25f));
+        // Many faint discs, so the steps between them do not show as rings.
+        for (int i = 24; i > 0; --i) {
+            const float r = size.y * 0.023f * float(i);
+            draw->AddCircleFilled(ImVec2(glow_x, p0.y + size.y * 0.78f), r,
+                                  Rgba(230, 40, 140, 0.009f), 64);
+        }
     }
-    ImGui::TextDisabled("The first start after an update takes longer.");
-    ImGui::End();
+    // Shade the left and the bottom so the texts read over any art.
+    draw->AddRectFilledMultiColor(p0, ImVec2(p0.x + size.x * 0.6f, p1.y), Rgba(0, 0, 0, 0.55f),
+                                  Rgba(0, 0, 0, 0.0f), Rgba(0, 0, 0, 0.0f), Rgba(0, 0, 0, 0.55f));
+    draw->AddRectFilledMultiColor(ImVec2(p0.x, p0.y + size.y * 0.5f), p1, Rgba(0, 0, 0, 0.0f),
+                                  Rgba(0, 0, 0, 0.0f), Rgba(0, 0, 0, 0.88f), Rgba(0, 0, 0, 0.88f));
+
+    ImFont* font = ImGui::GetFont();
+    const ImU32 neon = Rgba(255, 64, 160, 1.0f), violet = Rgba(150, 70, 255, 1.0f);
+    const ImU32 white = Rgba(245, 245, 250, 1.0f), dim = Rgba(200, 200, 210, 0.72f);
+    const float margin = 64.0f * s;
+    const float bar_y = p1.y - margin;
+    const float bar_h = 6.0f * s;
+    const float left = p0.x + margin, right = p1.x - margin;
+
+    // Version, top right.
+    if (const char* version = std::getenv("ISSN_PORT_VERSION"); version && *version) {
+        char line[64];
+        std::snprintf(line, sizeof(line), "issn_pc v%s", version);
+        const float fs = 16.0f * s;
+        const ImVec2 ts = font->CalcTextSizeA(fs, FLT_MAX, 0.0f, line);
+        draw->AddText(font, fs, ImVec2(right - ts.x, p0.y + 28.0f * s), dim, line);
+    }
+
+    // Progress, eased toward the warm-up's count (it moves in steps).
+    const u32 done = loading_done, total = loading_total;
+    static float shown = 0.0f;
+    const float target = total ? std::clamp(float(done) / float(total), 0.0f, 1.0f) : 0.0f;
+    shown += (target - shown) * std::min(1.0f, ImGui::GetIO().DeltaTime * 6.0f);
+    if (target < shown) {
+        shown = target;
+    }
+
+    // Texts above the bar: tag, headline, note; the percentage on the right.
+    float y = bar_y - 22.0f * s;
+    const char* note = LoadText("The first start after an update takes longer.",
+                                "O primeiro início depois de uma atualização demora mais.",
+                                "El primer inicio después de una actualización tarda más.");
+    const float note_fs = 18.0f * s;
+    y -= note_fs;
+    draw->AddText(font, note_fs, ImVec2(left, y), dim, note);
+    const char* headline = total ? LoadText("Loading shaders", "Carregando shaders", "Cargando shaders")
+                                 : LoadText("Preparing graphics", "Preparando os gráficos",
+                                            "Preparando los gráficos");
+    const float head_fs = 40.0f * s;
+    y -= head_fs + 8.0f * s;
+    // Three dots that cycle, drawn after the headline.
+    char head_line[96];
+    const int dots = int(t * 2.0f) % 4;
+    std::snprintf(head_line, sizeof(head_line), "%s%.*s", headline, dots, "...");
+    draw->AddText(font, head_fs, ImVec2(left, y), white, head_line);
+    const float tag_fs = 15.0f * s;
+    y -= tag_fs + 10.0f * s;
+    draw->AddRectFilled(ImVec2(left, y + tag_fs * 0.2f), ImVec2(left + 3.0f * s, y + tag_fs * 1.05f), neon);
+    draw->AddText(font, tag_fs, ImVec2(left + 10.0f * s, y), neon,
+                  LoadText("INFAMOUS SECOND SON  ·  PC PORT", "INFAMOUS SECOND SON  ·  PORT DE PC",
+                           "INFAMOUS SECOND SON  ·  PORT DE PC"));
+    if (total) {
+        char percent[16];
+        std::snprintf(percent, sizeof(percent), "%u%%", u32(shown * 100.0f + 0.5f));
+        const float pct_fs = 40.0f * s;
+        const ImVec2 ts = font->CalcTextSizeA(pct_fs, FLT_MAX, 0.0f, percent);
+        draw->AddText(font, pct_fs, ImVec2(right - ts.x, bar_y - 22.0f * s - note_fs - 8.0f * s - pct_fs),
+                      white, percent);
+    }
+
+    // The bar: a faint track, a neon fill with a glow, and a light that sweeps the fill.
+    const float rounding = bar_h * 0.5f;
+    draw->AddRectFilled(ImVec2(left, bar_y), ImVec2(right, bar_y + bar_h), Rgba(255, 255, 255, 0.14f),
+                        rounding);
+    if (total) {
+        const float fill_x = left + (right - left) * shown;
+        if (fill_x > left + 1.0f) {
+            draw->AddRectFilled(ImVec2(left, bar_y - 4.0f * s), ImVec2(fill_x, bar_y + bar_h + 4.0f * s),
+                                Rgba(255, 64, 160, 0.18f), rounding * 3.0f);
+            draw->AddRectFilledMultiColor(ImVec2(left, bar_y), ImVec2(fill_x, bar_y + bar_h), violet,
+                                          neon, neon, violet);
+            const float sweep = std::fmod(t * 0.6f, 1.0f);
+            const float sx = left + (fill_x - left) * sweep;
+            const float half = std::min(60.0f * s, (fill_x - left) * 0.5f);
+            draw->AddRectFilledMultiColor(ImVec2(std::max(left, sx - half), bar_y),
+                                          ImVec2(sx, bar_y + bar_h), Rgba(255, 255, 255, 0.0f),
+                                          Rgba(255, 255, 255, 0.5f), Rgba(255, 255, 255, 0.5f),
+                                          Rgba(255, 255, 255, 0.0f));
+        }
+    } else {
+        // No count yet: a short segment that slides back and forth.
+        const float w = (right - left) * 0.18f;
+        const float pos = 0.5f + 0.5f * std::sin(t * 1.8f);
+        const float x = left + (right - left - w) * pos;
+        draw->AddRectFilledMultiColor(ImVec2(x, bar_y), ImVec2(x + w, bar_y + bar_h), violet, neon,
+                                      neon, violet);
+    }
+
+    // A tip under the bar, changing every few seconds (fades in and out).
+    constexpr int tip_count = int(sizeof(LoadingTips) / sizeof(LoadingTips[0]));
+    const int tip = int(t / LoadingTipSeconds) % tip_count;
+    const float phase = std::fmod(t, LoadingTipSeconds);
+    const float fade = std::clamp(std::min(phase, LoadingTipSeconds - phase) / 0.6f, 0.0f, 1.0f);
+    const LoadingTip& tip_text = LoadingTips[tip];
+    const float tip_fs = 17.0f * s;
+    const float tip_y = bar_y + bar_h + 14.0f * s;
+    const char* label = LoadText("TIP", "DICA", "CONSEJO");
+    draw->AddText(font, tip_fs, ImVec2(left, tip_y), Rgba(255, 64, 160, fade), label);
+    const float label_w = font->CalcTextSizeA(tip_fs, FLT_MAX, 0.0f, label).x + 12.0f * s;
+    draw->AddText(font, tip_fs, ImVec2(left + label_w, tip_y), Rgba(220, 220, 230, 0.85f * fade),
+                  LoadText(tip_text.en, tip_text.pt, tip_text.es));
 }
 
 void FpsCounter() {
@@ -1090,6 +1492,121 @@ void SaveNote() {
     }
     ImGui::End();
     ImGui::PopStyleVar();
+}
+
+// issn 11-04: trophy popups (NoteTrophy). One at a time in a top corner (the one the
+// performance overlay is not in): the icon from the game's trophy file and the name, or
+// "Trophy N" without the player's trophy key. A burst (a save that already earned several)
+// goes faster; the platinum stays longer.
+struct TrophyPopup {
+    int id = 0;
+    std::string name, grade;
+    IssnPng::Image icon;
+};
+std::mutex trophy_mutex;
+std::deque<TrophyPopup> trophy_queue;  ///< waiting; icons are made textures when shown
+std::atomic<int> trophy_pending{0};    ///< waiting + shown (Visible)
+TrophyPopup trophy_shown;              ///< present thread, imgui_mutex held
+ImTextureData* trophy_texture = nullptr;
+std::int64_t trophy_until = 0;         ///< steady_clock milliseconds; 0 = none shown
+std::int64_t trophy_length = 0;
+constexpr std::int64_t TrophyNoteMs = 5000, TrophyQuickMs = 2000, TrophyPlatinumMs = 8000;
+
+// imgui_mutex held, before NewFrame: ends the popup shown and takes the next one.
+void UpdateTrophyNote() {
+    const std::int64_t now = NowMs();
+    if (trophy_until != 0 && now < trophy_until) {
+        return;
+    }
+    if (trophy_until != 0) {
+        trophy_until = 0;
+        if (trophy_texture) {
+            trophy_texture->WantDestroyNextFrame = true;
+            choice_retired.push_back(trophy_texture);
+            choice_retiring = true;
+            trophy_texture = nullptr;
+        }
+        --trophy_pending;
+    }
+    if (loading || menu_open) {
+        return; // the next one waits for the game picture
+    }
+    std::size_t left = 0;
+    {
+        std::scoped_lock lock{trophy_mutex};
+        if (trophy_queue.empty()) {
+            return;
+        }
+        trophy_shown = std::move(trophy_queue.front());
+        trophy_queue.pop_front();
+        left = trophy_queue.size();
+    }
+    if (!trophy_shown.icon.rgba.empty()) {
+        ImTextureData* tex = IM_NEW(ImTextureData)();
+        tex->Create(ImTextureFormat_RGBA32, trophy_shown.icon.width, trophy_shown.icon.height);
+        std::memcpy(tex->GetPixels(), trophy_shown.icon.rgba.data(), trophy_shown.icon.rgba.size());
+        ImGui::RegisterUserTexture(tex);
+        trophy_texture = tex;
+        trophy_shown.icon = {};
+    }
+    trophy_length = trophy_shown.grade == "P" ? TrophyPlatinumMs : left >= 2 ? TrophyQuickMs : TrophyNoteMs;
+    trophy_until = now + trophy_length;
+}
+
+ImVec4 TrophyColor(const std::string& grade) {
+    return grade == "P"   ? ImVec4(0.78f, 0.9f, 1.0f, 1.0f)
+           : grade == "G" ? ImVec4(1.0f, 0.8f, 0.3f, 1.0f)
+           : grade == "S" ? ImVec4(0.82f, 0.84f, 0.9f, 1.0f)
+           : grade == "B" ? ImVec4(0.86f, 0.56f, 0.36f, 1.0f)
+                          : ImVec4(0.45f, 0.9f, 1.0f, 1.0f);
+}
+
+void TrophyNote() {
+    const std::int64_t left = trophy_until - NowMs();
+    if (trophy_until == 0 || left <= 0) {
+        return;
+    }
+    const std::int64_t shown = trophy_length - left;
+    const float fade = std::clamp(std::min(float(shown) / 250.0f, float(left) / 500.0f), 0.0f, 1.0f);
+    const bool platinum = trophy_shown.grade == "P";
+    const auto& s = IssnSettings::Get();
+    const bool fps_top_right = s.show_fps && s.overlay_corner == 1;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const float pad = 16.0f * base_scale;
+    const float x = fps_top_right ? viewport->WorkPos.x + pad : viewport->WorkPos.x + viewport->WorkSize.x - pad;
+    ImGui::SetNextWindowPos(ImVec2(x, viewport->WorkPos.y + pad), ImGuiCond_Always,
+                            ImVec2(fps_top_right ? 0.0f : 1.0f, 0.0f));
+    ImGui::SetNextWindowBgAlpha(0.8f * fade);
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, fade);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f * base_scale);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_Border, TrophyColor(trophy_shown.grade));
+    ImGui::Begin("##trophy_note", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
+                     ImGuiWindowFlags_NoFocusOnAppearing);
+    const float icon = (platinum ? 80.0f : 64.0f) * base_scale;
+    if (trophy_texture) {
+        ImGui::Image(trophy_texture->GetTexRef(), ImVec2(icon, icon));
+        ImGui::SameLine();
+    }
+    ImGui::BeginGroup();
+    ImGui::Dummy(ImVec2(0.0f, platinum ? 6.0f * base_scale : 8.0f * base_scale));
+    ImGui::TextColored(TrophyColor(trophy_shown.grade), "%s",
+                       platinum ? LoadText("Platinum! Every trophy unlocked", "Platinado com sucesso!",
+                                           "¡Platino! Todos los trofeos")
+                                : LoadText("Trophy unlocked", "Troféu desbloqueado", "Trofeo desbloqueado"));
+    if (!trophy_shown.name.empty()) {
+        ImGui::TextUnformatted(trophy_shown.name.c_str());
+    } else {
+        const std::string label = std::string(LoadText("Trophy", "Troféu", "Trofeo")) + " " +
+                                  std::to_string(trophy_shown.id);
+        ImGui::TextUnformatted(label.c_str());
+    }
+    ImGui::EndGroup();
+    ImGui::End();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(3);
 }
 
 void BackgroundLoading() {
@@ -1306,6 +1823,16 @@ bool HandleEvent(const SDL_Event& event) {
             std::fflush(stdout);
             return true;
         }
+        if (down && !event.key.repeat && event.key.key == SDLK_F11) {
+            // issn: F11 hides / shows the performance overlay (players who do not want the numbers
+            // on screen, 11-04); the menu's Overlay tab and the launcher have the same switch.
+            auto& s = IssnSettings::Get();
+            s.show_fps = !s.show_fps.load();
+            IssnSettings::Save();
+            std::printf("Performance overlay: %s (F11)\n", s.show_fps.load() ? "on" : "off");
+            std::fflush(stdout);
+            return true;
+        }
         if (down && !event.key.repeat && event.key.key == SDLK_F12) {
             // issn-axy: screenshot of the game picture (user/screenshots, PNG).
             VideoCore::RequestScreenshot(VideoCore::ScreenshotRequest::GameOnly);
@@ -1443,8 +1970,9 @@ void SetLoading(bool active, u32 done, u32 total) {
 
 bool Visible() {
     const auto& s = IssnSettings::Get();
-    return initialized && (loading || background_total || menu_open || text_entry_active || choice_active ||
-                           choice_retiring || s.show_fps || save_note_until.load() != 0 ||
+    return initialized && (loading || loading_art || background_total || menu_open || text_entry_active ||
+                           choice_active || choice_retiring || s.show_fps || save_note_until.load() != 0 ||
+                           trophy_pending.load() != 0 ||
                            (s.actor_watch_supported && s.enemy_health_bar));
 }
 
@@ -1489,11 +2017,25 @@ void NoteGameSaved(const std::string& what) {
     save_note_until = NowMs() + SaveNoteMs;
 }
 
+void NoteTrophy(int id, const std::string& name, const std::string& grade, IssnPng::Image icon) {
+    std::printf("Trophy %d unlocked%s%s\n", id, name.empty() ? "" : ": ", name.c_str());
+    std::fflush(stdout);
+    if (!IssnSettings::Get().trophy_note) {
+        return;
+    }
+    {
+        std::scoped_lock lock{trophy_mutex};
+        trophy_queue.push_back({id, name, grade, std::move(icon)});
+    }
+    ++trophy_pending;
+}
+
 void NoteGameFrame() {
     game_frames.fetch_add(1, std::memory_order_relaxed);
 }
 
 void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
+    IssnExposure::Tick();
     // Game frame interval for the FPS readout (measured also while nothing is drawn). A present
     // that repeats the last frame (frame pacing) is not a new frame; before the driver's first
     // Flip every present counts.
@@ -1534,6 +2076,8 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
         base_scale = scale;
     }
 
+    UpdateLoadingArt();
+    UpdateTrophyNote();
     UpdateChoiceTextures();
     ImGui_ImplVulkan_NewFrame();
     ImGui::NewFrame();
@@ -1554,6 +2098,9 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
     }
     if (save_note_until.load() != 0 && !loading && !menu_open) {
         SaveNote();
+    }
+    if (trophy_until != 0 && !loading && !menu_open) {
+        TrophyNote();
     }
     if (text_entry_active) {
         TextEntryBox();

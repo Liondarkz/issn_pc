@@ -55,8 +55,26 @@ int issngpu_choice_poll(void);
 /* issn-axy: the game finished writing a save (`what`: its subtitle, e.g. the mission): a note
  * in the corner of the screen for a few seconds. */
 void issngpu_note_game_saved(const char *what);
+/* issn 11-04: a trophy was unlocked (src/runtime_trophy.c): a popup with its icon (PNG bytes from
+ * the game's trophy file, NULL: none) and name ("": "Trophy N"); grade "P", "G", "S", "B" or "".
+ * The data is copied before the call returns. */
+void issngpu_note_trophy(int id, const char *name, const char *grade, const void *png, uint64_t size);
 /* 1 while the in-game settings menu is open: the game's pad input is held neutral. */
 int issngpu_overlay_captures_input(void);
+/* issn 11-04: the menu's sensitivities, read live by runtime_pad.c. mouse: a factor on the mouse
+ * camera's degrees per pixel (1 = default); pad: the right stick (1 = the game's own feel).
+ * set_mouse: - / = in play change it (saved to issn.ini). */
+float issngpu_mouse_sensitivity(void);
+void issngpu_set_mouse_sensitivity(float value);
+float issngpu_pad_sensitivity(void);
+/* issn 11-04: the spray can pose (pad tilted) for pads without motion sensors: the menu's
+ * switch (Insert > Controls) and H in play. Not saved. */
+int issngpu_spray_pose(void);
+/* issn 11-04: the exposure meter's mailbox (src/exposure_hook.h, IssnExposureMailbox) and the
+ * probe's note that its cave is in. */
+void *issngpu_exposure_mailbox(void);
+void issngpu_exposure_attached(void);
+void issngpu_set_spray_pose(int on);
 /* issn 0.3.6: issn.ini key_map (keys changed in the game's menu), "" when none. */
 const char *issngpu_saved_key_map(void);
 /* Number of symbols registered by the vendored libraries (diagnostics). */

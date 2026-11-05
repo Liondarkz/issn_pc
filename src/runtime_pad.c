@@ -9,7 +9,7 @@
  *   powers, the drains.)
  *
  * issn: synthetic motion (axylpup's SyntheticMotionLocked) for a keyboard or a pad without motion
- * sensors, for inFAMOUS Second Son's spray can: Z held (or L3+R3 / H to toggle) tilts the pad on
+ * sensors, for inFAMOUS Second Son's spray can: Z held (or H / the menu's switch to toggle) tilts the pad on
  * its side, a tap of Z or X held (L1 while tilted on a pad) rattles it, and the mouse or the right
  * stick aims while tilted. Pose, gravity and angular velocity come from one quaternion, so the
  * accelerometer, the gyroscope and the orientation always agree.
@@ -43,7 +43,7 @@ enum {
     CLICK_LEFT=0x40000000, CLICK_RIGHT=0x80000000,
     /* issn: rattles the pad (synth_motion) while held: keyboard X, or a mapped pad button. */
     SHAKE=0x20000000,
-    /* issn: turns the spray pose on and off (H; L3+R3 together on a pad). */
+    /* issn: turns the spray pose on and off (H; the menu's switch, issngpu_spray_pose). */
     SPRAY_POSE=0x10000000,
 };
 typedef struct { uint16_t x, y; uint8_t id, reserve[3]; } PadTouch;
@@ -112,7 +112,7 @@ static void integrate_orientation(float q[4], const float w[3], float dt) {
     if (n>0.0f) for (int i=0;i<4;++i) q[i]/=n;
 }
 
-/* issn: the L3+R3 / H toggle's edge (the synthetic motion sensor, synth_motion). */
+/* issn: the H toggle's edge (the synthetic motion sensor, synth_motion). */
 static int spray_chord_held;
 
 /* The pad's light bar takes the last color the game set (ISSN_LIGHTBAR=0 leaves it alone); sent
@@ -128,9 +128,9 @@ static void apply_light(SDL_Gamepad *g) {
 }
 
 /* issn: ISSN_PAD_EMULATION (launcher: Controls > Controller without touchpad): the touchpad
- * swipes and two fingers (Select/Back + right stick, + R1) and the spray pose (L3+R3) for pads
+ * swipes and two fingers (Select/Back + right stick, + R1) and the spray pose (the menu's switch) for pads
  * without a touchpad or motion sensors. auto (default): on when the pad lacks a touchpad or
- * motion sensors (Xbox, 8BitDo, ...), off on a DualShock 4 / DualSense, whose L3+R3 then reach the
+ * motion sensors (Xbox, 8BitDo, ...), off on a DualShock 4 / DualSense, whose buttons then reach the
  * game; 1: always; 0: never. */
 static int pad_emulation_auto=1; /* set when a gamepad opens */
 static bool pad_emulation(void) {
@@ -151,7 +151,7 @@ static void open_sensors(SDL_Gamepad *g) {
     printf("Runtime: gamepad motion sensors: %s%s%s\n",sensors ? "" : "none",
            (sensors & SENSOR_ACCEL) ? "accelerometer " : "", (sensors & SENSOR_GYRO) ? "gyroscope" : "");
     pad_emulation_auto=SDL_GetNumGamepadTouchpads(g)<=0 || !(sensors & SENSOR_ACCEL);
-    printf("Runtime: gamepad %s: touchpad emulation (Select + right stick, L3+R3 spray) %s\n",
+    printf("Runtime: gamepad %s: touchpad emulation (Select + right stick; spray can: Insert > Controls) %s\n",
            SDL_GetNumGamepadTouchpads(g)>0 ? "with a touchpad" : "without a touchpad",
            pad_emulation() ? "on" : "off");
     light.applied=0;
@@ -346,6 +346,23 @@ static void play_swipe(PadData *d) {
     const float x=960.0f+swipe.dx*(p-0.5f)*1400.0f, y=471.0f+swipe.dy*(p-0.5f)*700.0f;
     if (d->touch_count<2) {
         d->touches[d->touch_count++]=(PadTouch){.x=(uint16_t)x,.y=(uint16_t)y,.id=swipe.id};
+    }
+}
+
+/* issn 11-04: the menu's controller sensitivity (Insert > Controls) on the right stick, after the
+ * swipes and the spray can took what they need from it. Below 1 the stick is scaled down (a slower
+ * camera); above 1 it follows a curve, |v|^(1/s): a full push stays a full push (the game's top
+ * speed), small moves count for more. */
+static void apply_pad_sensitivity(PadData *d) {
+    const float s=issngpu_pad_sensitivity();
+    if (!(s>0.0f) || fabsf(s-1.0f)<0.01f) return;
+    uint8_t *axes[2]={&d->right_x,&d->right_y};
+    for (int i=0;i<2;++i) {
+        const float v=((float)*axes[i]-127.5f)/127.5f;
+        if (fabsf(v)<0.004f) continue;
+        const float m=s<1.0f ? fabsf(v)*s : powf(fabsf(v),1.0f/s);
+        const int x=(int)lroundf(copysignf(fminf(m,1.0f),v)*127.5f+127.5f);
+        *axes[i]=(uint8_t)(x<0 ? 0 : x>255 ? 255 : x);
     }
 }
 
@@ -588,7 +605,7 @@ static void mouse_aim_tick(uint64_t now) {
 static void mouse_aim_motion(float dx, float dy, uint64_t now) {
     if (dx==0.0f && dy==0.0f) return;
     aim_last_motion=now;
-    const float k=aim_sens*(3.14159265f/180.0f)/100.0f;
+    const float k=aim_sens*issngpu_mouse_sensitivity()*(3.14159265f/180.0f)/100.0f;
     float yaw=dx*k*aim_sign_x, pitch=dy*k*aim_sign_y;
     if (aim_invert_x && *aim_invert_x) yaw=-yaw;
     if (aim_invert_y && *aim_invert_y) pitch=-pitch;
@@ -634,8 +651,10 @@ static void sample_mouse(PadData *d) {
                 printf("Spray can: %.2f degrees per 100 px, right stick %.0f degrees a second (- / =)\n",
                        spray_sens,spray_stick);
             } else {
-                aim_sens=fmaxf(0.5f,fminf(100.0f,aim_sens*(minus ? 0.8f : 1.25f)));
-                printf("Mouse aim: %.2f degrees per 100 px (- / =)\n",aim_sens);
+                /* issn 11-04: the menu's Mouse sensitivity (Insert > Controls), saved */
+                const float f=fmaxf(0.1f,fminf(5.0f,issngpu_mouse_sensitivity()*(minus ? 0.8f : 1.25f)));
+                issngpu_set_mouse_sensitivity(f);
+                printf("Mouse aim: sensitivity %.2fx, %.2f degrees per 100 px (- / =)\n",f,aim_sens*f);
             }
             fflush(stdout);
         }
@@ -968,17 +987,23 @@ static void sample(PadData *d) {
     uint8_t *axes[4]={&d->left_x,&d->left_y,&d->right_x,&d->right_y};
     for (int i=0;i<4;++i) if (injected.stick[i]>=0) *axes[i]=(uint8_t)injected.stick[i];
     /* issn: the motion sensor of a pad without one, and of the keyboard (synth_motion). The pad
-     * is tilted while Z is held, while L3+R3 (pads without sensors) or H has toggled it on, and
-     * while it rattles; it rattles while X (a SHAKE source) is held, for 600 ms after a quick tap
-     * of Z, and on L1 while the pose is toggled on. A pad with real sensors keeps them. */
-    const bool chord=pad_emulation() && (d->buttons & BTN_L3) && (d->buttons & BTN_R3);
-    if (chord || (d->buttons & SPRAY_POSE)) {
+     * is tilted while Z is held, while the spray pose is on, and while it rattles; it rattles
+     * while X (a SHAKE source) is held, for 600 ms after a quick tap of Z, and on L1 while the pose
+     * is on. A pad with real sensors keeps them.
+     * issn 11-04: the spray pose is the menu's switch (Insert > Controls) and H on the keyboard.
+     * L3+R3 no longer toggles it: both sticks clicked together in a fight turned it on, and the
+     * right stick then aimed an invisible can instead of the camera ("the controller goes stiff");
+     * L3 and R3 now always reach the game. */
+    synth.pose_toggle=issngpu_spray_pose()!=0;
+    if (d->buttons & SPRAY_POSE) {
         if (!spray_chord_held) {
             synth.pose_toggle=!synth.pose_toggle;
-            printf("Runtime: pad tilted (spray can) %s\n",synth.pose_toggle ? "on" : "off");
+            issngpu_set_spray_pose(synth.pose_toggle);
+            printf("Runtime: pad tilted (spray can) %s (H)\n",synth.pose_toggle ? "on" : "off");
+            fflush(stdout);
         }
         spray_chord_held=1;
-        d->buttons&=~(BTN_L3|BTN_R3|SPRAY_POSE);
+        d->buttons&=~SPRAY_POSE;
     } else {
         spray_chord_held=0;
     }
@@ -993,7 +1018,7 @@ static void sample(PadData *d) {
     const bool tilt=z || synth.pose_toggle || rattle;
     const bool real_sensors=gamepad && (sensors & SENSOR_ACCEL) && motion_enabled;
     pad_tilted=tilt;
-    if (!real_sensors || tilt) { /* Z / X / L3+R3 also drive a pad that has sensors */
+    if (!real_sensors || tilt) { /* Z / X / the pose also drive a pad that has sensors */
         const bool stick_aims=tilt && !(d->buttons & CLICK_RIGHT);
         float ax=0.0f, ay=0.0f;
         if (stick_aims) {
@@ -1009,6 +1034,7 @@ static void sample(PadData *d) {
     if (!key_touch_held && finger.active) { finger.active=0; finger.travel=0.0f; } /* R let go, mouse still */
     if ((pad_emulation() || key_touch_held) && !finger.active) play_swipe(d); /* the keyboard has no touch surface either */
     play_click(d);
+    apply_pad_sensitivity(d);
     if (hold_after_capture) {
         if (d->buttons) d->buttons=0;
         else hold_after_capture=0;

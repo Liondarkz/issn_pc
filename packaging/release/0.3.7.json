@@ -1,0 +1,119 @@
+{
+ "version": "0.3.7",
+ "en": {
+  "sub": "PC PORT  /  UPDATE 0.3.7",
+  "hero": "THE CITY LIGHTS UP",
+  "hero_sub": "Saves stuck in a pitch-black Seattle now light up by themselves: the port spots the time of day that never loads and swaps in a similar one.",
+  "hero_pts": [
+   "Black city fix: on by itself after 30 seconds",
+   "4K: no more dark picture that comes and goes"
+  ],
+  "shot": "BLACK CITY FIXED",
+  "new": "WHAT'S NEW",
+  "cards": [
+   [
+    "gold",
+    "Achievements",
+    "Trophy popups with icons, a page in the launcher."
+   ],
+   [
+    "neon",
+    "New cheats",
+    "No damage, infinite missiles, Karma Bomb ready."
+   ],
+   [
+    "pink",
+    "Field of view",
+    "Wider view in the menu, the aim follows it."
+   ],
+   [
+    "green",
+    "New loading screen",
+    "The shader screen got art, a bar and tips."
+   ],
+   [
+    "red",
+    "OptiScaler built in",
+    "Install, remove and set it in the launcher."
+   ],
+   [
+    "neon",
+    "Anti-aliasing Off",
+    "No T2x blur and a still camera."
+   ]
+  ],
+  "also": "ALSO",
+  "also_pts": [
+   "Dash cheats: endless neon run, video flight, long smoke",
+   "Mouse and pad sensitivity; F11 hides the overlay"
+  ],
+  "next": "COMING NEXT",
+  "next_tag": "planned for the next updates",
+  "next_pts": [
+   "Fix for the NVIDIA crash in the opening village",
+   "Turn off motion blur and chromatic aberration",
+   "Sharper FSR 4, DLSS and XeSS",
+   "Save now button (Ctrl + Shift + S)"
+  ],
+  "disc": "JOIN THE DISCORD",
+  "disc_sub": "News, help and test builds"
+ },
+ "pt": {
+  "sub": "PORT PARA PC  /  ATUALIZAÇÃO 0.3.7",
+  "hero": "A CIDADE ACENDEU",
+  "hero_sub": "Saves presos numa Seattle toda preta agora acendem sozinhos: o port percebe o horário que nunca carrega e troca por um parecido.",
+  "hero_pts": [
+   "Correção da cidade preta: age sozinha em 30 s",
+   "4K: acabou a tela que escurece e volta"
+  ],
+  "shot": "CIDADE PRETA CORRIGIDA",
+  "new": "NOVIDADES",
+  "cards": [
+   [
+    "gold",
+    "Conquistas",
+    "Troféus com ícone na tela e página no launcher."
+   ],
+   [
+    "neon",
+    "Cheats novos",
+    "Sem dano, mísseis infinitos, Karma Bomb pronta."
+   ],
+   [
+    "pink",
+    "Campo de visão",
+    "Visão mais aberta no menu, a mira acompanha."
+   ],
+   [
+    "green",
+    "Tela de carregamento",
+    "A tela dos shaders ganhou arte, barra e dicas."
+   ],
+   [
+    "red",
+    "OptiScaler no launcher",
+    "Instale, remova e configure pelo launcher."
+   ],
+   [
+    "neon",
+    "Anti-aliasing Off",
+    "Sem o borrão do T2x e câmera parada."
+   ]
+  ],
+  "also": "E MAIS",
+  "also_pts": [
+   "Cheats de dash: neon sem fim, voo do vídeo, fumaça longa",
+   "Sensibilidade do mouse e controle; F11 esconde o overlay"
+  ],
+  "next": "PRÓXIMA ATUALIZAÇÃO",
+  "next_tag": "planejado para as próximas versões",
+  "next_pts": [
+   "Correção do crash da NVIDIA na vila do começo",
+   "Desligar motion blur e aberração cromática",
+   "FSR 4, DLSS e XeSS mais nítidos",
+   "Botão Salvar agora (Ctrl + Shift + S)"
+  ],
+  "disc": "ENTRE NO DISCORD",
+  "disc_sub": "Novidades, ajuda e builds de teste"
+ }
+}

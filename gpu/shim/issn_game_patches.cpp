@@ -262,12 +262,53 @@ static void ApplyLightListCapacity(u32 width, u32 height) {
     std::memcpy(&mov_imm, at(0x16be1f), 4);
     if (std::memcmp(at(0x16be04), imul_head, 3) != 0 || std::memcmp(at(0x16be1d), mov_head, 2) != 0 ||
         imul_imm != Original || mov_imm != Original) {
-        std::printf("Render size: light list not enlarged (the code differs in this eboot.bin)\n");
+        if (imul_imm == mov_imm && imul_imm >= entries) {
+            std::printf("Render size: light list already %u entries (patch)\n", imul_imm);
+        } else {
+            std::printf("Render size: light list not enlarged (the code differs in this eboot.bin)\n");
+        }
         return;
     }
     std::memcpy(at(0x16be07), &entries, 4);
     std::memcpy(at(0x16be1f), &entries, 4);
     std::printf("Render size: light list %u entries for %ux%u\n", entries, width, height);
+}
+
+// issn 11-04: the exposure meter (CPU sum at eboot 0x171610) reads one float per 128x72-pixel tile
+// from buffers made for 625 tiles (2500 bytes, eboot 0x171310 and 0x172320): enough up to 1800p.
+// At 4K (900 tiles) it summed bytes past them, and the picture went dark and back (tester logs,
+// GitHub issue 15). The patch "Bigger light list" enlarges them too; without it, this does.
+static void ApplyExposureCapacity(u32 width, u32 height) {
+    const u64 tiles = u64((width + 127) / 128) * ((height + 71) / 72);
+    if (tiles <= 625) {
+        return;
+    }
+    static constexpr u64 sizes[4] = {0x17132b, 0x171375, 0x172341, 0x172388};  // mov esi, 0x9c4
+    static constexpr u64 counts[4] = {0x17134f, 0x171399, 0x172364, 0x1723ab}; // mov ecx, 0x271
+    const auto at = [](u64 offset) { return reinterpret_cast<u8*>(g_eboot_address + offset); };
+    bool original = true, patched = true;
+    for (int i = 0; i < 4; ++i) {
+        u32 size = 0, count = 0;
+        std::memcpy(&size, at(sizes[i]), 4);
+        std::memcpy(&count, at(counts[i]), 4);
+        original = original && at(sizes[i])[-1] == 0xbe && at(counts[i])[-1] == 0xb9 && size == 0x9c4 &&
+                   count == 0x271;
+        patched = patched && size >= tiles * 4 && count >= tiles;
+    }
+    if (patched) {
+        std::printf("Exposure meter: room for %llu tiles (patch)\n", static_cast<unsigned long long>(tiles));
+        return;
+    }
+    if (!original) {
+        std::printf("Exposure meter: not enlarged (the code differs in this eboot.bin): the picture may go dark\n");
+        return;
+    }
+    const u32 count = 2048, size = count * 4;
+    for (int i = 0; i < 4; ++i) {
+        std::memcpy(at(sizes[i]), &size, 4);
+        std::memcpy(at(counts[i]), &count, 4);
+    }
+    std::printf("Exposure meter: %u tiles for %ux%u\n", count, width, height);
 }
 
 /// The render size at 16:9-basis height h0 in the shape `aspect` (axylpup's SizeAt): wide shapes
@@ -413,6 +454,7 @@ static void ApplyRenderSize() {
         std::memcpy(reinterpret_cast<void*>(g_eboot_address + imm.offset), &value, 4);
     }
     ApplyLightListCapacity(width, height);
+    ApplyExposureCapacity(width, height);
     if (narrow) {
         const float two_over_k = float(2.0 / (base / aspect));
         std::memcpy(reinterpret_cast<void*>(g_eboot_address + 0x581c84), &two_over_k, 4);

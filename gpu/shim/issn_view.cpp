@@ -7,6 +7,7 @@
 #include "issn_view.h"
 
 #include "../../src/view_hook.h"
+#include "../../src/fov_hook.h"
 
 #include <algorithm>
 #include <chrono>
@@ -115,22 +116,63 @@ void Apply() {
 
 } // namespace
 
-// Field of view (src/fov_hook.h): the float the camera's four sites read, in a read-write page
-// next to the image; 0.5 x the menu's factor. A thread of its own (the draw distance one exists
-// only when that hook is in place).
+// Field of view (src/fov_hook.h): the cave the camera's four sites and the angle readers read, in
+// a read-write page next to the image: 0.5 x the menu's factor, the factor, and the camera SetFov
+// last saw. A thread of its own (the draw distance one exists only when that hook is in place).
 namespace {
-float* fov_value = nullptr;
+IssnFovCave* fov_cave = nullptr;
+
+// The camera works its tan out only when its angle (+0x590) differs from the target (+0x5d4):
+// a nudge to the angle makes its next update do it again with the new factor.
+float ReadFloat(const unsigned char* at) {
+    float v;
+    std::memcpy(&v, at, 4);
+    return v;
+}
+
+// A slot holds a camera when its state agrees with itself: angle and target in range, an aspect,
+// and a tan its update made from the angle with one of the menu's factors (0.9x to 1.4x; a camera
+// that missed earlier nudges still has an older one).
+bool LooksLikeCamera(const unsigned char* camera) {
+    const float angle = ReadFloat(camera + 0x590), target = ReadFloat(camera + 0x5d4);
+    const float aspect = ReadFloat(camera + 0x59c), tan_half = ReadFloat(camera + 0x5a4);
+    if (!(angle > 0.05f && angle < 3.5f && target > 0.05f && target < 3.5f && aspect > 0.3f && aspect < 5.0f)) {
+        return false;
+    }
+    return tan_half > std::tan(0.5f * 0.89f * angle) - 1e-3f && tan_half < std::tan(0.5f * 1.41f * angle) + 1e-3f;
+}
+
+void NudgeCameras(float factor) {
+    int nudged = 0, seen = 0;
+    for (const std::uint64_t at : fov_cave->camera) {
+        if (at < (1ull << 32) || at >= (1ull << 47)) {
+            continue;
+        }
+        ++seen;
+        auto* camera = reinterpret_cast<unsigned char*>(at);
+        if (!LooksLikeCamera(camera)) {
+            continue;
+        }
+        const float nudged_angle = ReadFloat(camera + 0x5d4) * 1.001f;
+        std::memcpy(camera + 0x590, &nudged_angle, 4);
+        ++nudged;
+    }
+    std::printf("Field of view: x%.2f, %d of %d cameras seen asked to work their view out again\n", factor,
+                nudged, seen);
+}
 
 void ApplyFov() {
-    const float value = 0.5f * IssnView::ClampFov(IssnSettings::Get().fov);
-    if (*fov_value != value) {
-        *fov_value = value;
+    const float factor = IssnView::ClampFov(IssnSettings::Get().fov);
+    if (fov_cave->factor != factor) {
+        fov_cave->factor = factor;
+        fov_cave->half_factor = 0.5f * factor;
+        NudgeCameras(factor);
     }
 }
 } // namespace
 
-extern "C" void issn_fov_attach(float* value) {
-    fov_value = value;
+extern "C" void issn_fov_attach(IssnFovCave* cave) {
+    fov_cave = cave;
     ApplyFov(); // before the game's first frame
     IssnSettings::Get().fov_supported = true;
     std::printf("Field of view: menu control ready (x%.2f)\n", IssnSettings::Get().fov.load());

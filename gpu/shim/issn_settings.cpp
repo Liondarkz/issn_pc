@@ -137,16 +137,24 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.reactive_max = Clamp(f, 0.0f, 1.0f);
     } else if (key == "debug_view") {
         v.debug_view = std::clamp(i, 0, DebugViewCount - 1);
+    } else if (key == "motion_blur") {
+        v.motion_blur = i != 0;
+    } else if (key == "chromatic_aberration") {
+        v.chromatic_aberration = i != 0;
     } else if (key == "show_fps") {
         v.show_fps = i != 0;
     } else if (key == "save_note") {
         v.save_note = i != 0;
+    } else if (key == "trophy_note") {
+        v.trophy_note = i != 0;
     } else if (key == "mouse_enabled") {
         v.mouse_enabled = i != 0;
     } else if (key == "mouse_invert_y") {
         v.mouse_invert_y = i != 0;
     } else if (key == "mouse_sensitivity") {
         v.mouse_sensitivity = Clamp(value.empty() ? 1.0f : f, 0.05f, 10.0f);
+    } else if (key == "pad_sensitivity") {
+        v.pad_sensitivity = Clamp(value.empty() ? 1.0f : f, 0.25f, 3.0f);
     } else if (key == "mouse_smoothing") {
         v.mouse_smoothing = Clamp(f, 0.0f, 0.95f);
     } else if (key == "mouse_accel") {
@@ -217,6 +225,14 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.hero_powers = i != 0;
     } else if (key == "hero_karma") {
         v.hero_karma = i != 0;
+    } else if (key == "hero_neon_run") {
+        v.hero_neon_run = i != 0;
+    } else if (key == "hero_video_flight") {
+        v.hero_video_flight = i != 0;
+    } else if (key == "hero_smoke_dash") {
+        v.hero_smoke_dash = i != 0;
+    } else if (key == "hero_missiles") {
+        v.hero_missiles = i != 0;
     } else if (key == "fov") {
         v.fov = IssnView::ClampFov(value.empty() ? 1.0f : f);
     } else if (key == "menu_anti_aliasing") {
@@ -283,7 +299,7 @@ void Load() {
         {"ISSN_STALE_READBACK", "stale_readback"},     {"ISSN_FSR1", "fsr1"},
         {"ISSN_RCAS", "rcas"},                        {"ISSN_FRAMES_AHEAD", "frames_queued"},
         {"ISSN_SHOW_FPS", "show_fps"},             {"ISSN_SENSOR_AIM", "sensor_aim"},
-        {"ISSN_MOUSE", "mouse_enabled"},           {"ISSN_MOUSE_SENS", "mouse_sensitivity"},
+        {"ISSN_MOUSE", "mouse_enabled"},           {"ISSN_MOUSE_SENS", "mouse_sensitivity"}, {"ISSN_PAD_SENS", "pad_sensitivity"},
         {"ISSN_MOUSE_INVERT_Y", "mouse_invert_y"}, {"ISSN_MOUSE_SMOOTHING", "mouse_smoothing"},
         {"ISSN_MOUSE_ACCEL", "mouse_accel"},       {"ISSN_MOUSE_DEADZONE", "mouse_deadzone"},
         {"ISSN_LOD_SCALE", "lod_scale"},           {"ISSN_LOD_BANDS", "lod_bands"},
@@ -315,7 +331,8 @@ void ReadLaunchChoices() {
     auto& v = Get();
     // The launcher passes its choices as these variables (launcher/issn_launcher_win.py
     // game_environment); the menu starts from them where issn.ini has no menu_* key yet.
-    v.startup_anti_aliasing = Env("SHADPS4_DLSS")[0] == '1' ? 3
+    v.startup_anti_aliasing = Env("ISSN_AA_OFF")[0] == '1'    ? 4
+                              : Env("SHADPS4_DLSS")[0] == '1' ? 3
                               : Env("ISSN_XESS")[0] == '1' ? 2
                               : Env("ISSN_FSR4")[0] == '1' ? 1
                                                            : 0;
@@ -454,8 +471,15 @@ void Save() {
                  v.far_clip.load(), v.mip_lod_bias.load(), v.lod_bands[0].load(), v.lod_bands[1].load(),
                  v.lod_bands[2].load(), v.lod_bands[3].load(), v.lod_bands[4].load(), v.lod_bands[5].load());
     std::fprintf(file, "fov=%.3f\nsave_note=%d\n", v.fov.load(), int(v.save_note.load()));
+    std::fprintf(file, "motion_blur=%d\nchromatic_aberration=%d\n", int(v.motion_blur.load()),
+                 int(v.chromatic_aberration.load()));
+    std::fprintf(file, "trophy_note=%d\n", int(v.trophy_note.load()));
     std::fprintf(file, "hero_health=%d\nhero_powers=%d\nhero_karma=%d\n", int(v.hero_health.load()),
                  int(v.hero_powers.load()), int(v.hero_karma.load()));
+    std::fprintf(file, "hero_neon_run=%d\nhero_video_flight=%d\nhero_smoke_dash=%d\n",
+                 int(v.hero_neon_run.load()), int(v.hero_video_flight.load()),
+                 int(v.hero_smoke_dash.load()));
+    std::fprintf(file, "hero_missiles=%d\n", int(v.hero_missiles.load()));
     // For the launcher (next start): its own setting names and values.
     const auto pick = [](const auto& keys, int index) {
         const int n = int(sizeof(keys) / sizeof(keys[0]));
@@ -477,9 +501,10 @@ void Save() {
     }
     std::fprintf(file,
                  "mouse_enabled=%d\nmouse_sensitivity=%.2f\nmouse_invert_y=%d\nmouse_smoothing=%.2f\n"
-                 "mouse_accel=%.2f\nmouse_deadzone=%.2f\nkey_map=%s\n",
+                 "mouse_accel=%.2f\nmouse_deadzone=%.2f\npad_sensitivity=%.2f\nkey_map=%s\n",
                  int(v.mouse_enabled.load()), v.mouse_sensitivity.load(), int(v.mouse_invert_y.load()),
-                 v.mouse_smoothing.load(), v.mouse_accel.load(), v.mouse_deadzone.load(), v.key_map.c_str());
+                 v.mouse_smoothing.load(), v.mouse_accel.load(), v.mouse_deadzone.load(),
+                 v.pad_sensitivity.load(), v.key_map.c_str());
     // Read by run.sh at start.
     std::fprintf(file, "live_resolution=%s\n", v.live_resolution < 0 ? "auto"
                                                   : v.live_resolution ? "1" : "0");

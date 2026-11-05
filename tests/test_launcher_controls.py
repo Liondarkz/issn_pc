@@ -27,6 +27,12 @@ BASE_SFO = sfo_bytes(TITLE_ID='CUSA01623', APP_VER='01.00')
 
 
 class ControlMapTest(unittest.TestCase):
+    def test_effects_default_on_and_are_flags(self):
+        # issn 11-04: motion blur and chromatic aberration (issn.ini, gpu issn_postfx.h).
+        for key in ('motion_blur', 'chromatic_aberration'):
+            self.assertEqual(launcher.INI_DEFAULTS[key], '1')
+            self.assertIn(key, launcher.INI_FLAGS)
+
     def test_new_cheats_default_to_disabled(self):
         self.assertEqual(launcher.INI_DEFAULTS['cheat_double_jumps'], '0')
         self.assertEqual(launcher.INI_DEFAULTS['cheat_very_hard'], '0')
@@ -51,6 +57,13 @@ class ControlMapTest(unittest.TestCase):
         env = launcher.game_environment({**base, 'anti_aliasing': 'fsr4'})
         self.assertEqual(env['ISSN_FSR4'], '1')
         self.assertNotIn('SHADPS4_DLSS', env)
+        # issn 11-04: Off - no anti-aliasing at all, and no frame generation without an upscaler.
+        env = launcher.game_environment({**base, 'anti_aliasing': 'off', 'frame_gen': True})
+        self.assertEqual(env['ISSN_AA_OFF'], '1')
+        self.assertNotIn('ISSN_FSR4', env)
+        self.assertNotIn('ISSN_FRAME_GEN', env)
+        self.assertIn('off', [value for value, _text in launcher.ANTI_ALIASING])
+        self.assertNotIn('ISSN_AA_OFF', launcher.game_environment({**base, 'anti_aliasing': 'fsr4'}))
         with unittest.mock.patch.object(launcher, 'WINDOWS', True):
             env = launcher.game_environment({**base, 'anti_aliasing': 'dlss', 'ui_language': 'en'})
         self.assertEqual((env['SHADPS4_DLSS'], env['SHADPS4_DLSS_UPSCALE']), ('1', '1'))
@@ -247,6 +260,15 @@ class ControlMapTest(unittest.TestCase):
     def test_skip_intro_setting(self):
         self.assertNotIn('ISSN_SKIP_INTRO', launcher.game_environment({**launcher.APP_DEFAULTS}))
         self.assertEqual(launcher.game_environment({**launcher.APP_DEFAULTS, 'skip_intro': True})['ISSN_SKIP_INTRO'], '1')
+
+    def test_vram_limit_setting(self):
+        self.assertNotIn('ISSN_VRAM_LIMIT_MB', launcher.game_environment({**launcher.APP_DEFAULTS}))
+        self.assertEqual(launcher.game_environment({**launcher.APP_DEFAULTS, 'vram_limit': '5120'})['ISSN_VRAM_LIMIT_MB'], '5120')
+        self.assertNotIn('ISSN_VRAM_LIMIT_MB', launcher.game_environment({**launcher.APP_DEFAULTS, 'vram_limit': '99'}))
+
+    def test_save_backups_setting(self):
+        self.assertNotIn('ISSN_SAVE_BACKUP', launcher.game_environment({**launcher.APP_DEFAULTS}))
+        self.assertEqual(launcher.game_environment({**launcher.APP_DEFAULTS, 'save_backups': False})['ISSN_SAVE_BACKUP'], '0')
 
     def test_stick_deadzone_setting(self):
         self.assertNotIn('ISSN_STICK_DEADZONE', launcher.game_environment({**launcher.APP_DEFAULTS}))
@@ -677,11 +699,12 @@ class GpuChoiceTest(unittest.TestCase):
 class ReleaseVersionTest(unittest.TestCase):
     def test_updates_come_from_this_ports_releases(self):
         # issn: own version line and own releases; the God of War III port's are never offered.
-        self.assertEqual(launcher.VERSION, '0.3.6.3')
+        self.assertEqual(launcher.VERSION, '0.3.7')
         self.assertIn('/Liondarkz/issn_pc/releases', launcher.RELEASES_API)
         self.assertNotIn('gow3_pc', launcher.RELEASES_API + launcher.RELEASES_PAGE)
-        self.assertGreater(launcher.version_tuple('windows-v0.3.7'), launcher.version_tuple(launcher.VERSION))
-        self.assertEqual(launcher.version_tuple('windows-v0.3.6.3'), launcher.version_tuple(launcher.VERSION))
+        self.assertGreater(launcher.version_tuple('windows-v0.3.7.1'), launcher.version_tuple(launcher.VERSION))
+        self.assertEqual(launcher.version_tuple('windows-v0.3.7'), launcher.version_tuple(launcher.VERSION))
+        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.3.6.3'))
         self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.3.6'))
         self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.3.5'))
 

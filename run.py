@@ -257,6 +257,16 @@ def main():
         if key not in env:
             env[key] = value
             derived.append(key)
+    # issn-axy: a restart from the in-game menu starts its anti-aliasing / quality / frame gen.
+    ini = graphics_options.read_ini(env['ISSN_CONFIG'])
+    if ini.get('restart_unconfirmed') == '1' and not reverted:
+        menu_env, menu_off = graphics_options.menu_environment(ini, WINDOWS)
+        for key in menu_off:
+            env.pop(key, None)
+        env.update(menu_env)
+        if menu_env or menu_off:
+            print('Graphics: the in-game menu\'s anti-aliasing for this restart: '
+                  + (', '.join(f'{k}={v}' for k, v in menu_env.items()) or "the game's own"), flush=True)
     if not env.get('ISSN_FSR411_DIR') and not (PORT / 'fsr4_411').is_dir() and (data / 'fsr4_411').is_dir():
         env['ISSN_FSR411_DIR'] = str(data / 'fsr4_411')
 
@@ -290,6 +300,14 @@ def main():
         game = update_view
         print(f'Game and update combined from {env["ISSN_PATCH_DIR"]}', flush=True)
     original_game = game.resolve()
+    # issn 11-05 (#33): the shader package the game reads first; its size and the folder it really
+    # comes from (the update or the base game) tell a mismatched dump at a glance.
+    shaders = game / 'art' / 'cache' / 'all_shaders.xpps'
+    try:
+        print(f'Game data: all_shaders.xpps {shaders.stat().st_size:,} bytes from {shaders.resolve().parent.parent.parent}',
+              flush=True)
+    except OSError as error:
+        print(f'Game data: art/cache/all_shaders.xpps missing or unreadable ({error})', flush=True)
     # issn_pc: the port is made for the 01.07 update (code patches, mouse hook, seed). A base 01.00
     # dump ends in an unsupported system call after the intro (sceKernelLoadStartModule, tester log
     # 10-24) - say so here instead. ISSN_ALLOW_OLD_VERSION=1 tries anyway.
@@ -351,6 +369,12 @@ def main():
             env.setdefault('ISSN_WINDOW_ICON', str(out / 'window_icon.bmp'))
         except (ImportError, OSError):
             pass
+        # issn-axy: the shader loading screen shows the dump's own background art (read from the
+        # player's game folder at run time, never shipped with the port).
+        for art in (game / 'sce_sys' / 'pic1.png', original_game / 'sce_sys' / 'pic1.png'):
+            if art.is_file():
+                env.setdefault('ISSN_LOADING_ART', str(art))
+                break
         # The temporal upscalers and motion vectors are not calibrated for this game yet: they stay
         # off unless the launcher's experimental switch is on (then issn.ini decides).
         if env.get('ISSN_EXPERIMENTAL_UPSCALER') != '1':
@@ -446,9 +470,18 @@ def main():
         print(f'Shader cache: {cache_name}' + ('' if seed_name else
               f" (shader-seed.txt {'names ' + listed + ', which is missing' if listed else 'is missing'})")
               + (f"; other cache folders: {', '.join(others)}" if others else ''), flush=True)
+        # issn 11-04: the game's trophy file (icons for the popup, read from the player's dump) and,
+        # with the player's own trophy key, the names (scripts/trophies.py).
+        import trophies
+        try:
+            print(trophies.prepare(env, user_dir), flush=True)
+        except OSError as error:
+            print(f'Trophies: {error}', flush=True)
         from save_backup import backup
         try:
-            if made := backup(user_dir):
+            if env.get('ISSN_SAVE_BACKUP') == '0':
+                print('Save backup: off (launcher)', flush=True)
+            elif made := backup(user_dir):
                 print(f'Saves backed up to {made}', flush=True)
         except OSError as error:
             print(f'Save backup failed, starting anyway: {error}', flush=True)

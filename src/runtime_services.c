@@ -7,6 +7,7 @@
 #define _GNU_SOURCE
 #include "runtime.h"
 #include "gpu/issngpu.h"
+#include "runtime_trophy.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -436,19 +437,97 @@ static ABI int32_t ime_result(uint32_t *result) {
 }
 static ABI int32_t ime_term(void) { memset(&ime,0,sizeof(ime)); return 0; }
 
-/* ---- Trophies: accepted locally, recorded in the log ---- */
+/* ---- Trophies: kept on this PC (runtime_trophy.c), shown by the overlay ---- */
+#define TROPHY_INVALID_ID ((int32_t)0x8055160A)
+#define TROPHY_ALREADY_UNLOCKED ((int32_t)0x8055160C)
+#define TROPHY_PLATINUM_CANNOT_UNLOCK ((int32_t)0x8055160D)
+static pthread_mutex_t trophy_lock=PTHREAD_MUTEX_INITIALIZER;
+static TrophyBook trophies;
+static int trophies_ready;
+static void trophy_path(char *out,size_t size,const char *name) {
+    snprintf(out,size,"%s/%s",runtime_file_user_dir(),name);
+}
+static void trophy_now(char *out,size_t size) {
+    time_t now=time(NULL); struct tm local;
+#ifdef _WIN32
+    localtime_s(&local,&now);
+#else
+    localtime_r(&now,&local);
+#endif
+    strftime(out,size,"%Y-%m-%d %H:%M:%S",&local);
+}
+/* The popup: icon from the game's trophy file (read now, never copied), name when known. */
+static void trophy_show(int id) {
+    size_t size=0;
+    unsigned char *png=trophy_trp_icon(getenv("ISSN_TROPHY_FILE"),id,&size);
+    char grade[2]={trophies.grade[id],0};
+    issngpu_note_trophy(id,trophies.name[id],grade,png,size);
+    free(png);
+}
+static void trophy_save(void) {
+    char path[1024]; trophy_path(path,sizeof(path),"trophies.txt");
+    if (trophy_book_save(&trophies,path)) printf("Runtime: trophies: could not write %s\n",path);
+}
+/* trophy_lock held: the book, read once (the platinum a save already earned is given now). */
+static void trophies_open(void) {
+    if (trophies_ready) return;
+    trophies_ready=1;
+    const char *file=getenv("ISSN_TROPHY_FILE");
+    int total=trophy_trp_count(file);
+    trophy_book_init(&trophies,total);
+    char path[1024];
+    trophy_path(path,sizeof(path),"trophy-names.txt");
+    int names=trophy_book_names(&trophies,path);
+    trophy_path(path,sizeof(path),"trophies.txt");
+    trophy_book_load(&trophies,path);
+    if (total>0) printf("Runtime: trophies: %d in the game's file, %d unlocked on this PC, %s\n",
+                        total,trophy_book_count(&trophies),names ? "with names" : "no names (no trophy key)");
+    else printf("Runtime: trophies: no trophy file (%s), %d unlocked on this PC\n",
+                file && *file ? file : "not found",trophy_book_count(&trophies));
+    int platinum=trophy_book_platinum_due(&trophies);
+    if (platinum>=0) {
+        char when[20]; trophy_now(when,sizeof(when));
+        trophies.flags[platinum>>5]|=1u<<(platinum&31);
+        snprintf(trophies.when[platinum],sizeof(trophies.when[platinum]),"%s",when);
+        printf("Runtime: trophy %d unlocked (platinum)\n",platinum);
+        trophy_save();
+        trophy_show(platinum);
+    }
+    fflush(stdout);
+}
 static ABI int32_t trophy_context(int32_t *ctx,int32_t user,uint32_t label,uint64_t options) {
     (void)user; (void)label; (void)options;
     if (!ctx) return TROPHY_INVALID;
     *ctx=new_id(); return 0;
 }
 static ABI int32_t trophy_handle(int32_t *handle) { if (!handle) return TROPHY_INVALID; *handle=new_id(); return 0; }
-static ABI int32_t trophy_register(int32_t ctx,int32_t handle,uint64_t options) { (void)ctx; (void)handle; (void)options; return 0; }
+static ABI int32_t trophy_register(int32_t ctx,int32_t handle,uint64_t options) {
+    (void)ctx; (void)handle; (void)options;
+    pthread_mutex_lock(&trophy_lock); trophies_open(); pthread_mutex_unlock(&trophy_lock);
+    return 0;
+}
+/* Unlocked once: again gives ALREADY_UNLOCKED, as on the console. The last trophy the platinum
+ * needs brings the platinum too (*platinum = its id). */
 static ABI int32_t trophy_unlock(int32_t ctx,int32_t handle,int32_t id,int32_t *platinum) {
     (void)ctx; (void)handle;
-    printf("Runtime: trophy %d unlocked\n",id);
-    if (platinum) *platinum=-1;
-    return 0;
+    char when[20]; trophy_now(when,sizeof(when));
+    int earned=-1;
+    pthread_mutex_lock(&trophy_lock);
+    trophies_open();
+    int result=trophy_book_unlock(&trophies,id,when,&earned);
+    if (result==1) { printf("Runtime: trophy %d asked again (already unlocked)\n",id); fflush(stdout); }
+    if (result==0) {
+        printf("Runtime: trophy %d unlocked\n",id);
+        if (earned>=0) printf("Runtime: trophy %d unlocked (platinum)\n",earned);
+        fflush(stdout);
+        trophy_save();
+        trophy_show(id);
+        if (earned>=0) trophy_show(earned);
+    }
+    pthread_mutex_unlock(&trophy_lock);
+    if (platinum) *platinum=earned;
+    return result==0 ? 0 : result==1 ? TROPHY_ALREADY_UNLOCKED
+         : result==-2 ? TROPHY_PLATINUM_CANNOT_UNLOCK : TROPHY_INVALID_ID;
 }
 static ABI int32_t trophy_game_info(int32_t ctx,int32_t handle,void *details,void *data) {
     (void)ctx; (void)handle;
@@ -459,11 +538,18 @@ static ABI int32_t trophy_game_info(int32_t ctx,int32_t handle,void *details,voi
 static ABI int32_t trophy_info(int32_t ctx,int32_t handle,int32_t id,void *details,void *data) {
     (void)id; return trophy_game_info(ctx,handle,details,data);
 }
-/* Nothing is unlocked on this console: an empty 128-trophy flag set. */
+/* The trophies unlocked on this PC (user/trophies.txt); count: the trophies of the game. */
 static ABI int32_t trophy_unlock_state(int32_t ctx,int32_t handle,uint32_t *flags,uint32_t *count) {
     if (!flags || !count) return TROPHY_INVALID;
     if (ctx<=0 || handle<=0) return TROPHY_INVALID;
-    memset(flags,0,16); *count=0;
+    static int asked;
+    pthread_mutex_lock(&trophy_lock);
+    trophies_open();
+    memcpy(flags,trophies.flags,sizeof(trophies.flags));
+    *count=(uint32_t)(trophies.total>0 ? trophies.total : 0);
+    /* issn 11-05: whether and when the game checks (a save made elsewhere unlocked nothing). */
+    if (asked++<8) { printf("Runtime: trophies: the game asked which are unlocked (%d)\n",trophy_book_count(&trophies)); fflush(stdout); }
+    pthread_mutex_unlock(&trophy_lock);
     return 0;
 }
 static ABI int32_t trophy_release(int32_t id) { return id>0 ? 0 : TROPHY_INVALID; }

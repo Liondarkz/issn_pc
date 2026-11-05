@@ -84,14 +84,49 @@ def _copy(user_dir, now, tag=''):
     target, n = root / f'{base}{suffix}', 2
     while target.exists():
         target, n = root / f'{base}-{n}{suffix}', n + 1
+    try:
+        _check_size(savedata)
+    except TooBig:
+        # A savedata stuffed with other files (Discord 11-01: the import's copy of ~17,000 files
+        # froze the launcher): only the game's own folders, savedata/<user id>/CUSAxxxxx[.memory].
+        games = [p for p in savedata.glob('*/*') if p.is_dir() and _TITLE_NAME.match(p.name)]
+        for game in games:
+            _check_size(game)
+        for game in games:
+            shutil.copytree(game, target / game.relative_to(savedata))
+        return target if games else None
     shutil.copytree(savedata, target)
     return target
 
 
+# The game's saves are a few slots of a few files (well under a hundred files, a few MB). A player's
+# savedata held some 17,000 files (Discord 11-01: the backups came to ~500,000 files, slow to start
+# and to delete), most likely another folder copied in by hand. Past these limits no copy is made.
+MAX_FILES = 2000
+MAX_BYTES = 512 << 20
+
+
+class TooBig(OSError):
+    """savedata is far bigger than the game's saves: no automatic backup."""
+
+
+def _check_size(savedata):
+    files = size = 0
+    for p in savedata.rglob('*'):
+        if p.is_file():
+            files += 1
+            size += p.stat().st_size
+            if files > MAX_FILES or size > MAX_BYTES:
+                raise TooBig(f'{savedata} holds more than {MAX_FILES} files or {MAX_BYTES >> 20} MB, far more '
+                             'than the game\'s saves (another folder copied into it?): no automatic backup')
+
+
 def backup(user_dir, now=None, keep=KEEP):
     """Copies savedata; returns the new folder, or None when there is nothing to save or the saves
-    are the same as in the newest backup."""
+    are the same as in the newest backup. Raises TooBig when savedata is far bigger than saves."""
     savedata = Path(user_dir) / 'savedata'
+    if _has_saves(savedata):
+        _check_size(savedata)
     names = list_backups(user_dir)
     if names and _has_saves(savedata):
         try:

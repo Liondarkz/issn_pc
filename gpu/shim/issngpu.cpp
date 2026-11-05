@@ -677,8 +677,38 @@ extern "C" const char* issngpu_saved_key_map(void) {
     return copy.c_str();
 }
 
+extern "C" float issngpu_mouse_sensitivity(void) {
+    return IssnSettings::Get().mouse_sensitivity.load(std::memory_order_relaxed);
+}
+
+extern "C" void issngpu_set_mouse_sensitivity(float value) {
+    IssnSettings::Get().mouse_sensitivity = std::clamp(value, 0.05f, 10.0f);
+    IssnSettings::Save();
+}
+
+extern "C" int issngpu_spray_pose(void) {
+    return IssnSettings::Get().spray_pose.load(std::memory_order_relaxed) ? 1 : 0;
+}
+
+extern "C" void issngpu_set_spray_pose(int on) {
+    IssnSettings::Get().spray_pose = on != 0;
+}
+
+extern "C" float issngpu_pad_sensitivity(void) {
+    return IssnSettings::Get().pad_sensitivity.load(std::memory_order_relaxed);
+}
+
 extern "C" void issngpu_note_game_saved(const char* what) {
     IssnOverlay::NoteGameSaved(what ? what : "");
+}
+
+extern "C" void issngpu_note_trophy(int id, const char* name, const char* grade, const void* png, uint64_t size) {
+    // The icon is decoded here, on the game's thread; the overlay makes it a texture.
+    IssnPng::Image icon;
+    if (png && size && !IssnPng::DecodeRgba(static_cast<const unsigned char*>(png), size_t(size), icon)) {
+        LOG_WARNING(Lib_NpTrophy, "trophy {}: icon not decoded", id);
+    }
+    IssnOverlay::NoteTrophy(id, name ? name : "", grade ? grade : "", std::move(icon));
 }
 
 extern "C" int issngpu_overlay_captures_input(void) {

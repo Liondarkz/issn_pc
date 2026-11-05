@@ -835,7 +835,7 @@ EXTRA = {
         'Balanced: about 13% more FPS in the city': 'Equilibrado: cerca de 13% mais FPS na cidade',
         'Maximum: about 19% more FPS, fewer pedestrians': 'Máximo: cerca de 19% mais FPS, menos pedestres',
         "The game's own lower settings, from axylpup's 1.1: shorter detail distance, one shadow level less, lighter particles and fewer high-resolution textures nearby. Figures are from his PC in the heaviest city view.": 'Os ajustes mais leves do próprio jogo, da versão 1.1 do axylpup: distância de detalhe menor, um nível de sombra a menos, partículas mais leves e menos texturas em alta resolução por perto. Os números são do PC dele, na vista mais pesada da cidade.',
-        'For Xbox, 8BitDo and other pads without a touchpad or motion sensors. Touchpad click: Select/Back (with L1: the left side). Swipe: hold Select/Back and push the right stick. Two fingers: hold Select/Back + RB. Spray can: L3 + R3 together tilts the pad, LB rattles it, the right stick aims. Automatic turns it off on a DualShock 4 or DualSense.': 'Para controles Xbox, 8BitDo e outros sem touchpad ou sensor de movimento. Clique no touchpad: Select/Back (com L1: o lado esquerdo). Deslizar: segure Select/Back e empurre o analógico direito. Dois dedos: segure Select/Back + RB. Lata de spray: L3 + R3 juntos inclinam o controle, LB chacoalha, o analógico direito mira. No Automático ele desliga num DualShock 4 ou DualSense.',
+        'For Xbox, 8BitDo and other pads without a touchpad or motion sensors. Touchpad click: Select/Back (with L1: the left side). Swipe: hold Select/Back and push the right stick. Two fingers: hold Select/Back + RB. Spray can: Insert > Controls > Spray can tilts the pad, LB rattles it, the right stick aims. Automatic turns it off on a DualShock 4 or DualSense.': 'Para controles Xbox, 8BitDo e outros sem touchpad ou sensor de movimento. Clique no touchpad: Select/Back (com L1: o lado esquerdo). Deslizar: segure Select/Back e empurre o analógico direito. Dois dedos: segure Select/Back + RB. Lata de spray: Insert > Controls > Spray can inclina o controle, LB chacoalha, o analógico direito mira. No Automático ele desliga num DualShock 4 ou DualSense.',
         "Keyboard and mouse: WASD moves, IJKL turns the camera. Click in the game window and the mouse aims (1:1, as in axylpup's build); Y or F7 lets the mouse go and takes it back, - / = change its speed. Left click R2 (shoot), right click L2 (aim). Spray can: hold Z to tilt the pad, tap Z or hold X to rattle it, move the mouse to aim. R: the touchpad (held, both thumbs: the drains, the car on Reggie); R + W/A/S/D: a swipe (doors, wreckage, the Mobile Command Center core: hold R + W and click to hit it); G: its left side (photo mode). Arrows: d-pad. F12: screenshot. Insert: the port's menu.": 'Teclado e mouse: WASD anda, IJKL gira a câmera. Clique na janela do jogo e o mouse mira (1:1, como no build do axylpup); Y ou F7 solta o mouse e pega de volta, - / = mudam a velocidade. Clique esquerdo R2 (atirar), direito L2 (mirar). Lata de spray: segure Z para inclinar o controle, toque Z ou segure X para chacoalhar, mova o mouse para mirar. R: o touchpad (segurado, os dois polegares: os drenos, o carro em cima do Reggie); R + W/A/S/D: deslizar (portas, destroços, o núcleo do Centro de Comando Móvel: segure R + W e clique para bater); G: o lado esquerdo (modo foto). Setas: direcional. F12: print. Insert: menu do port.',
         'Steam is open. Close Steam, add the game and open Steam again?': 'O Steam está aberto. Fechar o Steam, adicionar o jogo e abrir o Steam de novo?',
         'Steam did not close. Close it (Steam > Exit) and click again.': 'O Steam não fechou. Feche-o (Steam > Sair) e clique de novo.',
@@ -862,10 +862,23 @@ EXTRA = {
         'Automatic (on for pads without a touchpad)': 'Automático (liga em controles sem touchpad)',
         'On': 'Ligado',
         'Off': 'Desligado',
-        'For Xbox, 8BitDo and other pads without a touchpad or motion sensors. Touchpad click: Select/Back (with L1: the left side). Swipe: hold Select/Back and push the right stick. Two fingers: hold Select/Back + RB. Spray can: L3 + R3 together tilts the pad, LB rattles it, the right stick aims. Automatic turns it off on a DualShock 4 or DualSense.': 'Para controles Xbox, 8BitDo e outros sem touchpad ou sensor de movimento. Clique no touchpad: Select/Back (com L1: o lado esquerdo). Deslizar: segure Select/Back e empurre o analógico direito. Dois dedos: segure Select/Back + RB. Lata de spray: L3 + R3 juntos inclinam o controle, LB sacode, o analógico direito mira. No Automático ele desliga num DualShock 4 ou DualSense.',
+        'For Xbox, 8BitDo and other pads without a touchpad or motion sensors. Touchpad click: Select/Back (with L1: the left side). Swipe: hold Select/Back and push the right stick. Two fingers: hold Select/Back + RB. Spray can: Insert > Controls > Spray can tilts the pad, LB rattles it, the right stick aims. Automatic turns it off on a DualShock 4 or DualSense.': 'Para controles Xbox, 8BitDo e outros sem touchpad ou sensor de movimento. Clique no touchpad: Select/Back (com L1: o lado esquerdo). Deslizar: segure Select/Back e empurre o analógico direito. Dois dedos: segure Select/Back + RB. Lata de spray: Insert > Controls > Spray can inclina o controle, LB sacode, o analógico direito mira. No Automático ele desliga num DualShock 4 ou DualSense.',
         'Spray can stick speed': 'Velocidade do analógico na lata',
         'Stick dead zone': 'Zona morta dos analógicos',
         'Skip the intro logos': 'Pular as logos da abertura',
+        'Video memory limit': 'Limite de memória de vídeo',
+        'Automatic (what the driver allows)': 'Automático (o que o driver permite)',
+        '3.5 GB (4 GB cards)': '3,5 GB (placas de 4 GB)',
+        '5 GB (6 GB cards)': '5 GB (placas de 6 GB)',
+        '6.5 GB (8 GB cards)': '6,5 GB (placas de 8 GB)',
+        '9.5 GB (10-12 GB cards)': '9,5 GB (placas de 10 a 12 GB)',
+        'How much video memory the game may fill before it frees textures it is not using. Lower it if the game closes with "Device lost" or the log says the video memory is nearly full, mainly on 4-8 GB cards and laptops.': 'Quanta memória de vídeo o jogo pode ocupar antes de liberar texturas que não está usando. Diminua se o jogo fechar com "Device lost" ou se o log disser que a memória de vídeo está quase cheia, principalmente em placas de 4 a 8 GB e notebooks.',
+        'Controller sensitivity': 'Sensibilidade do controle',
+        'Mouse sensitivity': 'Sensibilidade do mouse',
+        'The right stick (camera). Below 1: slower. Above 1: small stick moves turn the camera more. Also in the game: Insert > Controls.': 'O analógico direito (câmera). Abaixo de 1: mais lenta. Acima de 1: movimentos pequenos do analógico giram mais a câmera. Também no jogo: Insert > Controls.',
+        'How far the camera turns per mouse movement. Also in the game: Insert > Controls, or - / =.': 'Quanto a câmera gira por movimento do mouse. Também no jogo: Insert > Controls, ou - / =.',
+        'Back up saves before a start': 'Fazer backup dos saves antes de jogar',
+        'A copy of your saves before each start when they changed (kept in user\\savedata_backups). Off: no new copies; the old ones stay and can still be restored.': 'Uma cópia dos seus saves antes de cada início, quando eles mudaram (fica em user\\savedata_backups). Desligado: nenhuma cópia nova; as antigas ficam e ainda podem ser restauradas.',
         'Frame pacing': 'Ritmo dos quadros',
         "What's new": 'Novidades',
         'Help': 'Ajuda',
@@ -1012,7 +1025,7 @@ EXTRA = {
         'Slow': 'Lenta',
         'Fast': 'Rápida',
         'Very fast (0.3.4 and earlier)': 'Muito rápida (0.3.4 e anteriores)',
-        'How fast the right stick turns the spray can while the pad is tilted (L3 + R3). A light push moves it a little, a full push at this speed. In the game, - / = change it too.': 'Quão rápido o analógico direito vira a lata de spray com o controle inclinado (L3 + R3). Um toque leve move pouco; empurrado até o fim, nesta velocidade. No jogo, - / = também mudam.',
+        'How fast the right stick turns the spray can while the pad is tilted (Insert > Controls > Spray can). A light push moves it a little, a full push at this speed. In the game, - / = change it too.': 'Quão rápido o analógico direito vira a lata de spray com o controle inclinado (L3 + R3). Um toque leve move pouco; empurrado até o fim, nesta velocidade. No jogo, - / = também mudam.',
         'Automatic (launcher language)': 'Automático (idioma do launcher)',
         'Portuguese (Brazil)': 'Português (Brasil)',
         'Portuguese (Portugal)': 'Português (Portugal)',
@@ -1204,6 +1217,81 @@ EXTRA = {
         'Original (default)': 'Original (padrão)',
         'Match my controller': 'Igual ao meu controle',
         "Replaces the PlayStation button icons inside the game with the ones of your controller. Works on a copy of two game files in the port's data folder (about 70 MB); your game folder is never changed. Applied when the game starts.": 'Troca os ícones de botões PlayStation dentro do jogo pelos do seu controle. Funciona com uma cópia de dois arquivos do jogo na pasta de dados do port (cerca de 70 MB); a pasta do jogo nunca é alterada. Aplicado quando o jogo inicia.',
+        # 0.3.7: OptiScaler (optional), installed by the launcher.
+        'OptiScaler (optional)':
+            'OptiScaler (opcional)',
+        "A separate program by the OptiScaler team that takes the port's XeSS input and turns it into another upscaler. Not part of the port: the launcher downloads it from the project's GitHub when you ask and can take it out again.":
+            'Um programa à parte, da equipe do OptiScaler, que pega a entrada do XeSS do port e transforma em outro upscaler. Não faz parte do port: o launcher baixa do GitHub do projeto quando você pede e pode tirar de novo.',
+        'OptiScaler output':
+            'Saída do OptiScaler',
+        'What OptiScaler makes of the XeSS input. FSR 2.2 is the one tested with the port; FSR 4 goes through DirectX 12 and needs a Radeon RX 7000 or 9000. Written to OptiScaler.ini at once; it applies when the game starts.':
+            'O que o OptiScaler faz com a entrada do XeSS. O FSR 2.2 é o testado com o port; o FSR 4 passa pelo DirectX 12 e precisa de uma Radeon RX 7000 ou 9000. Gravado no OptiScaler.ini na hora; vale quando o jogo abrir.',
+        'FSR 4 (Radeon RX 7000 / 9000, RDNA 3/4)':
+            'FSR 4 (Radeon RX 7000 / 9000, RDNA 3/4)',
+        'FSR 2.2 (tested with the port)':
+            'FSR 2.2 (testado com o port)',
+        'Download and install':
+            'Baixar e instalar',
+        'Update / install again':
+            'Atualizar / instalar de novo',
+        'Remove':
+            'Remover',
+        'How to use':
+            'Como usar',
+        'Not installed.':
+            'Não instalado.',
+        'bin\\winmm.dll is another program, not OptiScaler: the launcher leaves it alone.':
+            'bin\\winmm.dll é outro programa, não o OptiScaler: o launcher não mexe nele.',
+        'Installed: OptiScaler {} · output {} · its menu in the game: {}.':
+            'Instalado: OptiScaler {} · saída {} · menu dele no jogo: {}.',
+        "Unpacked by hand: Remove takes its files out; Download and install replaces it with the launcher's, set for the port.":
+            'Instalado à mão: Remover tira os arquivos dele; Baixar e instalar troca pelo do launcher, já configurado para o port.',
+        '{} is also a key of the port: install it again from here to move its menu to F8.':
+            '{} também é uma tecla do port: instale de novo por aqui para o menu dele ir para o F8.',
+        "⚠ The port's anti-aliasing is not XeSS, so OptiScaler gets nothing: choose XeSS in Anti-aliasing above.":
+            '⚠ O anti-aliasing do port não está em XeSS, então o OptiScaler não recebe nada: escolha XeSS em Anti-aliasing acima.',
+        'Close the game first: it is using the OptiScaler files.':
+            'Feche o jogo primeiro: ele está usando os arquivos do OptiScaler.',
+        'OptiScaler.ini could not be changed: {}':
+            'Não deu para mudar o OptiScaler.ini: {}',
+        'OptiScaler output: {} (the next time the game starts).':
+            'Saída do OptiScaler: {} (na próxima vez que o jogo abrir).',
+        "OptiScaler is a separate program by the OptiScaler team (GPL-3.0), not part of the port.\n\nThe launcher downloads its newest stable release from github.com/optiscaler/OptiScaler (about 55 MB), checks it and puts it in {}, set for the port: its menu on F8, the output you chose. The port's anti-aliasing is set to XeSS, which is what OptiScaler reads.\n\nDownload and install it now?":
+            'O OptiScaler é um programa à parte, da equipe do OptiScaler (GPL-3.0), e não faz parte do port.\n\nO launcher baixa a versão estável mais nova de github.com/optiscaler/OptiScaler (uns 55 MB), confere e coloca em {}, já configurado para o port: menu dele no F8 e a saída que você escolheu. O anti-aliasing do port passa para XeSS, que é o que o OptiScaler lê.\n\nBaixar e instalar agora?',
+        'Downloading OptiScaler {}… {{}}%':
+            'Baixando o OptiScaler {}… {{}}%',
+        'Installing OptiScaler… {}%':
+            'Instalando o OptiScaler… {}%',
+        'OptiScaler was not installed: {}':
+            'O OptiScaler não foi instalado: {}',
+        "OptiScaler {} is installed. The port's anti-aliasing is now XeSS.\n\nIn the game, F8 opens OptiScaler's menu (Insert stays the port's). Remove takes it out again.":
+            'O OptiScaler {} está instalado. O anti-aliasing do port agora é XeSS.\n\nNo jogo, o F8 abre o menu do OptiScaler (o Insert continua sendo do port). Remover tira ele de novo.',
+        'Looking for the newest OptiScaler…':
+            'Procurando o OptiScaler mais novo…',
+        "Remove OptiScaler? Its files leave the bin folder and the port runs as before. The port's anti-aliasing stays XeSS; change it above if you want.":
+            'Remover o OptiScaler? Os arquivos dele saem da pasta bin e o port fica como antes. O anti-aliasing do port continua em XeSS; mude acima se quiser.',
+        'OptiScaler was not removed completely: {}':
+            'O OptiScaler não foi removido por completo: {}',
+        'OptiScaler removed ({} files).':
+            'OptiScaler removido ({} arquivos).',
+        'OptiScaler {} installed.':
+            'OptiScaler {} instalado.',
+        "OptiScaler is installed, but the port's anti-aliasing is not XeSS, so OptiScaler gets nothing and the game runs without it.\n\nSwitch the anti-aliasing to XeSS now?":
+            'O OptiScaler está instalado, mas o anti-aliasing do port não está em XeSS, então o OptiScaler não recebe nada e o jogo roda sem ele.\n\nMudar o anti-aliasing para XeSS agora?',
+        "OptiScaler (optional)\n\nWhat it is: a separate program (OptiScaler team, GPL-3.0) that takes the picture, depth and motion the port gives XeSS and runs another upscaler on them: FSR 4, FSR 3.1, XeSS, DLSS or FSR 2.2.\n\n1. Download and install. The port's anti-aliasing must be XeSS (the launcher sets it): with anything else OptiScaler gets nothing.\n2. Choose the output here (it applies when the game starts). The size the game draws at is still the port's 'FSR 4 / DLSS quality'.\n3. In the game, F8 opens OptiScaler's menu (output, sharpness, debug views). Insert is still the port's menu and Home its anti-aliasing switch. Page Up, Page Down and End are OptiScaler's (its FPS counter and frame generation).\n4. To go back: Remove. Every file it added leaves the bin folder.\n\nThird-party: problems with OptiScaler itself go to its project, not to the port.\nProject: github.com/optiscaler/OptiScaler · License: GPL-3.0\nOpen the project page (source code and license)?":
+            "OptiScaler (opcional)\n\nO que é: um programa à parte (equipe do OptiScaler, GPL-3.0) que pega a imagem, a profundidade e o movimento que o port entrega ao XeSS e roda outro upscaler em cima: FSR 4, FSR 3.1, XeSS, DLSS ou FSR 2.2.\n\n1. Baixar e instalar. O anti-aliasing do port precisa estar em XeSS (o launcher já coloca): com qualquer outro, o OptiScaler não recebe nada.\n2. Escolha a saída aqui (vale quando o jogo abrir). O tamanho em que o jogo desenha continua sendo o 'Qualidade do FSR 4 / DLSS' do port.\n3. No jogo, o F8 abre o menu do OptiScaler (saída, nitidez, visões de debug). O Insert continua sendo o menu do port e o Home a troca de anti-aliasing. Page Up, Page Down e End são do OptiScaler (contador de FPS e geração de quadros dele).\n4. Para voltar: Remover. Todo arquivo que ele colocou sai da pasta bin.\n\nDe terceiros: problemas do próprio OptiScaler vão para o projeto dele, não para o port.\nProjeto: github.com/optiscaler/OptiScaler · Licença: GPL-3.0\nAbrir a página do projeto (código e licença)?",
+        'Off (no anti-aliasing)':
+            'Desligado (sem anti-aliasing)',
+        'Off: no anti-aliasing at all, the sharpest picture with jagged edges (no smearing in motion).':
+            'Desligado: nenhum anti-aliasing, a imagem mais nítida com bordas serrilhadas (sem borrão em movimento).',
+        'Motion blur':
+            'Desfoque de movimento',
+        'Chromatic aberration':
+            'Aberração cromática',
+        'The blur when the camera or Delsin moves fast. Off gives a sharp picture in motion; it also changes at once in the game (Insert > Image).':
+            'O borrão quando a câmera ou o Delsin se movem rápido. Desligado deixa a imagem nítida em movimento; também muda na hora no jogo (Insert > Image).',
+        'The red and blue fringes toward the edges of the screen. Turning it off helps players who feel sick with it; it also changes at once in the game (Insert > Image).':
+            'As franjas vermelhas e azuis perto das bordas da tela. Desligar ajuda quem passa mal com elas; também muda na hora no jogo (Insert > Image).',
     },
     'es': {
         'Game multisampling': 'Multisampling del juego',
@@ -1422,8 +1510,154 @@ EXTRA = {
         'Match my controller': 'Igual que mi mando',
         "Replaces the PlayStation button icons inside the game with the ones of your controller. Works on a copy of two game files in the port's data folder (about 70 MB); your game folder is never changed. Applied when the game starts.":
             'Sustituye los iconos de botones de PlayStation dentro del juego por los de tu mando. Trabaja sobre una copia de dos archivos del juego en la carpeta de datos del port (unos 70 MB); tu carpeta del juego nunca se modifica. Se aplica al iniciar el juego.',
+        # 0.3.7: OptiScaler (optional), installed by the launcher.
+        'OptiScaler (optional)':
+            'OptiScaler (opcional)',
+        "A separate program by the OptiScaler team that takes the port's XeSS input and turns it into another upscaler. Not part of the port: the launcher downloads it from the project's GitHub when you ask and can take it out again.":
+            'Un programa aparte, del equipo de OptiScaler, que toma la entrada de XeSS del port y la convierte en otro escalador. No forma parte del port: el lanzador lo descarga del GitHub del proyecto cuando lo pides y puede quitarlo de nuevo.',
+        'OptiScaler output':
+            'Salida de OptiScaler',
+        'What OptiScaler makes of the XeSS input. FSR 2.2 is the one tested with the port; FSR 4 goes through DirectX 12 and needs a Radeon RX 7000 or 9000. Written to OptiScaler.ini at once; it applies when the game starts.':
+            'Lo que OptiScaler hace con la entrada de XeSS. FSR 2.2 es el probado con el port; FSR 4 pasa por DirectX 12 y necesita una Radeon RX 7000 o 9000. Se escribe en OptiScaler.ini al momento; vale al iniciar el juego.',
+        'FSR 4 (Radeon RX 7000 / 9000, RDNA 3/4)':
+            'FSR 4 (Radeon RX 7000 / 9000, RDNA 3/4)',
+        'FSR 2.2 (tested with the port)':
+            'FSR 2.2 (probado con el port)',
+        'Download and install':
+            'Descargar e instalar',
+        'Update / install again':
+            'Actualizar / instalar de nuevo',
+        'Remove':
+            'Quitar',
+        'How to use':
+            'Cómo usarlo',
+        'Not installed.':
+            'No instalado.',
+        'bin\\winmm.dll is another program, not OptiScaler: the launcher leaves it alone.':
+            'bin\\winmm.dll es otro programa, no OptiScaler: el lanzador no lo toca.',
+        'Installed: OptiScaler {} · output {} · its menu in the game: {}.':
+            'Instalado: OptiScaler {} · salida {} · su menú en el juego: {}.',
+        "Unpacked by hand: Remove takes its files out; Download and install replaces it with the launcher's, set for the port.":
+            'Instalado a mano: Quitar saca sus archivos; Descargar e instalar lo cambia por el del lanzador, configurado para el port.',
+        '{} is also a key of the port: install it again from here to move its menu to F8.':
+            '{} también es una tecla del port: instálalo de nuevo desde aquí para pasar su menú a F8.',
+        "⚠ The port's anti-aliasing is not XeSS, so OptiScaler gets nothing: choose XeSS in Anti-aliasing above.":
+            '⚠ El antialiasing del port no está en XeSS, así que OptiScaler no recibe nada: elige XeSS en Anti-aliasing, arriba.',
+        'Close the game first: it is using the OptiScaler files.':
+            'Cierra el juego primero: está usando los archivos de OptiScaler.',
+        'OptiScaler.ini could not be changed: {}':
+            'No se pudo cambiar OptiScaler.ini: {}',
+        'OptiScaler output: {} (the next time the game starts).':
+            'Salida de OptiScaler: {} (la próxima vez que se inicie el juego).',
+        "OptiScaler is a separate program by the OptiScaler team (GPL-3.0), not part of the port.\n\nThe launcher downloads its newest stable release from github.com/optiscaler/OptiScaler (about 55 MB), checks it and puts it in {}, set for the port: its menu on F8, the output you chose. The port's anti-aliasing is set to XeSS, which is what OptiScaler reads.\n\nDownload and install it now?":
+            'OptiScaler es un programa aparte, del equipo de OptiScaler (GPL-3.0), y no forma parte del port.\n\nEl lanzador descarga su versión estable más nueva de github.com/optiscaler/OptiScaler (unos 55 MB), la comprueba y la pone en {}, configurada para el port: su menú en F8 y la salida que elegiste. El antialiasing del port pasa a XeSS, que es lo que lee OptiScaler.\n\n¿Descargarlo e instalarlo ahora?',
+        'Downloading OptiScaler {}… {{}}%':
+            'Descargando OptiScaler {}… {{}}%',
+        'Installing OptiScaler… {}%':
+            'Instalando OptiScaler… {}%',
+        'OptiScaler was not installed: {}':
+            'OptiScaler no se instaló: {}',
+        "OptiScaler {} is installed. The port's anti-aliasing is now XeSS.\n\nIn the game, F8 opens OptiScaler's menu (Insert stays the port's). Remove takes it out again.":
+            'OptiScaler {} está instalado. El antialiasing del port ahora es XeSS.\n\nEn el juego, F8 abre el menú de OptiScaler (Insert sigue siendo del port). Quitar lo saca de nuevo.',
+        'Looking for the newest OptiScaler…':
+            'Buscando el OptiScaler más nuevo…',
+        "Remove OptiScaler? Its files leave the bin folder and the port runs as before. The port's anti-aliasing stays XeSS; change it above if you want.":
+            '¿Quitar OptiScaler? Sus archivos salen de la carpeta bin y el port queda como antes. El antialiasing del port sigue en XeSS; cámbialo arriba si quieres.',
+        'OptiScaler was not removed completely: {}':
+            'OptiScaler no se quitó del todo: {}',
+        'OptiScaler removed ({} files).':
+            'OptiScaler quitado ({} archivos).',
+        'OptiScaler {} installed.':
+            'OptiScaler {} instalado.',
+        "OptiScaler is installed, but the port's anti-aliasing is not XeSS, so OptiScaler gets nothing and the game runs without it.\n\nSwitch the anti-aliasing to XeSS now?":
+            'OptiScaler está instalado, pero el antialiasing del port no está en XeSS, así que OptiScaler no recibe nada y el juego va sin él.\n\n¿Cambiar el antialiasing a XeSS ahora?',
+        "OptiScaler (optional)\n\nWhat it is: a separate program (OptiScaler team, GPL-3.0) that takes the picture, depth and motion the port gives XeSS and runs another upscaler on them: FSR 4, FSR 3.1, XeSS, DLSS or FSR 2.2.\n\n1. Download and install. The port's anti-aliasing must be XeSS (the launcher sets it): with anything else OptiScaler gets nothing.\n2. Choose the output here (it applies when the game starts). The size the game draws at is still the port's 'FSR 4 / DLSS quality'.\n3. In the game, F8 opens OptiScaler's menu (output, sharpness, debug views). Insert is still the port's menu and Home its anti-aliasing switch. Page Up, Page Down and End are OptiScaler's (its FPS counter and frame generation).\n4. To go back: Remove. Every file it added leaves the bin folder.\n\nThird-party: problems with OptiScaler itself go to its project, not to the port.\nProject: github.com/optiscaler/OptiScaler · License: GPL-3.0\nOpen the project page (source code and license)?":
+            "OptiScaler (opcional)\n\nQué es: un programa aparte (equipo de OptiScaler, GPL-3.0) que toma la imagen, la profundidad y el movimiento que el port da a XeSS y ejecuta otro escalador sobre ellos: FSR 4, FSR 3.1, XeSS, DLSS o FSR 2.2.\n\n1. Descargar e instalar. El antialiasing del port debe estar en XeSS (el lanzador lo pone): con cualquier otro, OptiScaler no recibe nada.\n2. Elige la salida aquí (vale al iniciar el juego). El tamaño al que dibuja el juego sigue siendo 'FSR 4 / DLSS quality' del port.\n3. En el juego, F8 abre el menú de OptiScaler (salida, nitidez, vistas de depuración). Insert sigue siendo el menú del port e Inicio su cambio de antialiasing. Re Pág, Av Pág y Fin son de OptiScaler (su contador de FPS y su generación de fotogramas).\n4. Para volver: Quitar. Todo archivo que añadió sale de la carpeta bin.\n\nDe terceros: los problemas del propio OptiScaler van a su proyecto, no al port.\nProyecto: github.com/optiscaler/OptiScaler · Licencia: GPL-3.0\n¿Abrir la página del proyecto (código y licencia)?",
+        'Off (no anti-aliasing)':
+            'Desactivado (sin antialiasing)',
+        'Off: no anti-aliasing at all, the sharpest picture with jagged edges (no smearing in motion).':
+            'Desactivado: ningún antialiasing, la imagen más nítida con bordes dentados (sin borrón en movimiento).',
+        'Effects':
+            'Efectos',
+        'Motion blur':
+            'Desenfoque de movimiento',
+        'Chromatic aberration':
+            'Aberración cromática',
+        'The blur when the camera or Delsin moves fast. Off gives a sharp picture in motion; it also changes at once in the game (Insert > Image).':
+            'El desenfoque cuando la cámara o Delsin se mueven rápido. Desactivado da una imagen nítida en movimiento; también cambia al momento en el juego (Insert > Image).',
+        'The red and blue fringes toward the edges of the screen. Turning it off helps players who feel sick with it; it also changes at once in the game (Insert > Image).':
+            'Los bordes rojos y azules cerca de los lados de la pantalla. Desactivarla ayuda a quien se marea con ella; también cambia al momento en el juego (Insert > Image).',
     },
 }
+
+# issn 11-04: the Achievements page (trophies). Kept apart from EXTRA so its additions do not
+# collide with other pages' texts.
+TROPHY_TEXTS = {
+    'pt': {
+        'Achievements': 'Conquistas',
+        "The game's trophies: the ones unlocked in this port are in color, with the date.":
+            'Os troféus do jogo: os liberados neste port ficam coloridos, com a data.',
+        'In the game': 'No jogo',
+        'Trophy popup': 'Aviso de troféu',
+        "The trophy's icon and name in a top corner for a few seconds when the game unlocks one. Also in Insert > Overlay.":
+            'O ícone e o nome do troféu num canto de cima por alguns segundos quando o jogo libera um. Também em Insert > Overlay.',
+        'Trophy names (optional)': 'Nomes dos troféus (opcional)',
+        "The names and descriptions in the game's trophy file are encrypted. Without a key the port uses its own list (English, Portuguese and Spanish, written from public trophy lists). If you have your own PS4 trophy key (the same one shadPS4 asks for), paste it here to see the game's own texts: it stays only on this PC, in user\\trophy-key.txt, and the port never ships or sends it. A name shows once its trophy is unlocked.":
+            'Os nomes e as descrições no arquivo de troféus do jogo são criptografados. Sem uma chave, o port usa a lista própria dele (inglês, português e espanhol, escrita a partir de listas públicas de troféus). Se você tem a sua própria chave de troféus do PS4 (a mesma que o shadPS4 pede), cole aqui para ver os textos do próprio jogo: ela fica só neste PC, em user\\trophy-key.txt, e o port nunca a distribui nem envia. O nome aparece quando o troféu é liberado.',
+        'Save key': 'Salvar chave',
+        'Remove key': 'Remover chave',
+        'Trophy key': 'Chave de troféus',
+        'No key: names are not shown.': 'Sem chave: os nomes não aparecem.',
+        "Key saved on this PC: the names are the game's own.": 'Chave salva neste PC: os nomes são os do próprio jogo.',
+        "No key: the names come from the port's own list.": 'Sem chave: os nomes vêm da lista própria do port.',
+        'The key is saved but the names could not be read: {}': 'A chave está salva, mas os nomes não puderam ser lidos: {}',
+        'No trophy file in the game folder (sce_sys\\trophy\\trophy00.trp, or Sc0\\trophy beside it). Choose the game folder on the Game page.':
+            'Nenhum arquivo de troféus na pasta do jogo (sce_sys\\trophy\\trophy00.trp, ou Sc0\\trophy ao lado). Escolha a pasta do jogo na página Jogo.',
+        '{} of {} unlocked ({}%)': '{} de {} liberados ({}%)',
+        'Platinum! Every trophy unlocked': 'Platinado com sucesso!',
+        'Platinum': 'Platina', 'Gold': 'Ouro', 'Silver': 'Prata', 'Bronze': 'Bronze',
+        'Trophy {}': 'Troféu {}',
+        'Unlocked {}': 'Liberado em {}',
+        'Locked': 'Bloqueado',
+        'A trophy key is 32 hexadecimal digits (0-9, A-F).': 'A chave de troféus tem 32 dígitos hexadecimais (0-9, A-F).',
+        'This key does not open the trophy names: {}': 'Esta chave não abre os nomes dos troféus: {}',
+        'Could not save the key: {}': 'Não foi possível salvar a chave: {}',
+        'Could not remove the key: {}': 'Não foi possível remover a chave: {}',
+    },
+    'es': {
+        'Achievements': 'Logros',
+        "The game's trophies: the ones unlocked in this port are in color, with the date.":
+            'Los trofeos del juego: los desbloqueados en este port aparecen en color, con la fecha.',
+        'In the game': 'En el juego',
+        'Trophy popup': 'Aviso de trofeo',
+        "The trophy's icon and name in a top corner for a few seconds when the game unlocks one. Also in Insert > Overlay.":
+            'El icono y el nombre del trofeo en una esquina superior durante unos segundos cuando el juego desbloquea uno. También en Insert > Overlay.',
+        'Trophy names (optional)': 'Nombres de los trofeos (opcional)',
+        "The names and descriptions in the game's trophy file are encrypted. Without a key the port uses its own list (English, Portuguese and Spanish, written from public trophy lists). If you have your own PS4 trophy key (the same one shadPS4 asks for), paste it here to see the game's own texts: it stays only on this PC, in user\\trophy-key.txt, and the port never ships or sends it. A name shows once its trophy is unlocked.":
+            'Los nombres y las descripciones del archivo de trofeos del juego están cifrados. Sin una clave, el port usa su propia lista (inglés, portugués y español, escrita a partir de listas públicas de trofeos). Si tienes tu propia clave de trofeos de PS4 (la misma que pide shadPS4), pégala aquí para ver los textos del propio juego: se queda solo en este PC, en user\\trophy-key.txt, y el port nunca la distribuye ni la envía. El nombre aparece cuando se desbloquea el trofeo.',
+        'Save key': 'Guardar clave',
+        'Remove key': 'Quitar clave',
+        'Trophy key': 'Clave de trofeos',
+        'No key: names are not shown.': 'Sin clave: los nombres no se muestran.',
+        "Key saved on this PC: the names are the game's own.": 'Clave guardada en este PC: los nombres son los del propio juego.',
+        "No key: the names come from the port's own list.": 'Sin clave: los nombres vienen de la lista propia del port.',
+        'The key is saved but the names could not be read: {}': 'La clave está guardada, pero no se pudieron leer los nombres: {}',
+        'No trophy file in the game folder (sce_sys\\trophy\\trophy00.trp, or Sc0\\trophy beside it). Choose the game folder on the Game page.':
+            'No hay archivo de trofeos en la carpeta del juego (sce_sys\\trophy\\trophy00.trp, o Sc0\\trophy al lado). Elige la carpeta del juego en la página Juego.',
+        '{} of {} unlocked ({}%)': '{} de {} desbloqueados ({}%)',
+        'Platinum! Every trophy unlocked': '¡Platino! Todos los trofeos',
+        'Platinum': 'Platino', 'Gold': 'Oro', 'Silver': 'Plata', 'Bronze': 'Bronce',
+        'Trophy {}': 'Trofeo {}',
+        'Unlocked {}': 'Desbloqueado el {}',
+        'Locked': 'Bloqueado',
+        'A trophy key is 32 hexadecimal digits (0-9, A-F).': 'Una clave de trofeos tiene 32 dígitos hexadecimales (0-9, A-F).',
+        'This key does not open the trophy names: {}': 'Esta clave no abre los nombres de los trofeos: {}',
+        'Could not save the key: {}': 'No se pudo guardar la clave: {}',
+        'Could not remove the key: {}': 'No se pudo quitar la clave: {}',
+    },
+}
+for _language, _texts in TROPHY_TEXTS.items():
+    EXTRA.setdefault(_language, {}).update(_texts)
 
 _tables = {}
 

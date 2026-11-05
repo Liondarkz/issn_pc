@@ -43,6 +43,7 @@ PORT_DIR = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).r
 sys.path.insert(0, str(PORT_DIR / 'scripts'))
 import save_backup  # noqa: E402  (scripts/)
 import steam_shortcut  # noqa: E402  (scripts/)
+import trophies  # noqa: E402  (scripts/)
 from patches import game_profile, game_sfo  # noqa: E402  (scripts/)
 from prepare import load_sfo  # noqa: E402  (scripts/)
 DATA_DIR = Path(os.environ.get('ISSN_DATA_DIR', PORT_DIR))
@@ -57,7 +58,7 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 NEW_GROUP = {} if WINDOWS else {'start_new_session': True}
 UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 # This build; GitHub release tags are windows-v<VERSION>.
-VERSION = '0.3.6.3'
+VERSION = '0.3.7'
 # This port's own test builds (never the God of War III port's: they must not be installed over
 # it). The source repository is private; the builds are published in a public repository that
 # holds only releases (tag windows-v<VERSION>, the zip from packaging/windows/package.sh).
@@ -358,14 +359,16 @@ def heading_text(text, every_language=False):
 # launcher's own settings.json (passed to run.py as environment variables).
 
 INI_FLAGS = {'cheat_double_jumps', 'cheat_very_hard', 'object_motion', 'show_fps', 'vsync', 'async_shaders', 'deferred_readback',
-             'stale_readback'}
+             'stale_readback', 'motion_blur', 'chromatic_aberration', 'trophy_note'}
 # The graphics keys are also in the in-game menu (Insert / R3+L2); run.py reads the startup ones.
-INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1',
+INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'trophy_note': '1',
                 'object_motion': '1', 'show_fps': '1', 'output_res': '1920x1080',
                 'live_resolution': 'auto', 'display_mode': 'windowed', 'vsync': '1', 'fps_limit': '0',
                 'async_shaders': '1', 'deferred_readback': '1', 'stale_readback': '1',
                 'render_resolution': 'native', 'engine_fps': '120',
-                'frames_queued': '1', 'cheat_very_hard': '0', 'cheat_double_jumps': '0'}
+                'frames_queued': '1', 'cheat_very_hard': '0', 'cheat_double_jumps': '0',
+                'mouse_sensitivity': '1.00', 'pad_sensitivity': '1.00',
+                'motion_blur': '1', 'chromatic_aberration': '1'}
 DISPLAY_MODES = [('windowed', ('Windowed',)), ('borderless', ('Borderless',)), ('fullscreen', ('Fullscreen',))]
 # issn: frame pacing on screens without G-Sync / FreeSync (axylpup's 1.1 "Fifo (half refresh)",
 # vk_swapchain.cpp): every game frame is presented N times with V-Sync, so each stays exactly N
@@ -375,11 +378,12 @@ FRAME_PACING = [('', ('Normal: a new frame at every refresh it is ready (default
                 ('3', ('A third of the refresh rate, even (48 FPS on 144 Hz, 80 on 240 Hz)',))]
 FPS_LIMITS = [('30', ('30',)), ('60', ('60',)), ('120', ('120',)), ('240', ('240',)), ('0', ('Unlimited',))]
 # The sidebar's pages, top to bottom, and the methods that refresh a page's lists when it is shown.
-PAGES = ('home', 'news', 'graphics', 'performance', 'game', 'advanced', 'help')
-PAGE_REFRESH = {'home': ('refresh_status',), 'news': ('refresh_news',), 'help': ('run_help',), 'game': ('refresh_lists', 'refresh_game_patches')}
+PAGES = ('home', 'news', 'graphics', 'performance', 'game', 'trophies', 'advanced', 'help')
+PAGE_REFRESH = {'home': ('refresh_status',), 'news': ('refresh_news',), 'help': ('run_help',), 'game': ('refresh_lists', 'refresh_game_patches'),
+                'trophies': ('refresh_trophies',)}
 APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', str(PORT_DIR.parent / 'CUSA00004') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
-                'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False, 'frame_pacing': '', 'frame_gen': False, 'seed_any_profile': False,
+                'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False, 'save_backups': True, 'vram_limit': '', 'frame_pacing': '', 'frame_gen': False, 'seed_any_profile': False,
                 'player_name': '', 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
                 'gpu_id': '', 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binaries': False,
                 'perf_diag': False, 'frame_capture_key': False, 'frame_stats': False, 'gpu_profile': False,
@@ -387,7 +391,7 @@ APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', s
                 'check_updates': False, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation',
                 'glyph_style': 'off', 'compute_priority': True, 'ordered_readback': False, 'draw_distance': '',
                 'perf_mode': '', 'render_height': '', 'upscale_quality': '', 'aniso': '', 'shader_compile': '', 'screen_shape': '',
-                'anti_aliasing': 'game'}
+                'anti_aliasing': 'game', 'optiscaler_output': 'fsr22'}
 
 # PS4 button, default key, default gamepad button (SDL names; src/runtime_pad.c). L2/R2 come
 # from the analog triggers and the left touchpad click (photo mode) from L1 + the right click's
@@ -541,6 +545,11 @@ SPRAY_STICK = [('', ('Normal (default)',)), ('15', ('Slow',)), ('60', ('Fast',))
                ('115', ('Very fast (0.3.4 and earlier)',))]
 # issn: the analog sticks' dead zone (runtime_pad.c, ISSN_STICK_DEADZONE; the runtime's default
 # is 0.05). A worn stick that rests off center drifts in game (tester, Xbox One S, 10-29).
+# issn 11-04: ISSN_VRAM_LIMIT_MB, the video memory the texture clean-up keeps the game under (GitHub
+# issue 32: a 6 GB laptop card ran out and lost the device). '' = what the driver allows.
+VRAM_LIMITS = [('', ('Automatic (what the driver allows)',)), ('3584', ('3.5 GB (4 GB cards)',)),
+               ('5120', ('5 GB (6 GB cards)',)), ('6656', ('6.5 GB (8 GB cards)',)),
+               ('9728', ('9.5 GB (10-12 GB cards)',))]
 STICK_DEADZONE = [('', ('Small: 5% (default)',)), ('0.10', ('Medium: 10%',)), ('0.15', ('Large: 15%',)),
                   ('0.20', ('Very large: 20% (worn sticks)',))]
 # Launcher language -> PS4 language id for the Automatic game language.
@@ -623,7 +632,8 @@ SHADER_COMPILE = [('', ('In the background: no stutter, new things can appear a 
 # port (third_party/fsr4); DLSS needs NVIDIA's Streamline files in dlss_folder(), XeSS Intel's
 # libxess.dll in xess_folder().
 ANTI_ALIASING = [('game', ("The game's own (SMAA T2x)",)), ('fsr4', ('FSR 4 (AMD Radeon RX 7000 / 9000)',)),
-                 ('xess', ('XeSS (Intel; also Radeon and GeForce)',)), ('dlss', ('DLSS (NVIDIA RTX)',))]
+                 ('xess', ('XeSS (Intel; also Radeon and GeForce)',)), ('dlss', ('DLSS (NVIDIA RTX)',)),
+                 ('off', ('Off (no anti-aliasing)',))]
 # NVIDIA's Streamline (DLSS) and Intel's libxess.dll are Windows only: on Linux they are not offered.
 if not WINDOWS:
     ANTI_ALIASING = [option for option in ANTI_ALIASING if option[0] not in ('dlss', 'xess')]
@@ -699,6 +709,61 @@ def xess_missing():
     """Intel's files not yet in xess_folder()."""
     folder = xess_folder()
     return [name for name in XESS_FILES if not (folder / name).is_file()]
+
+
+# OptiScaler (optional, a separate program: issn_downloads): what it turns the port's XeSS input
+# into, written as VulkanUpscaler in bin\OptiScaler.ini. FSR 2.2 is the one tested on the port
+# (João, RX 9060 XT, 2026-11-04); FSR 4 goes through DX12 (RDNA 3/4); DLSS is offered on
+# NVIDIA RTX only.
+OPTISCALER_CHOICES = [('fsr4', ('FSR 4 (Radeon RX 7000 / 9000, RDNA 3/4)',)), ('fsr31', ('FSR 3.1',)),
+                      ('xess', ('XeSS',)), ('dlss', ('DLSS (NVIDIA RTX)',)),
+                      ('fsr22', ('FSR 2.2 (tested with the port)',))]
+
+
+OPTISCALER_SHORT = {'fsr4': 'FSR 4', 'fsr31': 'FSR 3.1', 'xess': 'XeSS', 'dlss': 'DLSS', 'fsr22': 'FSR 2.2'}
+
+
+def optiscaler_output_name(value):
+    """A VulkanUpscaler value as the player knows it ('fsr31_12' -> 'FSR 4'); other values as they are."""
+    for key, names in issn_downloads.OPTISCALER_OUTPUTS.items():
+        if str(value or '').lower() in names:
+            return OPTISCALER_SHORT[key]
+    return value or '?'
+
+
+def optiscaler_bin():
+    """Where OptiScaler goes: beside issn-probe.exe, which imports WINMM.dll."""
+    return dlss_folder().parent
+
+
+def optiscaler_choices(pc):
+    """The outputs for this graphics card (pc None: not checked yet). DLSS only on NVIDIA RTX;
+    FSR 4 not on NVIDIA or Intel cards."""
+    vendor = pc.vendor if pc is not None else ''
+    return [(key, text) for key, text in OPTISCALER_CHOICES
+            if not (key == 'dlss' and not (pc is not None and pc.dlss))
+            and not (key == 'fsr4' and vendor in ('nvidia', 'intel'))]
+
+
+def optiscaler_log_line(settings):
+    """The run log's first line when bin\\winmm.dll is there ('' otherwise)."""
+    if not WINDOWS:
+        return ''
+    try:
+        state = issn_downloads.optiscaler_state(optiscaler_bin())
+    except OSError:
+        return ''
+    if not state:
+        return ''
+    if state['foreign']:
+        return 'OptiScaler: not installed, but bin\\winmm.dll is there (another program, loaded by the game)\n'
+    line = ('OptiScaler {} installed {}: bin\\winmm.dll, VulkanUpscaler={}, menu key {} (OptiScaler.ini)'
+            .format(state['version'] or '(version unknown)', 'by hand' if state['by_hand'] else 'by the launcher',
+                    state['upscaler'] or '?', state['menu_key'] or '?'))
+    aa = settings.get('anti_aliasing', 'game')
+    if aa != 'xess':
+        line += f"; the port's anti-aliasing is {aa}, not XeSS: OptiScaler gets no input"
+    return line + '\n'
 
 
 def fsr4_folder():
@@ -1029,10 +1094,12 @@ def game_environment(s):
     if s['user_dir']:
         env['ISSN_USER_DIR'] = s['user_dir']
     # issn-axy: the anti-aliasing choice (ANTI_ALIASING); an inherited switch never mixes them.
-    for name in ('SHADPS4_DLSS', 'SHADPS4_DLSS_UPSCALE', 'ISSN_FSR4', 'ISSN_XESS'):
+    for name in ('SHADPS4_DLSS', 'SHADPS4_DLSS_UPSCALE', 'ISSN_FSR4', 'ISSN_XESS', 'ISSN_AA_OFF'):
         env.pop(name, None)
     anti_aliasing = s.get('anti_aliasing', 'game')
-    if anti_aliasing == 'fsr4':
+    if anti_aliasing == 'off':
+        env['ISSN_AA_OFF'] = '1'  # issn 11-04: the T2x resolve becomes a plain copy, no jitter
+    elif anti_aliasing == 'fsr4':
         env['ISSN_FSR4'] = '1'
     elif anti_aliasing == 'xess' and WINDOWS:
         env['ISSN_XESS'] = '1'
@@ -1048,6 +1115,7 @@ def game_environment(s):
     env['ISSN_PATCHES_CONFIG'] = str(DATA_DIR / 'patches.json')
     # issn: a new key ('language' was saved as English by earlier launchers).
     env['ISSN_LANGUAGE'] = game_language(s)
+    env['ISSN_PORT_VERSION'] = VERSION  # the shader loading screen shows it
     if str(s['player_name']).strip():
         env['ISSN_USER_NAME'] = str(s['player_name']).strip()
     if s['hdr']:
@@ -1055,6 +1123,9 @@ def game_environment(s):
     # The saved UI choice wins over inherited diagnostic overrides, including when reverting.
     stream_memory = s.get('stream_memory', APP_DEFAULTS['stream_memory'])
     env['ISSN_STREAM_MEMORY'] = stream_memory if stream_memory in ('cached', 'host', 'device') else 'cached'
+    env.pop('ISSN_VRAM_LIMIT_MB', None)
+    if s.get('vram_limit') in {value for value, _text in VRAM_LIMITS if value}:
+        env['ISSN_VRAM_LIMIT_MB'] = s['vram_limit']
     gpu_id = str(s.get('gpu_id', ''))
     env.pop('ISSN_GPU_ID', None)
     if gpu_id.isdigit():
@@ -1100,9 +1171,14 @@ def game_environment(s):
     env.pop('ISSN_SKIP_INTRO', None)
     if s.get('skip_intro'):
         env['ISSN_SKIP_INTRO'] = '1'
+    # issn: the save backup run.py makes before a start (scripts/save_backup.py); a player asked to
+    # turn it off (Discord 11-01).
+    env.pop('ISSN_SAVE_BACKUP', None)
+    if not s.get('save_backups', True):
+        env['ISSN_SAVE_BACKUP'] = '0'
     # issn-axy: FSR 3.1 frame generation (gpu issn_framegen.h); it needs FSR 4, XeSS or DLSS.
     env.pop('ISSN_FRAME_GEN', None)
-    if s.get('frame_gen') and s.get('anti_aliasing', 'game') != 'game':
+    if s.get('frame_gen') and s.get('anti_aliasing', 'game') not in ('game', 'off'):
         env['ISSN_FRAME_GEN'] = '1'
     env.pop('ISSN_STICK_DEADZONE', None)
     if s.get('stick_deadzone') in {value for value, _text in STICK_DEADZONE if value}:
@@ -1134,7 +1210,7 @@ NEON_PINK = '#ff3ea5'
 NAV_ACTIVE, NAV_HOVER = '#16181f', '#111319'  # side bar rows: the page shown, under the mouse
 # Segoe Fluent Icons / Segoe MDL2 Assets code points for the side bar (Windows only).
 NAV_ICONS = {'home': '\ue80f', 'news': '\ue789', 'graphics': '\ue7f4', 'performance': '\uec4a',
-             'game': '\ue7fc', 'advanced': '\ue713', 'help': '\ue897'}
+             'game': '\ue7fc', 'trophies': '\ue734', 'advanced': '\ue713', 'help': '\ue897'}
 FONT_FAMILIES = set()  # filled once the window exists (pick_fonts)
 # issn_theme's colours (rounded widgets): fields, hovers and borders between PANEL and TEXT.
 THEME_COLORS = {'bg': '#09090c', 'panel': '#101116', 'card': '#181a21', 'field': '#14161d', 'card_hover': '#1d2029',
@@ -1507,7 +1583,7 @@ class Launcher:
         self.nav, self.current_page = {}, None
         titles = {'home': _('Home'), 'news': _("What's new", 'Что нового'), 'graphics': _('Graphics', 'Графика'),
                   'performance': _('Performance'),
-                  'game': _('Game', 'Игра'), 'advanced': _('Advanced', 'Дополнительно'), 'help': _('Help', 'Помощь')}
+                  'game': _('Game', 'Игра'), 'trophies': _('Achievements'), 'advanced': _('Advanced', 'Дополнительно'), 'help': _('Help', 'Помощь')}
         icon_font = ('Segoe Fluent Icons' if 'Segoe Fluent Icons' in FONT_FAMILIES else 'Segoe MDL2 Assets', 12)
         for name in PAGES:
             row = tk.Frame(side, bg=BG, cursor='hand2', height=self.px(42))
@@ -1568,6 +1644,7 @@ class Launcher:
         self.build_graphics()
         self.build_performance()
         self.build_game()
+        self.build_trophies()
         self.build_advanced()
         self.build_help()
         self.root.bind_all('<MouseWheel>', self.wheel)
@@ -1858,6 +1935,7 @@ class Launcher:
 
     def show_pc(self, pc):
         self.pc = pc
+        self.fill_optiscaler_box()
         unknown = _('not recognised')
         lines = [_('Graphics card: {}').format(pc.gpu_name or unknown),
                  _('Processor: {}').format(pc.cpu_name or unknown),
@@ -1899,7 +1977,8 @@ class Launcher:
                  _('Frame rate limit: {}').format(next((_(*text) for value, text in FPS_LIMITS
                                                          if value == chosen['ini']['fps_limit']),
                                                         chosen['ini']['fps_limit'])),
-                 _('Anti-aliasing: {}').format('FSR 4' if app['anti_aliasing'] == 'fsr4' else _("the game's own")),
+                 _('Anti-aliasing: {}').format('FSR 4' if app['anti_aliasing'] == 'fsr4' else _('Off')
+                                               if app['anti_aliasing'] == 'off' else _("the game's own")),
                  _('Performance mode: {}').format({'': _('off'), 'low': _('Balanced'), 'office': _('Maximum')}[app['perf_mode']]),
                  _('Texture filtering: {}x').format(app['aniso'])]
         if goal == 'recommended':
@@ -1952,6 +2031,16 @@ class Launcher:
                    "game keeps its own.") if WINDOWS else
                  _("Replaces the game's own temporal anti-aliasing. FSR 4 (included) needs a Radeon RX 7000 or "
                    "9000 and a recent Mesa (RADV); without it the game keeps its own."), restart=True)
+        self.note(f, _('Off: no anti-aliasing at all, the sharpest picture with jagged edges (no smearing in '
+                       'motion).'), top=2)
+        # issn 11-04 (Discord poll): the game's own effects (gpu issn_postfx.h), also in the game's menu.
+        self.section(f, _('Effects'))
+        self.check(f, 'motion_blur', 'ini', _('Motion blur'),
+                   _('The blur when the camera or Delsin moves fast. Off gives a sharp picture in motion; '
+                     'it also changes at once in the game (Insert > Image).'))
+        self.check(f, 'chromatic_aberration', 'ini', _('Chromatic aberration'),
+                   _('The red and blue fringes toward the edges of the screen. Turning it off helps players '
+                     'who feel sick with it; it also changes at once in the game (Insert > Image).'))
         if not WINDOWS:  # DLSS (Streamline) is Windows only
             self.section(f, _('Overlay'))
             self.check(f, 'show_fps', 'ini', _('Show performance overlay'),
@@ -1975,11 +2064,269 @@ class Launcher:
                        "launcher downloads them from Intel's and NVIDIA's GitHub releases (XeSS SDK 3.0.2, about "
                        "60 MB; Streamline 2.14.16, about 35 MB) when you pick one, and checks each file."), top=6)
         self.var('anti_aliasing', 'app').trace_add('write', lambda *_a: self.anti_aliasing_picked())
+        self.build_optiscaler(f)
         self.section(f, _('Overlay'))
         self.check(f, 'show_fps', 'ini', _('Show performance overlay'),
                    _('Items, size and corner: in-game menu (Insert / R3+L2) > Overlay.'))
         self.note(f, _('Screenshots: F12 (saved in the user\\screenshots folder).'), top=10)
         self.refresh_dlss_state()
+
+    # ---- OptiScaler (optional, a separate program; issn_downloads does the files) -------------
+    def build_optiscaler(self, f):
+        """The OptiScaler section: its output, Download and install / Remove / How to use, the state."""
+        ttk = self.ttk
+        self.section(f, _('OptiScaler (optional)'))
+        self.note(f, _('A separate program by the OptiScaler team that takes the port\'s XeSS input and turns it '
+                       'into another upscaler. Not part of the port: the launcher downloads it from the project\'s '
+                       'GitHub when you ask and can take it out again.'), top=2)
+        var = self.var('optiscaler_output', 'app')
+        self.optiscaler_box = ttk.Combobox(f, state='readonly', width=44)
+        self.optiscaler_box.bind('<<ComboboxSelected>>', lambda _e: var.set(
+            self.optiscaler_values[self.optiscaler_box.current()]))
+        self.row(f, _('OptiScaler output'), self.optiscaler_box,
+                 _('What OptiScaler makes of the XeSS input. FSR 2.2 is the one tested with the port; FSR 4 '
+                   'goes through DirectX 12 and needs a Radeon RX 7000 or 9000. Written to OptiScaler.ini at '
+                   'once; it applies when the game starts.'), restart=True)
+        self.fill_optiscaler_box()
+        var.trace_add('write', lambda *_a: self.optiscaler_output_picked())
+        holder = ttk.Frame(f)
+        holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
+        self.optiscaler_install_button = ttk.Button(holder, text=_('Download and install'),
+                                                    command=self.install_optiscaler)
+        self.optiscaler_install_button.pack(side='left')
+        self.optiscaler_remove_button = ttk.Button(holder, text=_('Remove'), command=self.remove_optiscaler)
+        self.optiscaler_remove_button.pack(side='left', padx=6)
+        ttk.Button(holder, text=_('How to use'), command=self.optiscaler_help).pack(side='left')
+        self.optiscaler_label = ttk.Label(f, text='', style='Muted.TLabel', wraplength=self.px(680), justify='left')
+        self.optiscaler_label.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(6, 0))
+        self.optiscaler_busy = False
+        self.var('anti_aliasing', 'app').trace_add('write', lambda *_a: self.refresh_optiscaler())
+        self.refresh_optiscaler()
+
+    def fill_optiscaler_box(self):
+        """The outputs for this card (DLSS on NVIDIA RTX only); the choice stays when it is offered."""
+        box = getattr(self, 'optiscaler_box', None)
+        if box is None:
+            return
+        pc = getattr(self, 'pc', None)
+        var = self.var('optiscaler_output', 'app')
+        current = var.get()
+        options = optiscaler_choices(pc)
+        if current not in [key for key, _t in options]:
+            if pc is None:  # the card is not checked yet: the saved choice stays offered
+                options = [option for option in OPTISCALER_CHOICES if option in options or option[0] == current]
+            else:
+                current = 'fsr22'
+        self.optiscaler_values = [key for key, _t in options]
+        box.configure(values=[_(*text) for _k, text in options])
+        if current not in self.optiscaler_values:
+            current = 'fsr22'
+        box.current(self.optiscaler_values.index(current))
+        if var.get() != current:
+            var.set(current)  # a choice this card cannot use (DLSS on a Radeon)
+
+    def optiscaler_text(self, state):
+        if state is None:
+            return _('Not installed.')
+        if state['foreign']:
+            return _('bin\\winmm.dll is another program, not OptiScaler: the launcher leaves it alone.')
+        key = {'0x77': 'F8', '0x2d': 'Insert', '0x24': 'Home', 'auto': 'Insert'}.get(
+            (state['menu_key'] or 'auto').lower(), state['menu_key'] or 'Insert')
+        text = _('Installed: OptiScaler {} · output {} · its menu in the game: {}.').format(
+            state['version'] or '?', optiscaler_output_name(state['upscaler']), key)
+        if state['by_hand']:
+            text += ' ' + _('Unpacked by hand: Remove takes its files out; Download and install replaces it '
+                            'with the launcher\'s, set for the port.')
+        if key in ('Insert', 'Home'):
+            text += ' ' + _('{} is also a key of the port: install it again from here to move its menu to F8.').format(key)
+        if self.var('anti_aliasing', 'app').get() != 'xess':
+            text += ' ' + _("⚠ The port's anti-aliasing is not XeSS, so OptiScaler gets nothing: choose XeSS in "
+                            'Anti-aliasing above.')
+        return text
+
+    def refresh_optiscaler(self):
+        label = getattr(self, 'optiscaler_label', None)
+        if label is None or self.optiscaler_busy:
+            return
+        try:
+            state = issn_downloads.optiscaler_state(optiscaler_bin())
+        except OSError:
+            state = None
+        label.configure(text=self.optiscaler_text(state))
+        installed = state is not None and not state['foreign']
+        self.optiscaler_install_button.configure(
+            text=_('Update / install again') if installed else _('Download and install'),
+            state='disabled' if state and state['foreign'] else 'normal')
+        self.optiscaler_remove_button.configure(state='normal' if installed else 'disabled')
+
+    def optiscaler_show(self, text):
+        label = getattr(self, 'optiscaler_label', None)
+        if label is not None:
+            label.configure(text=text)
+        if not self.process:
+            self.status.configure(text=text, fg=TEXT)
+
+    def optiscaler_game_open(self):
+        if self.process:
+            self.messagebox.showinfo(APP_NAME, _('Close the game first: it is using the OptiScaler files.'))
+            return True
+        return False
+
+    def optiscaler_output_picked(self):
+        """A new output: into the installed OptiScaler.ini at once (DLSS: NVIDIA's files first)."""
+        output = self.var('optiscaler_output', 'app').get()
+        box = getattr(self, 'optiscaler_box', None)
+        if box is not None and output in getattr(self, 'optiscaler_values', []):
+            box.current(self.optiscaler_values.index(output))  # set from elsewhere (defaults)
+        try:
+            state = issn_downloads.optiscaler_state(optiscaler_bin())
+        except OSError:
+            state = None
+        if not state or state['foreign'] or self.optiscaler_busy:
+            return
+        if output == 'dlss' and upscaler_missing('dlss'):
+            self.download_upscaler('dlss', then=lambda: self.apply_optiscaler_output(output))
+            return
+        self.apply_optiscaler_output(output)
+
+    def apply_optiscaler_output(self, output):
+        try:
+            value = issn_downloads.set_output(optiscaler_bin(), output, dlss_folder() / 'nvngx_dlss.dll')
+        except OSError as error:
+            self.optiscaler_show(_('OptiScaler.ini could not be changed: {}').format(error))
+            return
+        self.refresh_optiscaler()
+        self.status.configure(text=_('OptiScaler output: {} (the next time the game starts).').format(
+            optiscaler_output_name(value)), fg=TEXT)
+
+    def install_optiscaler(self):
+        """Download and install: the newest stable release from the project's GitHub, set for the
+        port (issn_downloads.install); then the port's anti-aliasing goes to XeSS."""
+        if self.optiscaler_busy or self.optiscaler_game_open():
+            return
+        bin_dir = optiscaler_bin()
+        if not self.messagebox.askyesno(APP_NAME, _(
+                'OptiScaler is a separate program by the OptiScaler team (GPL-3.0), not part of the port.\n\n'
+                'The launcher downloads its newest stable release from github.com/optiscaler/OptiScaler '
+                '(about 55 MB), checks it and puts it in {}, set for the port: its menu on F8, the output you '
+                "chose. The port's anti-aliasing is set to XeSS, which is what OptiScaler reads.\n\n"
+                'Download and install it now?').format(bin_dir)):
+            return
+        self.optiscaler_busy = True
+        self.optiscaler_install_button.configure(state='disabled')
+        self.optiscaler_remove_button.configure(state='disabled')
+        output = self.var('optiscaler_output', 'app').get()
+        dlss_dll = dlss_folder() / 'nvngx_dlss.dll'
+
+        def progress(what):
+            def report(done, total):
+                percent = done * 100 // total if total else 0
+                if percent != report.shown:
+                    report.shown = percent
+                    self.ui_calls.put(lambda p=percent: self.optiscaler_show(what.format(p)))
+            report.shown = -1
+            return report
+
+        def work():
+            archive = None
+            try:
+                try:
+                    release = issn_downloads.optiscaler_release()
+                except (OSError, ValueError):
+                    release = issn_downloads.OPTISCALER_KNOWN  # GitHub's API unreachable: the tested one
+                name = re.sub(r'[^A-Za-z0-9._-]', '_', release.url.rsplit('/', 1)[-1]) or 'optiscaler.7z'
+                archive = Path(tempfile.gettempdir()) / 'issn-optiscaler' / name
+                issn_downloads.download(release, archive, progress(_('Downloading OptiScaler {}… {{}}%')
+                                                                   .format(release.tag)))
+                issn_downloads.install(archive, bin_dir, output, release.tag,
+                                       progress(_('Installing OptiScaler… {}%')), dlss_dll)
+            except (OSError, ValueError) as error:
+                self.ui_calls.put(lambda e=error: finish(e))
+                return
+            finally:
+                if archive is not None:
+                    try:
+                        archive.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+            self.ui_calls.put(lambda: finish(None, release.tag))
+
+        def finish(error, tag=''):
+            self.optiscaler_busy = False
+            self.refresh_optiscaler()
+            if error:
+                self.optiscaler_show(_('OptiScaler was not installed: {}').format(error))
+                return
+            if self.var('anti_aliasing', 'app').get() != 'xess':
+                self.var('anti_aliasing', 'app').set('xess')  # fetches XeSS's files when missing
+            self.collect()
+            if output == 'dlss' and upscaler_missing('dlss'):
+                self.download_upscaler('dlss', then=lambda: self.apply_optiscaler_output('dlss'))
+            self.refresh_optiscaler()
+            if not self.process:  # the bar still showed "Installing… 100%"
+                self.status.configure(text=_('OptiScaler {} installed.').format(tag), fg=TEXT)
+            self.messagebox.showinfo(APP_NAME, _(
+                "OptiScaler {} is installed. The port's anti-aliasing is now XeSS.\n\nIn the game, F8 opens "
+                "OptiScaler's menu (Insert stays the port's). Remove takes it out again.").format(tag))
+        self.optiscaler_show(_('Looking for the newest OptiScaler…'))
+        threading.Thread(target=work, daemon=True).start()
+
+    def remove_optiscaler(self):
+        if self.optiscaler_busy or self.optiscaler_game_open():
+            return
+        if not self.messagebox.askyesno(APP_NAME, _(
+                "Remove OptiScaler? Its files leave the bin folder and the port runs as before. The port's "
+                'anti-aliasing stays XeSS; change it above if you want.')):
+            return
+        try:
+            removed = issn_downloads.remove(optiscaler_bin())
+        except OSError as error:
+            self.refresh_optiscaler()
+            self.messagebox.showerror(APP_NAME, _('OptiScaler was not removed completely: {}').format(error))
+            return
+        self.refresh_optiscaler()
+        self.optiscaler_show(_('OptiScaler removed ({} files).').format(len(removed)))
+
+    def offer_optiscaler_xess(self):
+        """At Play: OptiScaler installed but the port's anti-aliasing is not XeSS (it then gets
+        nothing). Asked once per launcher session; yes sets XeSS (its files download before the start)."""
+        if not WINDOWS or self.app.get('anti_aliasing') == 'xess' or getattr(self, 'optiscaler_asked', False):
+            return
+        try:
+            state = issn_downloads.optiscaler_state(optiscaler_bin())
+        except OSError:
+            return
+        if not state or state['foreign']:
+            return
+        self.optiscaler_asked = True
+        if self.messagebox.askyesno(APP_NAME, _(
+                "OptiScaler is installed, but the port's anti-aliasing is not XeSS, so OptiScaler gets "
+                'nothing and the game runs without it.\n\nSwitch the anti-aliasing to XeSS now?')):
+            self.quiet_anti_aliasing = True  # Play fetches XeSS's files itself, then starts
+            try:
+                self.var('anti_aliasing', 'app').set('xess')
+            finally:
+                self.quiet_anti_aliasing = False
+            self.collect()
+
+    def optiscaler_help(self):
+        if self.messagebox.askyesno(APP_NAME, _(
+                'OptiScaler (optional)\n\n'
+                "What it is: a separate program (OptiScaler team, GPL-3.0) that takes the picture, depth and "
+                'motion the port gives XeSS and runs another upscaler on them: FSR 4, FSR 3.1, XeSS, DLSS or '
+                'FSR 2.2.\n\n'
+                "1. Download and install. The port's anti-aliasing must be XeSS (the launcher sets it): with "
+                'anything else OptiScaler gets nothing.\n'
+                '2. Choose the output here (it applies when the game starts). The size the game draws at is '
+                "still the port's 'FSR 4 / DLSS quality'.\n"
+                "3. In the game, F8 opens OptiScaler's menu (output, sharpness, debug views). Insert is still "
+                "the port's menu and Home its anti-aliasing switch. Page Up, Page Down and End are OptiScaler's (its "
+                "FPS counter and frame generation).\n"
+                '4. To go back: Remove. Every file it added leaves the bin folder.\n\n'
+                'Third-party: problems with OptiScaler itself go to its project, not to the port.\n'
+                'Project: github.com/optiscaler/OptiScaler · License: GPL-3.0\n'
+                'Open the project page (source code and license)?')):
+            open_url(issn_downloads.OPTISCALER_PAGE)
 
     def refresh_dlss_state(self):
         for key, label in getattr(self, 'vendor_state', {}).items():
@@ -1993,6 +2340,8 @@ class Launcher:
     def anti_aliasing_picked(self):
         """XeSS or DLSS chosen: their files download at once (not at Play)."""
         key = self.var('anti_aliasing', 'app').get()
+        if getattr(self, 'quiet_anti_aliasing', False):
+            return
         if key in UPSCALER_PACKAGES and WINDOWS and upscaler_missing(key):
             self.download_upscaler(key)
 
@@ -2093,6 +2442,10 @@ class Launcher:
                  _('The game\'s own lower settings, from axylpup\'s 1.1: shorter detail distance, one shadow '
                    'level less, lighter particles and fewer high-resolution textures nearby. Figures are '
                    'from his PC in the heaviest city view.'), restart=True)
+        self.row(f, _('Video memory limit'), self.choice(f, 'vram_limit', 'app', VRAM_LIMITS),
+                 _('How much video memory the game may fill before it frees textures it is not using. Lower it '
+                   'if the game closes with "Device lost" or the log says the video memory is nearly full, '
+                   'mainly on 4-8 GB cards and laptops.'), restart=True)
         self.row(f, _('Shader compilation'), self.choice(f, 'shader_compile', 'app', SHADER_COMPILE),
                  _('The first time a place or effect appears its shaders are compiled. In the background the '
                    'game keeps running and what they draw shows up a moment later; in the frame the game '
@@ -2139,6 +2492,164 @@ class Launcher:
     def user_dir(self):
         return Path(self.var('user_dir', 'app').get() or DATA_DIR / 'user')
 
+    # ---- issn 11-04: achievements (the game's trophies, scripts/trophies.py) -----------------------
+    def build_trophies(self):
+        """The game's trophies: icons from the player's own trophy file, which ones this PC unlocked
+        (user/trophies.txt, written by the game) and when; names with the player's own key."""
+        tk, ttk = self.tk, self.ttk
+        f = self.scrolled_page('trophies', _('Achievements'),
+                               _("The game's trophies: the ones unlocked in this port are in color, with the date."))
+        self.trophy_summary = ttk.Label(f, text='', wraplength=self.px(680), justify='left')
+        self.trophy_summary.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(4, 0))
+        self.trophy_progress = ttk.Progressbar(f, orient='horizontal', length=self.px(420), maximum=100)
+        self.trophy_progress.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(6, 4))
+        self.trophy_list = tk.Frame(f, bg=PANEL)
+        self.trophy_list.grid(row=self.next_row(f), column=0, columnspan=2, sticky='we', pady=(8, 0))
+        self.trophy_list.columnconfigure(0, weight=1)
+        self.section(f, _('In the game'))
+        self.check(f, 'trophy_note', 'ini', _('Trophy popup'),
+                   _("The trophy's icon and name in a top corner for a few seconds when the game unlocks one. "
+                     'Also in Insert > Overlay.'))
+        self.section(f, _('Trophy names (optional)'))
+        self.note(f, _("The names and descriptions in the game's trophy file are encrypted. Without a key the port "
+                       'uses its own list (English, Portuguese and Spanish, written from public trophy lists). '
+                       'If you have your own PS4 trophy key (the same one shadPS4 asks for), paste it here to see '
+                       "the game's own texts: it stays only on this PC, in user\\trophy-key.txt, and the port never "
+                       'ships or sends it. A name shows once its trophy is unlocked.'), top=4)
+        holder = ttk.Frame(f)
+        self.trophy_key_entry = ttk.Entry(holder, width=40, show='•')
+        self.trophy_key_entry.pack(side='left')
+        ttk.Button(holder, text=_('Save key'), command=self.save_trophy_key).pack(side='left', padx=(6, 0))
+        ttk.Button(holder, text=_('Remove key'), command=self.remove_trophy_key).pack(side='left', padx=(6, 0))
+        self.row(f, _('Trophy key'), holder)
+        self.trophy_key_state = ttk.Label(f, text='', style='Muted.TLabel', wraplength=self.px(680), justify='left')
+        self.trophy_key_state.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(4, 0))
+        self.trophy_icons, self.trophy_cache = [], {}
+
+    def trophy_folders(self):
+        return [self.var('update_dir', 'app').get(), self.var('game_dir', 'app').get()]
+
+    def trophy_texts(self, trp):
+        """({id: text} in the game language, a note on where the names come from): the game's own
+        texts with the saved key, else the port's list (scripts/trophy_list.py)."""
+        key = trophies.read_key(self.user_dir())
+        language = game_language({**self.app, 'game_language': self.var('game_language', 'app').get()})
+        cache = ('texts', str(trp), key, language)
+        if cache not in self.trophy_cache:
+            try:
+                texts, source = trophies.game_texts(trp, language, *self.trophy_folders(), key=key)
+                note = (_('Key saved on this PC: the names are the game\'s own.') if source == 'key' else
+                        _("No key: the names come from the port's own list.") if source == 'list' else
+                        _('No key: names are not shown.'))
+                self.trophy_cache[cache] = (texts, note)
+            except (OSError, ValueError, KeyError, trophies.ElementTree.ParseError) as error:
+                self.trophy_cache[cache] = ({}, _('The key is saved but the names could not be read: {}').format(error))
+        return self.trophy_cache[cache]
+
+    def trophy_icon(self, trp, entries, trophy_id, unlocked):
+        """The icon as a small PhotoImage: in color when unlocked, dim and grey when not."""
+        cache = ('icon', str(trp), trophy_id, unlocked)
+        if cache not in self.trophy_cache:
+            photo = None
+            data = trophies.icon(trp, entries, trophy_id)
+            if data:
+                try:
+                    import io
+                    from PIL import Image, ImageEnhance, ImageOps, ImageTk
+                    size = self.px(56)
+                    image = Image.open(io.BytesIO(data)).convert('RGBA').resize((size, size), Image.LANCZOS)
+                    if not unlocked:
+                        alpha = image.getchannel('A')
+                        image = ImageEnhance.Brightness(ImageOps.grayscale(image).convert('RGBA')).enhance(0.45)
+                        image.putalpha(alpha)
+                    backdrop = Image.new('RGBA', image.size, CARD)
+                    photo = ImageTk.PhotoImage(Image.alpha_composite(backdrop, image).convert('RGB'), master=self.root)
+                except (ImportError, OSError, ValueError):
+                    photo = None
+            self.trophy_cache[cache] = photo
+        return self.trophy_cache[cache]
+
+    def refresh_trophies(self):
+        tk = self.tk
+        for child in self.trophy_list.winfo_children():
+            child.destroy()
+        self.trophy_icons = []
+        trp, ids, unlocked = trophies.summary(self.user_dir(), *self.trophy_folders())
+        texts, key_note = self.trophy_texts(trp) if trp else ({}, '')
+        self.trophy_key_state.configure(text=key_note)
+        if not trp:
+            self.trophy_summary.configure(text=_('No trophy file in the game folder (sce_sys\\trophy\\trophy00.trp, '
+                                                 'or Sc0\\trophy beside it). Choose the game folder on the Game page.'))
+            self.trophy_progress.configure(value=0)
+            return
+        entries = trophies.read_entries(trp)
+        done = sum(1 for i in ids if i in unlocked)
+        percent = round(100 * done / len(ids)) if ids else 0
+        platinum = next((i for i, t in texts.items() if t['grade'] == 'P'), 0 if ids and ids[0] == 0 else None)
+        line = _('{} of {} unlocked ({}%)').format(done, len(ids), percent)
+        if platinum is not None and platinum in unlocked:
+            line += '  ·  ' + _('Platinum! Every trophy unlocked')
+        self.trophy_summary.configure(text=line)
+        self.trophy_progress.configure(value=percent)
+        grades = {'P': (_('Platinum'), '#c8e6ff'), 'G': (_('Gold'), '#ffcc4d'), 'S': (_('Silver'), '#d2d6e0'),
+                  'B': (_('Bronze'), '#db8f5c')}
+        # Unlocked first, newest first; then the others in the game's order.
+        newest = sorted((i for i in ids if i in unlocked), key=lambda i: (unlocked[i], i), reverse=True)
+        for row, trophy_id in enumerate(newest + [i for i in ids if i not in unlocked]):
+            got = trophy_id in unlocked
+            text = texts.get(trophy_id, {})
+            card = tk.Frame(self.trophy_list, bg=CARD, highlightthickness=1, highlightbackground=LINE)
+            card.grid(row=row, column=0, sticky='we', pady=(0, self.px(4)))
+            card.columnconfigure(1, weight=1)
+            photo = self.trophy_icon(trp, entries, trophy_id, got)
+            if photo:
+                self.trophy_icons.append(photo)
+                tk.Label(card, image=photo, bg=CARD, bd=0).grid(row=0, column=0, rowspan=2, padx=self.px(8),
+                                                               pady=self.px(6))
+            # issn 11-05 (João): a trophy's name and description show once it is unlocked; until
+            # then only its number, icon and grade.
+            name = text.get('name') if got and text.get('name') else _('Trophy {}').format(trophy_id)
+            tk.Label(card, text=name, bg=CARD, fg=TEXT if got else MUTED, font=(UI_FONT, 11, 'bold'),
+                     anchor='w').grid(row=0, column=1, sticky='w', pady=(self.px(8), 0))
+            detail = text.get('detail', '') if got else ''
+            when = _('Unlocked {}').format(unlocked[trophy_id]) if got else _('Locked')
+            tk.Label(card, text=f'{detail}\n{when}' if detail else when, bg=CARD, fg=MUTED, font=(UI_FONT, 9),
+                     anchor='w', justify='left', wraplength=self.px(520)).grid(row=1, column=1, sticky='w',
+                                                                               pady=(0, self.px(8)))
+            grade = grades.get(text.get('grade') or ('P' if trophy_id == platinum else ''))
+            if grade:
+                tk.Label(card, text=grade[0], bg=CARD, fg=grade[1] if got else MUTED,
+                         font=(UI_FONT, 9, 'bold')).grid(row=0, column=2, rowspan=2, padx=self.px(12))
+
+    def save_trophy_key(self):
+        key = trophies.parse_key(self.trophy_key_entry.get())
+        if key is None:
+            self.messagebox.showerror(APP_NAME, _('A trophy key is 32 hexadecimal digits (0-9, A-F).'))
+            return
+        trp = trophies.trophy_file(*self.trophy_folders())
+        if trp:  # a key that does not open this game's file is not kept
+            try:
+                trophies.read_texts(trp, trophies.npbind_file(*self.trophy_folders()), key, '1')
+            except (OSError, ValueError, KeyError, trophies.ElementTree.ParseError) as error:
+                self.messagebox.showerror(APP_NAME, _('This key does not open the trophy names: {}').format(error))
+                return
+        try:
+            trophies.save_key(self.user_dir(), key)
+        except OSError as error:
+            self.messagebox.showerror(APP_NAME, _('Could not save the key: {}').format(error))
+            return
+        self.trophy_key_entry.delete(0, 'end')
+        self.refresh_trophies()
+
+    def remove_trophy_key(self):
+        try:
+            trophies.save_key(self.user_dir(), None)
+            (self.user_dir() / trophies.NAMES_FILE).unlink(missing_ok=True)
+        except OSError as error:
+            self.messagebox.showerror(APP_NAME, _('Could not remove the key: {}').format(error))
+            return
+        self.refresh_trophies()
+
     def build_save_backups(self, f):
         """run.py backs the saves up before every start; one of them can be restored here."""
         ttk = self.ttk
@@ -2147,6 +2658,9 @@ class Launcher:
         self.backup_choice.pack(side='left')
         ttk.Button(holder, text=_('Restore', 'Восстановить'), command=self.restore_backup).pack(side='left', padx=(6, 0))
         ttk.Button(holder, text=_('Refresh', 'Обновить'), command=self.refresh_backups).pack(side='left', padx=(6, 0))
+        self.check(f, 'save_backups', 'app', _('Back up saves before a start'),
+                   _('A copy of your saves before each start when they changed (kept in '
+                     'user\\savedata_backups). Off: no new copies; the old ones stay and can still be restored.'))
         self.row(f, _('Save backups', 'Резервные копии'), holder,
                  _('Made before every start when the saves changed, newest first. Kept: the last {}, one a '
                    'day for {} days and the ones made before a restore or an import. Restoring backs up the '
@@ -2306,7 +2820,7 @@ class Launcher:
         self.row(f, _('Controller without touchpad'), self.choice(f, 'pad_emulation', 'app', PAD_EMULATION),
                  _('For Xbox, 8BitDo and other pads without a touchpad or motion sensors. Touchpad click: '
                    'Select/Back (with L1: the left side). Swipe: hold Select/Back and push the right stick. '
-                   'Two fingers: hold Select/Back + RB. Spray can: L3 + R3 together tilts the pad, LB '
+                   'Two fingers: hold Select/Back + RB. Spray can: Insert > Controls > Spray can tilts the pad, LB '
                    'rattles it, the right stick aims. Automatic turns it off on a DualShock 4 or DualSense.'),
                  restart=True)
         self.row(f, _('Button icons'), self.choice(f, 'glyph_style', 'app', GLYPH_STYLES, width=44),
@@ -2314,12 +2828,22 @@ class Launcher:
                    '(they follow your key changes above) and the mouse buttons; Automatic picks the keyboard '
                    'when no controller is connected at start, Xbox letters for Xbox and other pads.'),
                  restart=True)
+        # issn 11-04: the same sensitivities as the in-game menu (Insert > Controls), in issn.ini.
+        for key, title, low, high, hint in (
+                ('pad_sensitivity', _('Controller sensitivity'), 0.25, 3.0,
+                 _('The right stick (camera). Below 1: slower. Above 1: small stick moves turn the camera more. '
+                   'Also in the game: Insert > Controls.')),
+                ('mouse_sensitivity', _('Mouse sensitivity'), 0.1, 5.0,
+                 _('How far the camera turns per mouse movement. Also in the game: Insert > Controls, or - / =.'))):
+            spin = self.ttk.Spinbox(f, from_=low, to=high, increment=0.05, format='%.2f', width=8,
+                                    textvariable=self.var(key, 'ini'))
+            self.row(f, title, spin, hint)
         self.row(f, _('Stick dead zone'), self.choice(f, 'stick_deadzone', 'app', STICK_DEADZONE),
                  _('How far a stick must move before the game sees it. Raise it if Delsin walks or the '
                    'camera turns on its own while you do not touch the stick (drift).'),
                  restart=True)
         self.row(f, _('Spray can stick speed'), self.choice(f, 'spray_stick', 'app', SPRAY_STICK),
-                 _('How fast the right stick turns the spray can while the pad is tilted (L3 + R3). A light '
+                 _('How fast the right stick turns the spray can while the pad is tilted (Insert > Controls > Spray can). A light '
                    'push moves it a little, a full push at this speed. In the game, - / = change it too.'),
                  restart=True)
         self.note(f, _('Keyboard and mouse: WASD moves, IJKL turns the camera. Click in the game window and the '
@@ -2895,6 +3419,7 @@ class Launcher:
             return
         if not self.offer_system_files():
             return
+        self.offer_optiscaler_xess()
         # XeSS / DLSS chosen without their files: fetched first, then the game starts (with the
         # game's own anti-aliasing if the download failed: the GPU library falls back).
         upscaler = self.app.get('anti_aliasing')
@@ -2930,6 +3455,16 @@ class Launcher:
         # file itself (its output goes straight to the file, which outlives the launcher).
         # Tester 2026-10-23: three runs in that mode left last_run.log at an older run.
         direct_log = open_direct_log(self.app) if self.app.get('close_on_play') else None
+        first_line = optiscaler_log_line(self.app)  # OptiScaler in bin\: said at the top of the log
+        if first_line:
+            self.append(first_line)
+            run_log.write(first_line)
+            if direct_log:
+                try:
+                    direct_log.write(first_line.encode('utf-8'))
+                    direct_log.flush()
+                except OSError:
+                    pass
         try:
             self.process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=game_environment(self.app),
                                             stdin=subprocess.DEVNULL,
@@ -3389,6 +3924,9 @@ def play_without_window(settings):
     when there is one and to <saves folder>/last_run.log."""
     attach_stdio()
     with open_run_log(settings) as log:
+        first_line = optiscaler_log_line(settings)
+        if first_line:
+            log.write(first_line)
         process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=game_environment(settings),
                                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT, creationflags=NO_WINDOW)

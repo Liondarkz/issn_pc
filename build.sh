@@ -158,8 +158,10 @@ if [[ ${1:-} == --test ]]; then
     out/mp3-test tests/data/sine.mp3
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread "${includes[@]}" -I. -Isrc tests/test_videodec.c "${libraries[@]}" -o out/videodec-test
     out/videodec-test tests/data/tiny.h264
-    "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread -I. -Isrc tests/test_services.c -o out/services-test
+    "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread -I. -Isrc tests/test_services.c src/runtime_trophy.c -o out/services-test
     out/services-test
+    "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -I. -Isrc tests/test_trophy.c src/runtime_trophy.c -o out/trophy-test
+    out/trophy-test
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -mbmi -mlzcnt -mmovbe -I. -Isrc tests/test_isa_emulate.c out/isa_emulate.o -o out/isa-emulate-test
     out/isa-emulate-test
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -c src/isa_rewrite.c -I. -Isrc -o out/isa_rewrite.o
@@ -172,4 +174,7 @@ if [[ ${1:-} == --test ]]; then
     out/isa-f16c-test
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -I. -Isrc tests/test_redzone_guard.c -o out/redzone-guard-test
     out/redzone-guard-test
+    # Calls the stubs through inline asm too: no red zone.
+    "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -mno-red-zone -I. -Isrc tests/test_hero_stubs.c -o out/hero-stubs-test
+    out/hero-stubs-test
 fi

@@ -212,6 +212,16 @@ static LONG fatal_exception(EXCEPTION_POINTERS *info) {
         fprintf(stderr,"Fault: exception 0x%08lx at %s (thread %lu)\n",record->ExceptionCode,where,GetCurrentThreadId());
     fprintf(stderr,"  rax=%016llx rbx=%016llx rcx=%016llx rdx=%016llx\n  rsi=%016llx rdi=%016llx rbp=%016llx rsp=%016llx\n",
             c->Rax,c->Rbx,c->Rcx,c->Rdx,c->Rsi,c->Rdi,c->Rbp,c->Rsp);
+    /* issn 11-05 (#33, uriel): right after art/cache/all_shaders.xpps is read, the game looks up
+     * its shaders by name (eboot 0x44b170) and finds the table empty (rcx = 0 entries): the
+     * package holds none of the shaders this eboot.bin asks for. Seen only with dumps that were
+     * not the merged 01.07 game; most likely an update folder without its own all_shaders.xpps
+     * over an older base game, or a damaged file. */
+    if (image && c->Rip-(uintptr_t)image==0x44b1e0 && c->Rcx==0)
+        fprintf(stderr,"STOP: the game found none of its shaders in art/cache/all_shaders.xpps. This "
+                       "file most likely does not match the game's 01.07 eboot.bin (an update folder "
+                       "without it over an older base game) or is damaged. Choose a game folder that "
+                       "already has the 01.07 update merged in, or dump the game and its update again.\n");
     if (gpu_enabled) issngpu_dump_guest_writes(info);
     /* rbp chain (guest and host code keep frame pointers). */
     uintptr_t rbp=(uintptr_t)c->Rbp;
@@ -774,8 +784,36 @@ static void install_view_tuning(Segment *segments, uint64_t count, uint64_t size
 }
 
 #include "hero_hook.h"
+#include "exposure_hook.h"
 extern const volatile unsigned char *issn_hero_health_flag(void);
 extern void issn_hero_attach(unsigned char *guest_image);
+#include "dash_hook.h"
+extern const volatile unsigned char *issn_hero_neon_flag(void);
+extern const volatile unsigned char *issn_hero_tv_flag(void);
+extern void issn_hero_dash_supported(int neon, int tv);
+extern void issn_hero_extra_supported(int missiles, int karma, int no_hit);
+
+/* issn-axy: the neon run and the video flight go on while the dash button is held
+ * (src/dash_hook.h): two stubs that skip the game's time limits while the menu's switches are on.
+ * Each one only when its code is the expected one. */
+static void install_dash_cheats(Segment *segments, uint64_t count, uint64_t size) {
+    const int neon = mapped(segments, count, ISSN_DASH_NEON_SITE, sizeof(issn_dash_neon_code)) &&
+                     mapped(segments, count, ISSN_DASH_ABILITIES, 4) && issn_dash_neon_match(image, size);
+    const int tv = mapped(segments, count, ISSN_DASH_TV_SITE, sizeof(issn_dash_tv_code)) &&
+                   mapped(segments, count, ISSN_DASH_TV_LIMIT, 4) && issn_dash_tv_match(image, size);
+    int neon_on = 0, tv_on = 0;
+    if (neon || tv) {
+        unsigned char *stubs = allocate_cave(page_size);
+        if (neon) issn_dash_build_neon_stub(stubs, image, issn_hero_neon_flag());
+        if (tv) issn_dash_build_tv_stub(stubs + 256, image, issn_hero_tv_flag());
+        protect(stubs, page_size, 5);
+        neon_on = neon && install_jump(ISSN_DASH_NEON_SITE, ISSN_DASH_NEON_SITE_LENGTH, stubs);
+        tv_on = tv && install_jump(ISSN_DASH_TV_SITE, ISSN_DASH_TV_SITE_LENGTH, stubs + 256);
+    }
+    printf("Cheats: neon run %s, video flight %s\n", neon_on ? "ready" : "unavailable",
+           tv_on ? "ready" : "unavailable");
+    issn_hero_dash_supported(neon_on, tv_on);
+}
 
 /* issn: Delsin's cheats (src/hero_hook.h): a stub at SetHitPoints for infinite health; the shim
  * refills health, powers and the Karma Bomb meter. Silent for other builds. */
@@ -797,21 +835,42 @@ static void install_hero_cheats(Segment *segments, uint64_t count, uint64_t size
         printf("Cheats: unavailable (stub outside relative-jump range)\n");
         return;
     }
+    install_dash_cheats(segments, count, size);
+    /* 11-05: with infinite health the hit itself is stopped (no gray screen); missiles and the
+     * Karma Bomb are refilled by the shim when their code is the expected one. */
+    int no_hit = 0;
+    if (mapped(segments, count, ISSN_HERO_TAKE_HIT, sizeof(issn_hero_take_hit_code)) &&
+        issn_hero_take_hit_match(image, size)) {
+        unsigned char *damage = allocate_cave(page_size);
+        issn_hero_build_damage_stub(damage, image, issn_hero_health_flag());
+        protect(damage, page_size, 5);
+        no_hit = install_jump(ISSN_HERO_TAKE_HIT, ISSN_HERO_TAKE_HIT_LENGTH, damage);
+    }
+    const int missiles = mapped(segments, count, ISSN_HERO_HEAVY_GETTER, 14) &&
+                         mapped(segments, count, ISSN_HERO_HEAVY_SETTER, sizeof(issn_hero_heavy_setter_code)) &&
+                         mapped(segments, count, ISSN_HERO_PLAYER, 0x20ad8) &&
+                         issn_hero_heavy_match(image, size);
+    const int karma = mapped(segments, count, ISSN_HERO_STREAK_GETTER, sizeof(issn_hero_streak_getter_code)) &&
+                      mapped(segments, count, ISSN_HERO_STREAK_REQUIRED_GETTER, 30) &&
+                      issn_hero_karma_match(image, size);
+    printf("Cheats: no-hit %s, missiles %s, Karma Bomb %s\n", no_hit ? "ready" : "unavailable",
+           missiles ? "ready" : "unavailable", karma ? "ready" : "unavailable");
+    issn_hero_extra_supported(missiles, karma, no_hit);
     issn_hero_attach(image);
 }
 
 #include "fov_hook.h"
-extern void issn_fov_attach(float *value);
+extern void issn_fov_attach(IssnFovCave *cave);
 
 /* issn: field of view (src/fov_hook.h): the camera's four 0.5 constants are read from a float in
  * a page of its own, kept read-write; the menu writes 0.5 x its factor there (issn_view.cpp).
- * Silent for other builds; with a field of view patch on, the patch's fixed angle stays. */
+ * Code that reads the camera's angle itself gets the factor too (ISSN_FOV_AIM, the aim), and
+ * SetFov leaves the camera's address so a menu change shows at once. Silent for other builds;
+ * with a field of view patch on, the patch's fixed angle stays. ISSN_FOV_MENU=0 leaves the game's
+ * camera alone (tested 10-31: the shots land on the reticle at 1.15x and 1.4x). */
 static void install_fov(Segment *segments, uint64_t count, uint64_t size) {
-    /* Off unless ISSN_FOV=1 (0.3.6.3, tester 10-31): the camera computes its tan only when the game
-     * changes the angle (+0x590), so a menu change waits for the next one, and code that reads the
-     * angle itself (aim among them) keeps the original: shots land below the reticle. */
-    const char *on = getenv("ISSN_FOV");
-    if (!on || on[0] != '1') return;
+    const char *menu = getenv("ISSN_FOV_MENU"); /* not ISSN_FOV: that one sets the factor itself */
+    if (menu && menu[0] == '0') return;
     const char *off = getenv("ISSN_FOV_HOOK");
     if (off && off[0] == '0') return;
     for (unsigned i = 0; i < ISSN_FOV_SITE_COUNT; ++i)
@@ -821,13 +880,39 @@ static void install_fov(Segment *segments, uint64_t count, uint64_t size) {
                "patch is on, or another eboot build)\n");
         return;
     }
-    float *value = (float *)allocate_cave(page_size); /* stays read-write: data only */
-    *value = ISSN_FOV_ORIGINAL;
-    if (!issn_fov_redirect(image, value)) {
+    IssnFovCave *cave = (IssnFovCave *)allocate_cave(page_size); /* stays read-write: data only */
+    cave->half_factor = ISSN_FOV_ORIGINAL;
+    cave->factor = 1.0f;
+    memset(cave->camera, 0, sizeof cave->camera);
+    if (!issn_fov_redirect(image, &cave->half_factor)) {
         printf("Field of view: menu control unavailable (outside relative reach)\n");
         return;
     }
-    issn_fov_attach(value);
+    const char *aim_off = getenv("ISSN_FOV_AIM_SITES");
+    const unsigned aim = aim_off && aim_off[0] == '0' ? 0 : issn_fov_redirect_aim(image, size, &cave->half_factor);
+    const char *mask_text = getenv("ISSN_FOV_AIM");
+    const unsigned mask = mask_text ? (unsigned)strtoul(mask_text, NULL, 0) : ISSN_FOV_AIM_DEFAULT;
+    unsigned char *stubs = allocate_cave(page_size);
+    unsigned used = 0, readers = 0;
+    for (unsigned i = 0; i < ISSN_FOV_READER_COUNT; ++i) {
+        const IssnFovReader *r = &issn_fov_readers[i];
+        if (!(mask >> i & 1) || !mapped(segments, count, r->at, r->length) ||
+            memcmp(image + r->at, r->code, r->length)) continue;
+        const unsigned n = issn_fov_build_reader(stubs + used, image, r, &cave->factor);
+        if (!n || !install_jump(r->at, r->length, stubs + used)) continue;
+        used += (n + 15u) & ~15u;
+        ++readers;
+    }
+    int live = 0;
+    if (mapped(segments, count, ISSN_FOV_SETFOV_SITE, ISSN_FOV_SETFOV_LENGTH) &&
+        !memcmp(image + ISSN_FOV_SETFOV_SITE, issn_fov_setfov_code, ISSN_FOV_SETFOV_LENGTH)) {
+        const unsigned n = issn_fov_build_setfov(stubs + used, image, cave->camera);
+        live = n && install_jump(ISSN_FOV_SETFOV_SITE, ISSN_FOV_SETFOV_LENGTH, stubs + used);
+    }
+    protect(stubs, page_size, 5);
+    printf("Field of view: aim follows the factor at %u of %u sites; %u angle readers (ISSN_FOV_AIM=0x%x); "
+           "live change %s\n", aim, ISSN_FOV_AIM_SITE_COUNT, readers, mask, live ? "on" : "off");
+    issn_fov_attach(cave);
 }
 
 extern IssnMouseMailbox *runtime_mouse_aim_mailbox(void);
@@ -867,6 +952,32 @@ static void install_mouse_aim(Segment *segments, uint64_t count, uint64_t size) 
     runtime_mouse_aim_attach(image + ISSN_MOUSE_NO_FOLLOW, image + ISSN_MOUSE_OPTIONS + ISSN_MOUSE_INVERT_X,
                              image + ISSN_MOUSE_OPTIONS + ISSN_MOUSE_INVERT_Y);
     printf("Mouse aim: camera hook ready (tilt clamp %s)\n", free_tilt ? "off" : "on");
+}
+
+/* issn 11-04: the exposure meter's diagnostic hook (src/exposure_hook.h): the menu shows what the
+ * game meters and can hold it. ISSN_EXPOSURE_HOOK=0 leaves the code alone. */
+static void install_exposure_meter(Segment *segments, uint64_t count) {
+    const char *off = getenv("ISSN_EXPOSURE_HOOK");
+    if (off && off[0] == '0') return;
+    if (!mapped(segments, count, ISSN_EXPOSURE_EXPECTED_AT, sizeof(issn_exposure_expected)) ||
+        memcmp(image + ISSN_EXPOSURE_EXPECTED_AT, issn_exposure_expected, sizeof(issn_exposure_expected))) {
+        printf("Exposure meter: diagnostic hook unavailable (the code differs in this eboot.bin)\n");
+        return;
+    }
+    unsigned char *cave = allocate_cave(page_size);
+    if (!cave) return;
+    memcpy(cave, issn_exposure_cave, sizeof(issn_exposure_cave));
+    const uint64_t mailbox = (uint64_t)(uintptr_t)issngpu_exposure_mailbox();
+    const uint64_t resume = (uint64_t)(uintptr_t)(image + ISSN_EXPOSURE_SITE + ISSN_EXPOSURE_SITE_LENGTH);
+    memcpy(cave + ISSN_EXPOSURE_PATCH_MAILBOX, &mailbox, 8);
+    memcpy(cave + sizeof(issn_exposure_cave) - 8, &resume, 8);
+    protect(cave, page_size, 5);
+    if (!install_jump(ISSN_EXPOSURE_SITE, ISSN_EXPOSURE_SITE_LENGTH, cave)) {
+        printf("Exposure meter: diagnostic hook unavailable (cave out of jump range)\n");
+        return;
+    }
+    issngpu_exposure_attached();
+    printf("Exposure meter: diagnostic hook ready (Insert > Image > Exposure)\n");
 }
 
 /* Damage dealt/taken and green/blue/gold orb multipliers (src/damage_hook.h, src/orb_hook.h):
@@ -1330,6 +1441,7 @@ int main(int argc, char **argv) {
     if (gpu_enabled) install_view_tuning(segments, ns, size);
     if (gpu_enabled) install_mouse_aim(segments, ns, size);
     if (gpu_enabled) install_fov(segments, ns, size);
+    if (gpu_enabled) install_exposure_meter(segments, ns);
     if (gpu_enabled) install_hero_cheats(segments, ns, size);
     if (gpu_enabled) issngpu_apply_game_patches();
 #ifdef _WIN32

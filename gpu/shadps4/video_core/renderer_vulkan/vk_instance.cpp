@@ -825,7 +825,20 @@ bool Instance::CreateDevice() {
         derivative_features.pNext = const_cast<void*>(device_ci.pNext);
         device_ci.pNext = &derivative_features;
     }
-    const bool fsr4_ok = fsr4_derivatives && vk12_features.shaderFloat16 &&
+    // issn 11-04: FSR 4 (its INT8 model) on AMD cards only. An RTX 5080 has every feature below,
+    // chose FSR 4 in the in-game menu and lost the device a few seconds into play (GitHub issue
+    // 28); AMD made the model for Radeons. ISSN_FSR4_ANY_GPU=1: any card with the features.
+    static const bool fsr4_any_gpu = [] {
+        const char* v = std::getenv("ISSN_FSR4_ANY_GPU");
+        return v && v[0] == '1';
+    }();
+    const bool fsr4_vendor = fsr4_any_gpu || physical_device.getProperties().vendorID == 0x1002;
+    if (Dlss::Mode() == 3 && !fsr4_vendor) {
+        std::printf("FSR 4: only on AMD Radeon cards: the game's own anti-aliasing stays (choose "
+                    "DLSS or XeSS)\n");
+        std::fflush(stdout);
+    }
+    const bool fsr4_ok = fsr4_vendor && fsr4_derivatives && vk12_features.shaderFloat16 &&
                          vk12_features.shaderInt8 && features.shaderInt16 &&
                          vk13_features.shaderIntegerDotProduct &&
                          features.shaderStorageImageExtendedFormats;
@@ -953,6 +966,10 @@ bool Instance::CreateDevice() {
     present_queue = device->getQueue(queue_family_index, 0);
     if (dlss_device || Dlss::Mode() == 2) {
         Dlss::DeviceCreated(*instance, physical_device, *device, queue_family_index, 0);
+    }
+    if (Dlss::AaOff()) {
+        // Anti-aliasing "Off": nothing to load (DeviceCreated's stub off Windows sets nothing).
+        Dlss::g_ready.store(true, std::memory_order_relaxed);
     }
     if (Dlss::Mode() == 3) {
         // ISSN_FSR4: the T2x resolve is replaced once the device can run the model.

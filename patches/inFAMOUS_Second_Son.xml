@@ -29,10 +29,21 @@
       <Line Type="bytes" Address="0x0072fa15" Value="E9A65C99006690" OriginalHash="3ee41d36233286e4"/>
     </PatchList>
   </Metadata>
-  <Metadata Title="inFAMOUS Second Son" Name="Bigger light list (needed for native 4K)" Note="The game sizes its light lists for 25 600 tiles of 16 pixels (enough up to 1800p); 4K needs 32 400. FR : liste des lumieres agrandie, necessaire pour la 4K native." Author="AYOUB1080p" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
+  <Metadata Title="inFAMOUS Second Son" Name="Bigger light list (needed for native 4K)" Note="The game sizes its light lists for 25 600 tiles of 16 pixels (enough up to 1800p); 4K needs 32 400. Also the exposure meter (625 tiles of 128x72 px; 4K needs 900, else the picture goes dark). FR : liste des lumieres agrandie, necessaire pour la 4K native." Author="AYOUB1080p" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
     <PatchList>
       <Line Type="bytes" Address="0x0056be07" Value="00004800" OriginalHash="4cf5e27f9da5a7b7"/>
       <Line Type="bytes" Address="0x0056be1f" Value="00004800" OriginalHash="4cf5e27f9da5a7b7"/>
+      <!-- issn 11-04: the exposure meter's tile buffers (four, 2500 bytes / 625 tiles of 128x72 px:
+           enough up to 1800p; 4K needs 900, so the camera's exposure read garbage past them and
+           the picture went dark and back). 8192 bytes / 2048 tiles each. -->
+      <Line Type="bytes" Address="0x0057132b" Value="00200000" OriginalHash="05de299f0f9c851e"/>
+      <Line Type="bytes" Address="0x00571375" Value="00200000" OriginalHash="05de299f0f9c851e"/>
+      <Line Type="bytes" Address="0x00572341" Value="00200000" OriginalHash="05de299f0f9c851e"/>
+      <Line Type="bytes" Address="0x00572388" Value="00200000" OriginalHash="05de299f0f9c851e"/>
+      <Line Type="bytes" Address="0x0057134f" Value="00080000" OriginalHash="bd7e02077b7bafea"/>
+      <Line Type="bytes" Address="0x00571399" Value="00080000" OriginalHash="bd7e02077b7bafea"/>
+      <Line Type="bytes" Address="0x00572364" Value="00080000" OriginalHash="bd7e02077b7bafea"/>
+      <Line Type="bytes" Address="0x005723ab" Value="00080000" OriginalHash="bd7e02077b7bafea"/>
     </PatchList>
   </Metadata>
   <Metadata Title="inFAMOUS Second Son" Name="Streaming: closest city blocks first" Note="Lower priority penalties of the world block streamer (3000/2000/2000 -&gt; 1000/700/700): the blocks nearest to the player are loaded and kept in high detail sooner. FR : streaming, les blocs de la ville les plus proches passent en priorite." Author="AYOUB1080p" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
