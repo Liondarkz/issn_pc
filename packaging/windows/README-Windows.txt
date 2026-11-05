@@ -59,8 +59,9 @@ What's new in 0.3.7
   (user\trophies.txt) and the launcher has an Achievements page with the percentage.
 - Field of view in the menu, with the aim following it (on by default).
 - The port's own shader loading screen (art, progress bar, tips).
-- Cheats (Game tab): endless neon run and video flight while the dash button is held, long smoke
-  dash.
+- Cheats (Game tab): infinite health now also stops the hits themselves (no gray screen), a new
+  "Infinite missiles" switch (God Mode turns it on too), the Karma Bomb stays ready; endless neon
+  run and video flight while the dash button is held, long smoke dash.
 - Anti-aliasing "Off" (launcher and menu): no T2x and a still camera.
 - OptiScaler (optional): install, remove and choose its output from the launcher (see above).
 - In-game menu: VSync and the frame rate limit change at once; Apply and restart starts the
