@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-/* src/dash_hook.h: the neon and video stubs run on a fake image whose jump targets are small
- * landing functions, with the flag off and on (no game code is used). */
+/* src/dash_hook.h and src/hero_hook.h: the neon, video and damage stubs run on a fake image whose
+ * jump targets are small landing functions, with the flag off and on; the missile and Karma Bomb
+ * checks run on written bytes (no game code is used). */
 #include "dash_hook.h"
+#include "hero_hook.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,7 +14,7 @@
 #include <sys/mman.h>
 #endif
 
-#define IMAGE_SIZE 0xf00000u
+#define IMAGE_SIZE 0x1e00000u
 #define STUB_AT 0x100000u
 
 static int failures;
@@ -35,6 +37,16 @@ static unsigned char *map_rwx(size_t size) {
 
 static void put(unsigned char *image, uint32_t at, const unsigned char *code, size_t n) {
     memcpy(image + at, code, n);
+}
+
+/* Calls `stub` with rdi set; returns rax at its ret. */
+static uint64_t run_rdi(const unsigned char *stub, uint64_t rdi) {
+    uint64_t out;
+    __asm__ volatile("call *%[fn]"
+                     : "=a"(out), "+D"(rdi)
+                     : [fn] "r"(stub)
+                     : "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11", "xmm0", "memory", "cc");
+    return out;
 }
 
 /* Calls `stub` with al and xmm0 set; returns rax at the landing function's ret. */
@@ -97,10 +109,49 @@ int main(void) {
     CHECK(run(tv, 0x00, 9.0f) == 0x100);
     CHECK(run(tv, 0x01, 100.0f) == 0x101);
 
+    /* Damage stub: the method's first instructions, then a landing that undoes them. */
+    put(image, ISSN_HERO_TAKE_HIT, issn_hero_take_hit_code, sizeof issn_hero_take_hit_code);
+    CHECK(issn_hero_take_hit_match(image, IMAGE_SIZE));
+    static const unsigned char hit_back[] = {0x41, 0x5c, 0x41, 0x5e, 0x41, 0x5f, 0x5d, /* pop r12,r14,r15,rbp */
+                                             0xb8, 0x01, 0, 0, 0, 0xc3};              /* mov $1,%eax; ret */
+    put(image, ISSN_HERO_TAKE_HIT + ISSN_HERO_TAKE_HIT_LENGTH, hit_back, sizeof hit_back);
+    static unsigned char hero_object[0x100], character_object[0x10], other_object[0x10];
+    uint64_t hero_at = (uint64_t)(uintptr_t)hero_object, character_at = (uint64_t)(uintptr_t)character_object;
+    memcpy(hero_object + ISSN_HERO_CHARACTER, &character_at, 8);
+    static volatile unsigned char health_flag = 0;
+    unsigned char *damage = image + STUB_AT + 512;
+    CHECK(issn_hero_build_damage_stub(damage, image, &health_flag) <= 256);
+    memset(image + ISSN_HERO_GLOBAL, 0, 8);
+    CHECK(run_rdi(damage, character_at) == 1);                         /* no hero: the hit */
+    memcpy(image + ISSN_HERO_GLOBAL, &hero_at, 8);
+    CHECK(run_rdi(damage, character_at) == 1);                         /* flag off: the hit */
+    health_flag = 1;
+    CHECK(run_rdi(damage, character_at) == character_at);              /* on: returns at once */
+    CHECK(run_rdi(damage, (uint64_t)(uintptr_t)other_object) == 1);   /* others still get hit */
+
+    /* Missile and Karma Bomb checks: the getters and setter as the 01.07 eboot has them. */
+    CHECK(!issn_hero_heavy_match(image, IMAGE_SIZE));
+    unsigned char lea[7] = {0x48, 0x8d, 0x05};
+    int32_t disp = (int32_t)(ISSN_HERO_PLAYER - (ISSN_HERO_HEAVY_GETTER + 7));
+    memcpy(lea + 3, &disp, 4);
+    put(image, ISSN_HERO_HEAVY_GETTER, lea, 7);
+    put(image, ISSN_HERO_HEAVY_GETTER + 7, issn_hero_heavy_getter_tail, sizeof issn_hero_heavy_getter_tail);
+    put(image, ISSN_HERO_HEAVY_SETTER, issn_hero_heavy_setter_code, sizeof issn_hero_heavy_setter_code);
+    CHECK(issn_hero_heavy_match(image, IMAGE_SIZE));
+    CHECK(!issn_hero_heavy_match(image, ISSN_HERO_PLAYER));
+    disp = (int32_t)(ISSN_HERO_PLAYER - (ISSN_HERO_STREAK_REQUIRED_GETTER + 7));
+    memcpy(lea + 3, &disp, 4);
+    put(image, ISSN_HERO_STREAK_GETTER, issn_hero_streak_getter_code, sizeof issn_hero_streak_getter_code);
+    put(image, ISSN_HERO_STREAK_REQUIRED_GETTER, lea, 7);
+    CHECK(!issn_hero_karma_match(image, IMAGE_SIZE));
+    put(image, ISSN_HERO_STREAK_REQUIRED_GETTER + 7, issn_hero_streak_required_tail,
+        sizeof issn_hero_streak_required_tail);
+    CHECK(issn_hero_karma_match(image, IMAGE_SIZE));
+
     if (failures) {
-        fprintf(stderr, "dash-hook-test: %d failure(s)\n", failures);
+        fprintf(stderr, "hero-stubs-test: %d failure(s)\n", failures);
         return 1;
     }
-    puts("dash-hook-test: ok");
+    puts("hero-stubs-test: ok");
     return 0;
 }

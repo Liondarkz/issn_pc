@@ -791,6 +791,7 @@ extern void issn_hero_attach(unsigned char *guest_image);
 extern const volatile unsigned char *issn_hero_neon_flag(void);
 extern const volatile unsigned char *issn_hero_tv_flag(void);
 extern void issn_hero_dash_supported(int neon, int tv);
+extern void issn_hero_extra_supported(int missiles, int karma, int no_hit);
 
 /* issn-axy: the neon run and the video flight go on while the dash button is held
  * (src/dash_hook.h): two stubs that skip the game's time limits while the menu's switches are on.
@@ -835,6 +836,26 @@ static void install_hero_cheats(Segment *segments, uint64_t count, uint64_t size
         return;
     }
     install_dash_cheats(segments, count, size);
+    /* 11-05: with infinite health the hit itself is stopped (no gray screen); missiles and the
+     * Karma Bomb are refilled by the shim when their code is the expected one. */
+    int no_hit = 0;
+    if (mapped(segments, count, ISSN_HERO_TAKE_HIT, sizeof(issn_hero_take_hit_code)) &&
+        issn_hero_take_hit_match(image, size)) {
+        unsigned char *damage = allocate_cave(page_size);
+        issn_hero_build_damage_stub(damage, image, issn_hero_health_flag());
+        protect(damage, page_size, 5);
+        no_hit = install_jump(ISSN_HERO_TAKE_HIT, ISSN_HERO_TAKE_HIT_LENGTH, damage);
+    }
+    const int missiles = mapped(segments, count, ISSN_HERO_HEAVY_GETTER, 14) &&
+                         mapped(segments, count, ISSN_HERO_HEAVY_SETTER, sizeof(issn_hero_heavy_setter_code)) &&
+                         mapped(segments, count, ISSN_HERO_PLAYER, 0x20ad8) &&
+                         issn_hero_heavy_match(image, size);
+    const int karma = mapped(segments, count, ISSN_HERO_STREAK_GETTER, sizeof(issn_hero_streak_getter_code)) &&
+                      mapped(segments, count, ISSN_HERO_STREAK_REQUIRED_GETTER, 30) &&
+                      issn_hero_karma_match(image, size);
+    printf("Cheats: no-hit %s, missiles %s, Karma Bomb %s\n", no_hit ? "ready" : "unavailable",
+           missiles ? "ready" : "unavailable", karma ? "ready" : "unavailable");
+    issn_hero_extra_supported(missiles, karma, no_hit);
     issn_hero_attach(image);
 }
 

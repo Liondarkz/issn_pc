@@ -382,22 +382,36 @@ void GameTab() {
     ImGui::SeparatorText("Cheats");
     if (s.hero_supported && BeginRows("##hero")) {
         Row("God Mode");
-        bool god = s.hero_health.load() && s.hero_powers.load();
+        const bool missiles_row = s.hero_missiles_supported.load();
+        bool god = s.hero_health.load() && s.hero_powers.load() &&
+                   (!missiles_row || s.hero_missiles.load());
         if (ImGui::Checkbox("##value", &god)) {
             s.hero_health = god;
             s.hero_powers = god;
+            if (missiles_row) {
+                s.hero_missiles = god;
+            }
             dirty = true;
         }
-        Help("Infinite health and infinite powers together.");
+        Help("Infinite health, powers and missiles together.");
         ImGui::PopID();
         CheckRow("Infinite health", s.hero_health,
-                 "Delsin does not lose health (falls and scripted deaths still happen). Only Delsin "
-                 "is protected.");
+                 s.hero_no_hit_supported.load()
+                     ? "Enemy hits do not reach Delsin: no health loss and no gray screen. Scripted "
+                       "deaths still happen. Only Delsin is protected."
+                     : "Delsin does not lose health (falls and scripted deaths still happen). Only "
+                       "Delsin is protected.");
         CheckRow("Infinite powers", s.hero_powers,
                  "The energy of the power in use stays full: no need to drain smoke, neon or other "
                  "sources.");
-        CheckRow("Karma Bomb always ready", s.hero_karma,
-                 "The Karma Bomb meter stays full.");
+        if (missiles_row) {
+            CheckRow("Infinite missiles", s.hero_missiles,
+                     "The missiles (the heavy shots with their own ammo) never run out.");
+        }
+        if (s.hero_karma_supported.load()) {
+            CheckRow("Karma Bomb always ready", s.hero_karma,
+                     "The Karma Bomb stays ready: after using it, it is ready again at once.");
+        }
         if (s.hero_neon_supported) {
             CheckRow("Endless neon run", s.hero_neon_run,
                      "Neon: hold the dash button and the run does not stop after 2 seconds. "

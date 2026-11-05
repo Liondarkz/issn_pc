@@ -149,6 +149,10 @@ struct Values {
     /// a long smoke dash; *_supported once the probe's stubs are in.
     std::atomic<bool> hero_neon_run{false}, hero_video_flight{false}, hero_smoke_dash{false};
     std::atomic<bool> hero_neon_supported{false}, hero_video_supported{false};
+    /// 11-05: infinite missiles (src/hero_hook.h); which of the probe's checks passed.
+    std::atomic<bool> hero_missiles{false};
+    std::atomic<bool> hero_missiles_supported{false}, hero_karma_supported{false},
+        hero_no_hit_supported{false};
     /// issn 11-04 (video_core issn_postfx.h): the game's motion blur and chromatic aberration,
     /// live from the menu and the launcher (issn.ini motion_blur / chromatic_aberration).
     std::atomic<bool> motion_blur{true}, chromatic_aberration{true};
