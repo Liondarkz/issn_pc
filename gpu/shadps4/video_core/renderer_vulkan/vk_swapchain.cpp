@@ -444,8 +444,14 @@ void Swapchain::Destroy() {
     vk::Device device = instance.GetDevice();
     const auto wait_result = WaitForSwapchainIdle(instance);
     if (wait_result != vk::Result::eSuccess) {
-        LOG_WARNING(Render_Vulkan, "Failed to wait for device to become idle: {}",
-                    vk::to_string(wait_result));
+        // issn 11-05: one line per recreation filled a log with 13,800 of them; the first 3, then
+        // every 1000th.
+        static std::atomic<u64> failed{0};
+        const u64 n = failed.fetch_add(1, std::memory_order_relaxed) + 1;
+        if (n <= 3 || n % 1000 == 0) {
+            LOG_WARNING(Render_Vulkan, "Failed to wait for device to become idle: {} ({} times)",
+                        vk::to_string(wait_result), n);
+        }
     }
 
     for (auto& image_view : images_view) {
