@@ -70,8 +70,10 @@ def vertical_gradient(size, top, bottom):
 class Theme:
     """Draws the images (kept alive here: Tk keeps no reference) and fills a ttk.Style."""
 
-    def __init__(self, root, dpi, colors):
-        self.root, self.dpi, self.c = root, dpi, colors
+    def __init__(self, root, dpi, colors, tag='Issn'):
+        # tag: the prefix of the ttk elements made here. ttk cannot remove an element, so another
+        # theme (issn_themes) is drawn under a new tag and the layouts point at it.
+        self.root, self.dpi, self.c, self.tag = root, dpi, colors, tag
         self.keep = []
 
     def px(self, value):
@@ -130,7 +132,7 @@ class Theme:
         label = lambda element: [(element, {'sticky': 'nswe', 'children': [
             ('Button.padding', {'sticky': 'nswe', 'children': [('Button.label', {'sticky': 'nswe'})]})]})]
         for prefix, bg in surfaces.items():
-            tag = 'Issn' + prefix.rstrip('.')
+            tag = self.tag + prefix.rstrip('.')
             button = lambda fill, line, bg=bg: self.box(40, 34, 8, fill, line, bg, (420, 96), 10)
             s.element_create(f'{tag}.Button.border', 'image', button(c['card_hover'], c['border_strong']),
                              ('disabled', button(c['field'], c['border'])),
@@ -138,9 +140,10 @@ class Theme:
                              ('active', button(c['hover'], c['accent'])),
                              border=px(10), padding=px(2), width=px(40), height=px(34), sticky='nsew')
             s.element_create(f'{tag}.Accent.border', 'image', button(c['accent'], c['accent_hi']),
-                             ('disabled', button('#2a1416', '#3a2024')),
+                             ('disabled', button(mix(c['accent_dark'], c['field'], 0.75),
+                                                 mix(c['accent_dark'], c['border'], 0.6))),
                              ('pressed', button(c['accent_dark'], c['accent_hi'])),
-                             ('active', button(c['accent_hi'], '#ff7383')),
+                             ('active', button(c['accent_hi'], mix(c['accent_hi'], '#ffffff', 0.35))),
                              border=px(10), padding=px(2), width=px(40), height=px(34), sticky='nsew')
             s.layout(prefix + 'TButton', label(f'{tag}.Button.border'))
             s.layout(prefix + 'Accent.TButton', label(f'{tag}.Accent.border'))
@@ -152,10 +155,10 @@ class Theme:
             s.layout(prefix + 'TEntry', [(f'{tag}.field', {'sticky': 'nswe', 'children': [
                 ('Entry.padding', {'sticky': 'nswe', 'children': [('Entry.textarea', {'sticky': 'nswe'})]})]})])
             s.layout(prefix + 'TCombobox', [(f'{tag}.field', {'sticky': 'nswe', 'children': [
-                ('Issn.Combobox.downarrow', {'side': 'right', 'sticky': ''}),
+                (f'{self.tag}.Combobox.downarrow', {'side': 'right', 'sticky': ''}),
                 ('Combobox.padding', {'sticky': 'nswe', 'children': [('Combobox.textarea', {'sticky': 'nswe'})]})]})])
             s.element_create(f'{tag}.switch', 'image', self.switch(False, '#2a2d38', '#8c90a0', bg),
-                             ('disabled', 'selected', self.switch(True, '#3a1518', '#7d7470', bg)),
+                             ('disabled', 'selected', self.switch(True, mix(c['accent_dark'], bg, 0.6), '#7d7470', bg)),
                              ('disabled', self.switch(False, '#1b1c22', '#45474f', bg)),
                              ('active', 'selected', self.switch(True, c['accent_hi'], '#ffffff', bg)),
                              ('selected', self.switch(True, c['accent'], '#ffffff', bg)),
@@ -176,27 +179,29 @@ class Theme:
                             insertcolor=c['text'], selectbackground=c['accent'], selectforeground='#ffffff')
                 s.map(prefix + name, foreground=[('disabled', c['muted'])], fieldbackground=[('readonly', c['field'])],
                       selectbackground=[('readonly', c['field'])], selectforeground=[('readonly', c['text'])])
-        s.element_create('Issn.Combobox.downarrow', 'image', self.chevron(c['neon'], c['field']),
+        t = self.tag
+        s.element_create(f'{t}.Combobox.downarrow', 'image', self.chevron(c['neon'], c['field']),
                          ('disabled', self.chevron(c['muted'], c['panel'])), sticky='')
         # PLAY on the bottom bar.
         bar = surfaces.get('Bar.', c['bg'])
-        s.element_create('Issn.Play.border', 'image', self.play('#ec3247', '#b8172a', '#ff6b7c', bar),
+        hi = mix(c['accent_hi'], '#ffffff', 0.25)
+        s.element_create(f'{t}.Play.border', 'image', self.play(c['accent'], c['accent_dark'], hi, bar),
                          ('disabled', self.play('#262a35', '#1d2029', '#323645', bar)),
-                         ('pressed', self.play('#b8172a', '#9a1222', '#ff6b7c', bar)),
-                         ('active', self.play('#ff4a5e', '#cf1d31', '#ffffff', bar)),
+                         ('pressed', self.play(c['accent_dark'], mix(c['accent_dark'], '#000000', 0.2), hi, bar)),
+                         ('active', self.play(c['accent_hi'], c['accent'], '#ffffff', bar)),
                          border=px(14), padding=px(2), width=px(160), height=px(54), sticky='nsew')
-        s.layout('Play.TButton', label('Issn.Play.border'))
+        s.layout('Play.TButton', label(f'{t}.Play.border'))
         s.configure('Play.TButton', background=bar, foreground='#ffffff', font=play_font, padding=(px(44), px(10)))
         s.map('Play.TButton', foreground=[('disabled', '#6d7080')])
         # A slim scroll bar.
         thumb = lambda fill: self.photo(stretch(solid(rounded((px(8), px(28)), px(3), fill), c['panel']),
                                                 (px(8), px(1600)), (0, px(5), 0, px(5))))
-        s.element_create('Issn.Vertical.Scrollbar.trough', 'image',
+        s.element_create(f'{t}.Vertical.Scrollbar.trough', 'image',
                          self.photo(Image.new('RGB', (px(8), px(2400)), rgba(c['panel'])[:3])),
                          width=px(8), height=px(8), sticky='ns')
-        s.element_create('Issn.Vertical.Scrollbar.thumb', 'image', thumb(c['border_strong']),
+        s.element_create(f'{t}.Vertical.Scrollbar.thumb', 'image', thumb(c['border_strong']),
                          ('pressed', thumb(c['accent'])), ('active', thumb(c['border_hover'])),
                          border=(0, px(5)), width=px(8), height=px(28), sticky='nsew')
-        s.layout('Vertical.TScrollbar', [('Issn.Vertical.Scrollbar.trough', {'sticky': 'ns', 'children': [
-            ('Issn.Vertical.Scrollbar.thumb', {'expand': '1', 'sticky': 'nswe'})]})])
+        s.layout('Vertical.TScrollbar', [(f'{t}.Vertical.Scrollbar.trough', {'sticky': 'ns', 'children': [
+            (f'{t}.Vertical.Scrollbar.thumb', {'expand': '1', 'sticky': 'nswe'})]})])
         s.configure('Vertical.TScrollbar', background=c['panel'])

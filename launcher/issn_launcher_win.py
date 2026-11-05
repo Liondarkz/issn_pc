@@ -193,6 +193,7 @@ import issn_hardware  # noqa: E402
 import issn_downloads  # noqa: E402
 import issn_help  # noqa: E402
 import issn_theme  # noqa: E402
+import issn_themes  # noqa: E402
 import issn_lang  # noqa: E402
 
 LANG = 'en'
@@ -395,7 +396,8 @@ APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', s
                 'check_updates': False, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation',
                 'glyph_style': 'off', 'compute_priority': True, 'ordered_readback': False, 'draw_distance': '',
                 'perf_mode': '', 'render_height': '', 'upscale_quality': '', 'aniso': '', 'shader_compile': '', 'screen_shape': '',
-                'anti_aliasing': 'game', 'optiscaler_output': 'fsr22', 'expert_view': False}
+                'anti_aliasing': 'game', 'optiscaler_output': 'fsr22', 'expert_view': False,
+                'launcher_theme': issn_themes.DEFAULT, 'launcher_fx': 'full'}
 
 # PS4 button, default key, default gamepad button (SDL names; src/runtime_pad.c). L2/R2 come
 # from the analog triggers and the left touchpad click (photo mode) from L1 + the right click's
@@ -1222,6 +1224,25 @@ THEME_COLORS = {'bg': '#09090c', 'panel': '#101116', 'card': '#181a21', 'field':
                 'hover': '#242836', 'border': '#262935', 'border_strong': '#323645', 'border_hover': '#454b60',
                 'text': '#f2f2f4', 'muted': '#8c90a0', 'accent': '#e2263b', 'accent_hi': '#ff4359',
                 'accent_dark': '#a8172a', 'neon': '#24d3f2'}
+THEME_NAME, EMBER = issn_themes.DEFAULT, '#ff8a3d'
+FX_LEVELS = [('full', ('Full',)), ('light', ('Light (less work for the PC)',)), ('off', ('Off',))]
+
+
+def use_theme(name):
+    """issn 11-05: a launcher theme's colours (issn_themes: smoke, neon, video, concrete) in the
+    module's colour constants; the window is built (or rebuilt) after this."""
+    global BG, PANEL, CARD, LINE, ACCENT, ACCENT_HI, NEON, NEON_PINK, HOVER, NAV_ACTIVE, NAV_HOVER
+    global THEME_COLORS, THEME_NAME, EMBER
+    THEME_NAME = issn_themes.known(name)
+    c = issn_themes.colors(THEME_NAME)
+    BG, PANEL, CARD, LINE = c['bg'], c['panel'], c['card'], c['line']
+    ACCENT, ACCENT_HI, NEON, NEON_PINK, EMBER = c['accent'], c['accent_hi'], c['neon'], c['pink'], c['ember']
+    HOVER, NAV_ACTIVE, NAV_HOVER = c['nav_hover'], c['nav_active'], c['nav_hover']
+    THEME_COLORS = {key: c[key] for key in ('bg', 'panel', 'card', 'field', 'card_hover', 'hover', 'border',
+                                            'border_strong', 'border_hover', 'text', 'muted', 'accent',
+                                            'accent_hi', 'accent_dark', 'neon')}
+
+
 DISCORD_BLUE = '#8c9bff'  # Discord's blurple, lightened for the dark page
 RESOLUTION_CHOICES = [('native', ('Native (1080p)',)), ('480p', ('480p',)), ('720p', ('720p',)),
                       ('1440p', ('1440p',)), ('1800p', ('1800p',)), ('4K', ('4K',))]
@@ -1258,6 +1279,75 @@ def window_icon(root, tk, game_icon, own_icon, ico_file):
     return None
 
 
+def theme_backdrop(width, height, strength=1.0):
+    """The Play page banner's still atmosphere for the launcher theme (issn_themes), as an RGBA
+    layer: smoke and the neon streaks, neon light, TV lines or cracked concrete. BannerFx moves
+    things over it."""
+    from PIL import Image, ImageDraw, ImageFilter
+    import random
+    rng = random.Random(7)
+    hex_rgb = lambda c: tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))
+    a = lambda value: max(0, min(255, round(value * strength)))
+    layer = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+    blur = max(6, width // 60)
+    if THEME_NAME in ('smoke', 'neon'):
+        streaks = ((ACCENT, 0.58, 0.10, 150), (NEON_PINK, 0.74, 0.03, 170), (NEON, 0.83, 0.02, 190),
+                   (ACCENT, 0.95, 0.05, 90)) if THEME_NAME == 'smoke' else \
+            ((NEON_PINK, 0.52, 0.025, 200), (NEON, 0.63, 0.012, 220), (NEON_PINK, 0.78, 0.05, 120),
+             (NEON, 0.9, 0.02, 200), (EMBER, 0.97, 0.015, 150))
+        for color, x, thickness, alpha in streaks:
+            x0, slant, span = width * x, height * 0.55, width * thickness
+            draw.polygon([(x0, 0), (x0 + span, 0), (x0 + span - slant, height), (x0 - slant, height)],
+                         fill=hex_rgb(color) + (a(alpha),))
+        layer = layer.filter(ImageFilter.GaussianBlur(blur))
+        glow = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        g = ImageDraw.Draw(glow)
+        if THEME_NAME == 'smoke':  # smoke along the floor, lit red from below
+            for _n in range(9):
+                cx, cy, r = rng.uniform(0, width), height * rng.uniform(0.72, 1.05), rng.uniform(0.08, 0.2) * width
+                g.ellipse((cx - r, cy - r * 0.6, cx + r, cy + r * 0.6), fill=(150, 146, 150, a(55)))
+            g.rectangle((0, height * 0.82, width, height), fill=hex_rgb(ACCENT) + (a(60),))
+        else:  # neon: a pink glow top right, a cyan one bottom left
+            r = width * 0.3
+            g.ellipse((width * 0.85 - r, -r * 0.8, width * 0.85 + r, r * 0.8), fill=hex_rgb(NEON_PINK) + (a(70),))
+            g.ellipse((width * 0.25 - r, height - r * 0.6, width * 0.25 + r, height + r), fill=hex_rgb(NEON) + (a(50),))
+        layer.alpha_composite(glow.filter(ImageFilter.GaussianBlur(blur * 5)))
+    elif THEME_NAME == 'video':
+        glow = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        r = width * 0.35
+        ImageDraw.Draw(glow).ellipse((width * 0.8 - r, -r, width * 0.8 + r, r), fill=hex_rgb(ACCENT) + (a(90),))
+        layer.alpha_composite(glow.filter(ImageFilter.GaussianBlur(blur * 5)))
+        draw = ImageDraw.Draw(layer)
+        for y in range(0, height, 3):  # TV lines
+            draw.line((0, y, width, y), fill=hex_rgb(NEON) + (a(14),))
+        for _n in range(14):  # a few broken pixels
+            x, y = rng.uniform(width * 0.45, width), rng.uniform(0, height)
+            w = rng.uniform(20, 140)
+            draw.rectangle((x, y, x + w, y + rng.choice((2, 3, 5))),
+                           fill=hex_rgb(rng.choice((NEON, NEON_PINK, ACCENT))) + (a(rng.randint(40, 110)),))
+    else:  # concrete: grain, a warm light and cracks
+        grain = Image.effect_noise((width, height), 40).convert('L')
+        tone = Image.new('RGBA', (width, height), hex_rgb('#b9b3a8') + (0,))
+        tone.putalpha(grain.point(lambda v: a(max(0, v - 120) * 0.35)))
+        layer.alpha_composite(tone)
+        glow = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        r = width * 0.32
+        ImageDraw.Draw(glow).ellipse((width * 0.82 - r, -r * 0.7, width * 0.82 + r, r * 0.7),
+                                     fill=hex_rgb(ACCENT) + (a(55),))
+        layer.alpha_composite(glow.filter(ImageFilter.GaussianBlur(blur * 5)))
+        draw = ImageDraw.Draw(layer)
+        for start in ((0.66, 0.0), (0.9, 0.18), (0.55, 1.0)):
+            x, y = width * start[0], height * start[1]
+            points = [(x, y)]
+            for _n in range(6):
+                x += rng.uniform(-0.04, 0.05) * width
+                y += (0.13 if start[1] < 0.5 else -0.12) * height
+                points.append((x, y))
+            draw.line(points, fill=hex_rgb(ACCENT) + (a(110),), width=max(1, width // 700))
+    return layer
+
+
 def hero_image(art, width, height):
     """The home page's background: the dump's art scaled to cover the page, darkened towards the
     title in the lower left; without a dump, smoke and neon streaks on black. None without Pillow."""
@@ -1275,6 +1365,7 @@ def hero_image(art, width, height):
             image = None
     else:
         image = None
+    has_art = image is not None
     if image is not None:
         scale = max(width / image.width, height / image.height)
         image = image.resize((max(1, round(image.width * scale)), max(1, round(image.height * scale))), Image.LANCZOS)
@@ -1282,14 +1373,8 @@ def hero_image(art, width, height):
         image = image.crop((left, top, left + width, top + height)).convert('RGBA')
     else:
         image = Image.new('RGBA', (width, height), hex_rgb(BG) + (255,))
-        streaks = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(streaks)
-        for color, x, thickness, alpha in ((ACCENT, 0.58, 0.10, 150), (NEON_PINK, 0.74, 0.03, 170),
-                                           (NEON, 0.83, 0.02, 190), (ACCENT, 0.95, 0.05, 90)):
-            x0, slant, span = width * x, height * 0.55, width * thickness
-            draw.polygon([(x0, 0), (x0 + span, 0), (x0 + span - slant, height), (x0 - slant, height)],
-                         fill=hex_rgb(color) + (alpha,))
-        image.alpha_composite(streaks.filter(ImageFilter.GaussianBlur(max(6, width // 60))))
+    # issn 11-05: the theme's own atmosphere; over the dump's art it is lighter.
+    image.alpha_composite(theme_backdrop(width, height, 0.55 if has_art else 1.0))
     # Shade: black from the left edge (where the title sits) and from the bottom.
     shade = Image.new('L', (width, height))
     pixels = []
@@ -1302,6 +1387,151 @@ def hero_image(art, width, height):
     shade = small.resize((width, height), Image.BILINEAR)
     image = Image.composite(Image.new('RGBA', (width, height), hex_rgb(BG) + (255,)), image, shade)
     return ImageTk.PhotoImage(image.convert('RGB'))
+
+
+class BannerFx:
+    """issn 11-05: what moves over the Play page's banner, by launcher theme (issn_themes): light
+    running down the neon streaks, embers rising from the smoke, a TV scan band and glitches,
+    concrete dust. Plain canvas items (cheap); it waits while another page is shown, the window
+    is minimized or the game runs, and Customize > Effects can make it lighter or turn it off."""
+
+    def __init__(self, app, canvas):
+        import random
+        self.app, self.canvas, self.rng = app, canvas, random.Random()
+        self.items, self.w, self.h, self.pending, self.t = [], 0, 0, None, 0
+
+    def level(self):
+        return self.app.app.get('launcher_fx', 'full') if not hasattr(self.app, 'vars') or \
+            'launcher_fx' not in self.app.vars else self.app.var('launcher_fx', 'app').get()
+
+    def reset(self, w, h):
+        c = self.canvas
+        c.delete('fx')
+        self.items, self.w, self.h = [], w, h
+        level = self.level()
+        if level == 'off':
+            return
+        count = 1 if level == 'full' else 0.5
+        make = {'neon': self.make_neon, 'smoke': self.make_embers, 'video': self.make_video,
+                'concrete': self.make_dust}[THEME_NAME]
+        make(count)
+        if c.find_withtag('art'):
+            c.tag_raise('fx', 'art')  # over the picture, under the titles and links
+        if self.pending is None:  # on the root: its after list is the one the window cancels
+            self.pending = self.app.root.after(40, self.tick)
+
+    # --- the pieces -----------------------------------------------------------------------
+    def blend(self, color, amount):
+        """`color` toward the page's background (no alpha on a Tk canvas)."""
+        return issn_theme.mix(color, BG, amount)
+
+    def make_neon(self, count):
+        for n in range(max(2, round(5 * count))):
+            color = (NEON_PINK, NEON, NEON_PINK, NEON, EMBER)[n % 5]
+            x = self.w * self.rng.uniform(0.45, 1.05)
+            lines = [self.canvas.create_line(0, 0, 0, 0, fill=self.blend(color, f), width=wd, capstyle='round',
+                                             tags=('fx',)) for f, wd in ((0.8, 9), (0.55, 5), (0.0, 2))]
+            self.items.append({'kind': 'runner', 'lines': lines, 'x': x, 'y': self.rng.uniform(-self.h, self.h),
+                               'speed': self.rng.uniform(5, 10), 'len': self.rng.uniform(70, 160)})
+
+    def make_embers(self, count):
+        for _n in range(max(6, round(26 * count))):
+            item = self.canvas.create_oval(0, 0, 0, 0, outline='', fill=EMBER, tags=('fx',))
+            self.items.append(self.new_ember({'kind': 'ember', 'id': item}, fresh=True))
+
+    def new_ember(self, e, fresh=False):
+        e.update(x=self.rng.uniform(0, self.w), y=self.h * (self.rng.uniform(0.3, 1.0) if fresh else 1.02),
+                 vy=self.rng.uniform(1.0, 2.6), size=self.rng.uniform(1.5, 3.5), phase=self.rng.uniform(0, 6.3),
+                 color=self.rng.choice((EMBER, ACCENT_HI, '#ffb23d')))
+        return e
+
+    def make_video(self, count):
+        self.items.append({'kind': 'scan', 'y': 0.0, 'lines': [
+            self.canvas.create_line(0, 0, 0, 0, fill=self.blend(NEON, f), tags=('fx',)) for f in (0.86, 0.78, 0.86)]})
+        for _n in range(max(2, round(4 * count))):
+            item = self.canvas.create_rectangle(0, 0, 0, 0, outline='', fill=NEON, state='hidden', tags=('fx',))
+            self.items.append({'kind': 'glitch', 'id': item, 'left': 0})
+
+    def make_dust(self, count):
+        for _n in range(max(8, round(34 * count))):
+            item = self.canvas.create_oval(0, 0, 0, 0, outline='', fill='#d8cdb9', tags=('fx',))
+            self.items.append(self.new_speck({'kind': 'dust', 'id': item}, fresh=True))
+
+    def new_speck(self, d, fresh=False):
+        d.update(x=self.rng.uniform(-0.1, 0.9) * self.w, y=self.h * self.rng.uniform(0.2 if fresh else 0.85, 1.0),
+                 vx=self.rng.uniform(0.3, 1.1), vy=-self.rng.uniform(0.2, 0.7), size=self.rng.uniform(1, 2.4),
+                 shade=self.rng.uniform(0.25, 0.7))
+        return d
+
+    # --- the clock ------------------------------------------------------------------------
+    def tick(self):
+        c, app = self.canvas, self.app
+        self.pending = None
+        try:
+            if not c.winfo_exists():
+                return
+        except Exception:  # noqa: BLE001 - the window is gone
+            return
+        level = self.level()
+        if level == 'off' or not self.items:
+            return
+        idle = app.current_page != 'home' or app.root.state() == 'iconic' or app.process is not None
+        if not idle:
+            self.t += 1
+            for item in self.items:
+                getattr(self, 'move_' + item['kind'])(item)
+        self.pending = app.root.after(500 if idle else (40 if level == 'full' else 80), self.tick)
+
+    def move_runner(self, r):
+        c, slant = self.canvas, 0.55  # the streaks' slope (theme_backdrop)
+        r['y'] += r['speed']
+        if r['y'] > self.h + r['len']:
+            r['y'] = -r['len'] - self.rng.uniform(0, self.h)
+            r['x'] = self.w * self.rng.uniform(0.45, 1.05)
+        y0, y1 = r['y'] - r['len'], r['y']
+        x0, x1 = r['x'] - y0 * slant, r['x'] - y1 * slant
+        for line in r['lines']:
+            c.coords(line, x0, y0, x1, y1)
+
+    def move_ember(self, e):
+        import math
+        e['y'] -= e['vy']
+        e['x'] += math.sin(self.t * 0.05 + e['phase']) * 0.6
+        if e['y'] < self.h * 0.15:
+            self.new_ember(e)
+        rise = max(0.0, min(1.0, (self.h - e['y']) / (self.h * 0.85)))
+        s = e['size']
+        self.canvas.coords(e['id'], e['x'] - s, e['y'] - s, e['x'] + s, e['y'] + s)
+        self.canvas.itemconfigure(e['id'], fill=self.blend(e['color'], min(0.92, rise)))
+
+    def move_scan(self, scan):
+        scan['y'] = (scan['y'] + self.h / 110) % (self.h + 40)
+        for n, line in enumerate(scan['lines']):
+            y = scan['y'] - 20 + n * 2
+            self.canvas.coords(line, 0, y, self.w, y)
+
+    def move_glitch(self, g):
+        c = self.canvas
+        if g['left'] > 0:
+            g['left'] -= 1
+            if g['left'] == 0:
+                c.itemconfigure(g['id'], state='hidden')
+            return
+        if self.rng.random() < 0.012:
+            x, y = self.rng.uniform(self.w * 0.35, self.w), self.rng.uniform(0, self.h)
+            w, h = self.rng.uniform(60, 320), self.rng.choice((2, 3, 4, 6))
+            c.coords(g['id'], x, y, x + w, y + h)
+            c.itemconfigure(g['id'], state='normal', fill=self.rng.choice((NEON, NEON_PINK, ACCENT_HI)))
+            g['left'] = self.rng.randint(2, 5)
+
+    def move_dust(self, d):
+        d['x'] += d['vx']
+        d['y'] += d['vy']
+        if d['x'] > self.w or d['y'] < self.h * 0.1:
+            self.new_speck(d)
+        s = d['size']
+        self.canvas.coords(d['id'], d['x'] - s, d['y'] - s, d['x'] + s, d['y'] + s)
+        self.canvas.itemconfigure(d['id'], fill=self.blend('#d8cdb9', d['shade']))
 
 
 class PlayButton:
@@ -1375,6 +1605,7 @@ class Launcher:
                 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('issnpc.launcher')
             except (AttributeError, OSError):
                 pass
+        use_theme(self.app.get('launcher_theme'))
         root.configure(bg=BG)
         self.dpi = root.winfo_fpixels('1i') / 96.0
         left, top, width, height = (0, 0, 0, 0) if WINDOWS else monitor_under_pointer(root)
@@ -1423,9 +1654,13 @@ class Launcher:
         base = (UI_FONT, 10)
         # issn 0.3.6: rounded buttons, fields, switches and a slim scroll bar drawn by Pillow
         # (issn_theme), once: a rebuilt window keeps the elements and their images.
-        if not hasattr(self, 'theme'):
-            self.theme = issn_theme.Theme(self.root, self.dpi, THEME_COLORS)
+        if getattr(self, 'theme_name', None) != THEME_NAME:
+            # issn 11-05: another theme draws its elements under a tag of its own (ttk keeps the old).
+            self.theme_count = getattr(self, 'theme_count', 0) + 1
+            tag = 'Issn' if self.theme_count == 1 else f'Issn{self.theme_count}'
+            self.theme = issn_theme.Theme(self.root, self.dpi, THEME_COLORS, tag)
             self.theme.style(s, {'': PANEL, 'Card.': CARD, 'Bar.': BG}, (UI_FONT, heading_font(17, UI_FONT)))
+            self.theme_name = THEME_NAME
         self.root.option_add('*TCombobox*Listbox.background', CARD)
         self.root.option_add('*TCombobox*Listbox.foreground', TEXT)
         self.root.option_add('*TCombobox*Listbox.selectBackground', ACCENT)
@@ -1904,11 +2139,11 @@ class Launcher:
         folder = self.meta_dir()
         info = game_info(folder)
         art = Path(folder or '.') / 'sce_sys' / 'pic1.png'
-        key = (str(art), art.is_file(), w, h)
+        key = (str(art), art.is_file(), w, h, THEME_NAME)
         if self.banner_key != key:
             self.banner_key, self.banner_photo = key, hero_image(art if art.is_file() else None, w, h)
         if self.banner_photo:
-            c.create_image(0, 0, image=self.banner_photo, anchor='nw')
+            c.create_image(0, 0, image=self.banner_photo, anchor='nw', tags=('art',))
         x, base = self.px(40), h - self.px(34)
         title_face = heading_font(min(96, max(54, h // 4)), UI_FONT, every_language=True)
         c.create_text(x, base, text='SECOND SON', anchor='sw', fill=ACCENT_HI,
@@ -1942,6 +2177,9 @@ class Launcher:
         for item in (credit, support, discord):
             c.tag_bind(item, '<Enter>', lambda _e: c.configure(cursor='hand2'))
             c.tag_bind(item, '<Leave>', lambda _e: c.configure(cursor=''))
+        if getattr(self, 'banner_fx', None) is None or self.banner_fx.canvas is not c:
+            self.banner_fx = BannerFx(self, c)
+        self.banner_fx.reset(w, h)
 
     def build_pc_check(self, f):
         """Your PC: the graphics card, processor and memory found here, what to expect in the city,
@@ -3096,8 +3334,18 @@ class Launcher:
         does when the game starts, updates and the shortcuts. The look (themes) comes next."""
         ttk = self.ttk
         f = self.scrolled_page('customize', _('Customize'),
-                               _("The launcher's language, what it does while you play, and shortcuts to the game."))
-        self.section(f, _('Launcher', 'Лаунчер'), top=4)
+                               _("The launcher's look, its language, what it does while you play, and shortcuts."))
+        # issn 11-05: a theme for each of Delsin's powers (issn_themes), applied at once.
+        self.section(f, _('Look'), top=4)
+        themes = [(name, (f'{_(issn_themes.NAMES[name][0])}: {_(issn_themes.NAMES[name][1])}',))
+                  for name in issn_themes.ORDER]
+        self.row(f, _('Theme'), self.choice(f, 'launcher_theme', 'app', themes, width=44),
+                 _("The launcher's colours and what moves on the Play page. It changes at once."))
+        self.var('launcher_theme', 'app').trace_add('write', lambda *_a: self.root.after_idle(self.theme_picked))
+        self.row(f, _('Effects'), self.choice(f, 'launcher_fx', 'app', FX_LEVELS, width=44),
+                 _('The animation on the Play page. It stops by itself while the game runs.'))
+        self.var('launcher_fx', 'app').trace_add('write', lambda *_a: self.root.after_idle(self.draw_banner))
+        self.section(f, _('Launcher', 'Лаунчер'))
         self.row(f, _('Launcher language', 'Язык лаунчера'), self.choice(f, 'ui_language', 'app', UI_LANGUAGES),
                  _('Applies when the launcher opens again.', 'Применится при следующем открытии лаунчера.'))
         self.section(f, _('While you play'))
@@ -3119,6 +3367,17 @@ class Launcher:
         ttk.Button(holder, text=_('Add to Steam'), command=self.add_to_steam).pack(side='left', padx=6)
         self.note(f, _('The desktop shortcut opens this launcher; the Steam entry starts the game straight away with '
                        'these settings.'), top=4)
+
+    def theme_picked(self):
+        """Customize > Theme: the window again in the theme's colours (the settings stay in their
+        variables, as for a new language)."""
+        name = issn_themes.known(self.var('launcher_theme', 'app').get())
+        if name == THEME_NAME:
+            return
+        use_theme(name)
+        self.root.configure(bg=BG)
+        self.banner_fx = None
+        self.rebuild(LANG)
 
     def build_advanced(self):
         tk, ttk = self.tk, self.ttk
