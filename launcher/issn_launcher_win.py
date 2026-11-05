@@ -380,7 +380,7 @@ PAGES = ('home', 'news', 'graphics', 'performance', 'game', 'advanced', 'help')
 PAGE_REFRESH = {'home': ('refresh_status',), 'news': ('refresh_news',), 'help': ('run_help',), 'game': ('refresh_lists', 'refresh_game_patches')}
 APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', str(PORT_DIR.parent / 'CUSA00004') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
-                'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False, 'save_backups': True, 'frame_pacing': '', 'frame_gen': False, 'seed_any_profile': False,
+                'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False, 'save_backups': True, 'vram_limit': '', 'frame_pacing': '', 'frame_gen': False, 'seed_any_profile': False,
                 'player_name': '', 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
                 'gpu_id': '', 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binaries': False,
                 'perf_diag': False, 'frame_capture_key': False, 'frame_stats': False, 'gpu_profile': False,
@@ -542,6 +542,11 @@ SPRAY_STICK = [('', ('Normal (default)',)), ('15', ('Slow',)), ('60', ('Fast',))
                ('115', ('Very fast (0.3.4 and earlier)',))]
 # issn: the analog sticks' dead zone (runtime_pad.c, ISSN_STICK_DEADZONE; the runtime's default
 # is 0.05). A worn stick that rests off center drifts in game (tester, Xbox One S, 10-29).
+# issn 11-04: ISSN_VRAM_LIMIT_MB, the video memory the texture clean-up keeps the game under (GitHub
+# issue 32: a 6 GB laptop card ran out and lost the device). '' = what the driver allows.
+VRAM_LIMITS = [('', ('Automatic (what the driver allows)',)), ('3584', ('3.5 GB (4 GB cards)',)),
+               ('5120', ('5 GB (6 GB cards)',)), ('6656', ('6.5 GB (8 GB cards)',)),
+               ('9728', ('9.5 GB (10-12 GB cards)',))]
 STICK_DEADZONE = [('', ('Small: 5% (default)',)), ('0.10', ('Medium: 10%',)), ('0.15', ('Large: 15%',)),
                   ('0.20', ('Very large: 20% (worn sticks)',))]
 # Launcher language -> PS4 language id for the Automatic game language.
@@ -1112,6 +1117,9 @@ def game_environment(s):
     # The saved UI choice wins over inherited diagnostic overrides, including when reverting.
     stream_memory = s.get('stream_memory', APP_DEFAULTS['stream_memory'])
     env['ISSN_STREAM_MEMORY'] = stream_memory if stream_memory in ('cached', 'host', 'device') else 'cached'
+    env.pop('ISSN_VRAM_LIMIT_MB', None)
+    if s.get('vram_limit') in {value for value, _text in VRAM_LIMITS if value}:
+        env['ISSN_VRAM_LIMIT_MB'] = s['vram_limit']
     gpu_id = str(s.get('gpu_id', ''))
     env.pop('ISSN_GPU_ID', None)
     if gpu_id.isdigit():
@@ -2416,6 +2424,10 @@ class Launcher:
                  _('The game\'s own lower settings, from axylpup\'s 1.1: shorter detail distance, one shadow '
                    'level less, lighter particles and fewer high-resolution textures nearby. Figures are '
                    'from his PC in the heaviest city view.'), restart=True)
+        self.row(f, _('Video memory limit'), self.choice(f, 'vram_limit', 'app', VRAM_LIMITS),
+                 _('How much video memory the game may fill before it frees textures it is not using. Lower it '
+                   'if the game closes with "Device lost" or the log says the video memory is nearly full, '
+                   'mainly on 4-8 GB cards and laptops.'), restart=True)
         self.row(f, _('Shader compilation'), self.choice(f, 'shader_compile', 'app', SHADER_COMPILE),
                  _('The first time a place or effect appears its shaders are compiled. In the background the '
                    'game keeps running and what they draw shows up a moment later; in the frame the game '

@@ -2171,6 +2171,22 @@ void TextureCache::GarbageCollectImages() {
         const auto [usage, budget] = instance.GetDeviceMemoryUsageAndBudget();
         total_used_memory = usage;
         budget_now = budget;
+        // issn 11-04 (GitHub issue 32, RTX 3060 Laptop 6 GB: usage 5395 MB over a 5091 MB budget,
+        // DLSS refused, device lost 30 s in): ISSN_VRAM_LIMIT_MB (launcher: Video memory limit)
+        // caps the budget the clean-up aims for, below what the driver allows.
+        static const u64 user_limit = [] {
+            const char* v = std::getenv("ISSN_VRAM_LIMIT_MB");
+            const long mb = v ? std::atol(v) : 0;
+            if (mb >= 2048) {
+                std::printf("Video memory: the clean-up keeps the game under %ld MB (launcher)\n", mb);
+                std::fflush(stdout);
+                return u64(mb) << 20;
+            }
+            return u64(0);
+        }();
+        if (user_limit && (budget_now == 0 || user_limit < budget_now)) {
+            budget_now = user_limit;
+        }
         // A line a minute in the log: how close the game runs to the budget.
         static auto last_report = std::chrono::steady_clock::time_point{};
         const auto now = std::chrono::steady_clock::now();
@@ -2188,7 +2204,9 @@ void TextureCache::GarbageCollectImages() {
     if (budget_now > 2_GB) {
         pressure_limit = std::min<u64>(pressure_limit, budget_now - 1_GB);
         critical_limit = std::min<u64>(critical_limit, budget_now - 512_MB);
-        emergency = total_used_memory + 384_MB >= budget_now;
+        // Cards of 8 GB or less fill up in one loading burst (issue 32): a wider margin there.
+        const u64 margin = budget_now <= 8_GB ? 768_MB : 384_MB;
+        emergency = total_used_memory + margin >= budget_now;
     }
     if (emergency) {
         static auto last_told = std::chrono::steady_clock::time_point{};
