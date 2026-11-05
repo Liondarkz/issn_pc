@@ -462,6 +462,13 @@ def main():
         print(f'Shader cache: {cache_name}' + ('' if seed_name else
               f" (shader-seed.txt {'names ' + listed + ', which is missing' if listed else 'is missing'})")
               + (f"; other cache folders: {', '.join(others)}" if others else ''), flush=True)
+        # issn 11-04: the game's trophy file (icons for the popup, read from the player's dump) and,
+        # with the player's own trophy key, the names (scripts/trophies.py).
+        import trophies
+        try:
+            print(trophies.prepare(env, user_dir), flush=True)
+        except OSError as error:
+            print(f'Trophies: {error}', flush=True)
         from save_backup import backup
         try:
             if env.get('ISSN_SAVE_BACKUP') == '0':
