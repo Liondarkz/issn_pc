@@ -1,5 +1,5 @@
-inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.6.3
-========================================================
+inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.7
+======================================================
 
 A test build: the game plays from the start, at about 90-105 FPS standing in the open city on a
 Ryzen 7 3700X + RX 9060 XT. The first start prepares the shaders once (a few minutes, with a
@@ -48,6 +48,33 @@ FSR 3.1, XeSS, DLSS (NVIDIA RTX) or FSR 2.2 (the one tested with the port).
   bin\optiscaler.json) and the port runs as before. Close the game first.
 - last_run.log starts with a line when OptiScaler is installed. Problems with OptiScaler itself
   go to its project.
+
+What's new in 0.3.7
+- Black city fix: in some saves the game asks for a time of day (the grey "dismal" sky) whose part
+  of the map never finishes loading, so no sky or ambient light is in use and the city stays
+  black. After 30 seconds the port asks the game for a similar one (rainy "blustery") and the city
+  lights up by itself. Insert > Image > Exposure shows what it did (ISSN_TOD_RESCUE=0 turns it off).
+- 4K: the game's exposure meter gets room for 4K, so the picture no longer goes dark and back.
+- Achievements: the game's trophies pop up with their icon, are kept on this PC
+  (user\trophies.txt) and the launcher has an Achievements page with the percentage.
+- Field of view in the menu, with the aim following it (on by default).
+- The port's own shader loading screen (art, progress bar, tips).
+- Cheats (Game tab): endless neon run and video flight while the dash button is held, long smoke
+  dash.
+- Anti-aliasing "Off" (launcher and menu): no T2x and a still camera.
+- OptiScaler (optional): install, remove and choose its output from the launcher (see above).
+- In-game menu: VSync and the frame rate limit change at once; Apply and restart starts the
+  anti-aliasing, quality and frame generation chosen there; a note says when the launcher's frame
+  pacing caps the game.
+- Controls: mouse and controller sensitivity (menu and launcher); F11 hides the performance
+  overlay; L3 + R3 always reach the game, the spray can pose of pads without a motion sensor is a
+  menu switch (and the H key).
+- Video memory limit in the launcher (Performance), for cards of 6 GB or less.
+- FSR 4 only turns on with AMD Radeon cards.
+- Save backup: a switch in the launcher, and none when the savedata folder is far bigger than the
+  game's saves.
+- A crash right after the start with a game folder whose all_shaders.xpps does not match the
+  01.07 eboot.bin now says so in the log.
 
 What's new in 0.3.6.3
 - In-game menu (Insert, or R3 + L2 on a controller), Image tab: draw distance, texture filtering
