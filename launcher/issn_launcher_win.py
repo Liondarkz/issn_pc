@@ -2511,10 +2511,11 @@ class Launcher:
                    _("The trophy's icon and name in a top corner for a few seconds when the game unlocks one. "
                      'Also in Insert > Overlay.'))
         self.section(f, _('Trophy names (optional)'))
-        self.note(f, _("The names and descriptions in the game's trophy file are encrypted; without a key the "
-                       'popup and this page show "Trophy N" with its icon. If you have your own PS4 trophy key '
-                       '(the same one shadPS4 asks for), paste it here: it stays only on this PC, in '
-                       'user\\trophy-key.txt, and the port never ships or sends it.'), top=4)
+        self.note(f, _("The names and descriptions in the game's trophy file are encrypted. Without a key the port "
+                       'uses its own list (English, Portuguese and Spanish, written from public trophy lists). '
+                       'If you have your own PS4 trophy key (the same one shadPS4 asks for), paste it here to see '
+                       "the game's own texts: it stays only on this PC, in user\\trophy-key.txt, and the port never "
+                       'ships or sends it. A name shows once its trophy is unlocked.'), top=4)
         holder = ttk.Frame(f)
         self.trophy_key_entry = ttk.Entry(holder, width=40, show='•')
         self.trophy_key_entry.pack(side='left')
@@ -2529,16 +2530,18 @@ class Launcher:
         return [self.var('update_dir', 'app').get(), self.var('game_dir', 'app').get()]
 
     def trophy_texts(self, trp):
-        """({id: text} in the game language with the saved key, a note on the key)."""
+        """({id: text} in the game language, a note on where the names come from): the game's own
+        texts with the saved key, else the port's list (scripts/trophy_list.py)."""
         key = trophies.read_key(self.user_dir())
-        if key is None:
-            return {}, _('No key: names are not shown.')
         language = game_language({**self.app, 'game_language': self.var('game_language', 'app').get()})
         cache = ('texts', str(trp), key, language)
         if cache not in self.trophy_cache:
             try:
-                texts = trophies.read_texts(trp, trophies.npbind_file(*self.trophy_folders()), key, language)
-                self.trophy_cache[cache] = (texts, _('Key saved on this PC: names shown.'))
+                texts, source = trophies.game_texts(trp, language, *self.trophy_folders(), key=key)
+                note = (_('Key saved on this PC: the names are the game\'s own.') if source == 'key' else
+                        _("No key: the names come from the port's own list.") if source == 'list' else
+                        _('No key: names are not shown.'))
+                self.trophy_cache[cache] = (texts, note)
             except (OSError, ValueError, KeyError, trophies.ElementTree.ParseError) as error:
                 self.trophy_cache[cache] = ({}, _('The key is saved but the names could not be read: {}').format(error))
         return self.trophy_cache[cache]
@@ -2603,11 +2606,12 @@ class Launcher:
                 self.trophy_icons.append(photo)
                 tk.Label(card, image=photo, bg=CARD, bd=0).grid(row=0, column=0, rowspan=2, padx=self.px(8),
                                                                pady=self.px(6))
-            hidden = text.get('hidden') and not got
-            name = _('Hidden trophy') if hidden else text.get('name') or _('Trophy {}').format(trophy_id)
+            # issn 11-05 (João): a trophy's name and description show once it is unlocked; until
+            # then only its number, icon and grade.
+            name = text.get('name') if got and text.get('name') else _('Trophy {}').format(trophy_id)
             tk.Label(card, text=name, bg=CARD, fg=TEXT if got else MUTED, font=(UI_FONT, 11, 'bold'),
                      anchor='w').grid(row=0, column=1, sticky='w', pady=(self.px(8), 0))
-            detail = '' if hidden else text.get('detail', '')
+            detail = text.get('detail', '') if got else ''
             when = _('Unlocked {}').format(unlocked[trophy_id]) if got else _('Locked')
             tk.Label(card, text=f'{detail}\n{when}' if detail else when, bg=CARD, fg=MUTED, font=(UI_FONT, 9),
                      anchor='w', justify='left', wraplength=self.px(520)).grid(row=1, column=1, sticky='w',

@@ -8,7 +8,8 @@
   game, src/runtime_trophy.c).
 - The texts (names, descriptions, grades) are encrypted (TROP*.ESFM). They open only with the
   player's own trophy key, which the launcher keeps in user/trophy-key.txt on their PC; the port
-  never ships one. With it, run.py writes user/trophy-names.txt for the in-game popup.
+  never ships one. Without it, inFAMOUS Second Son's names come from trophy_list.py (written by
+  hand from public lists). Either way run.py writes user/trophy-names.txt for the in-game popup.
 
 ESFM: AES-128-CBC. The file key is the NP communication id (npbind.dat, "NPWRnnnnn_nn" padded to
 16 bytes with zeros) encrypted with the trophy key (CBC, zero IV); each ESFM is a 16-byte IV and
@@ -317,6 +318,49 @@ def read_texts(trp, npbind, key, language=1):
     return result
 
 
+def game_ids(*folders):
+    """(title ID, NP communication id) of the game in the folders; None for what is not found."""
+    title = comm = None
+    sfo = system_file('param.sfo', *folders)
+    if sfo is not None:
+        try:
+            from prepare import load_sfo
+            title = load_sfo(sfo).get('TITLE_ID')
+        except (ImportError, OSError, ValueError):
+            title = None
+    npbind = npbind_file(*folders)
+    if npbind is not None:
+        try:
+            comm = np_comm_id(npbind.read_bytes())
+        except OSError:
+            comm = None
+    return title, comm
+
+
+def builtin_texts(trp, language, *folders):
+    """The port's own list (trophy_list.py) when the trophy file is inFAMOUS Second Son's: the
+    same number of trophies, and its title ID or NP communication id; else None."""
+    import trophy_list
+    try:
+        if len(trophy_ids(read_entries(trp))) != len(trophy_list.TROPHIES):
+            return None
+    except (OSError, ValueError):
+        return None
+    title, comm = game_ids(*folders)
+    if title not in trophy_list.TITLE_IDS and comm != trophy_list.COMM_ID:
+        return None
+    return trophy_list.texts(language)
+
+
+def game_texts(trp, language, *folders, key=None):
+    """(texts, source): the game's own texts with the player's key ('key'), else the port's list
+    ('list'), else ({}, None). ValueError from a key that does not open the file is passed on."""
+    if key is not None:
+        return read_texts(trp, npbind_file(*folders), key, language), 'key'
+    texts = builtin_texts(trp, language, *folders)
+    return (texts, 'list') if texts else ({}, None)
+
+
 def write_names(user_dir, texts):
     """user/trophy-names.txt for the game (src/runtime_trophy.c): id, grade, base, name."""
     lines = ['# Trophy names from the player\'s own key (not shipped). id\tgrade\tbase\tname']
@@ -346,15 +390,18 @@ def prepare(env, user_dir):
     except (OSError, ValueError) as error:
         return f'Trophies: {error}'
     key = read_key(user_dir)
-    note = 'no names (no trophy key)'
-    if key is not None:
-        try:
-            texts = read_texts(trp, npbind_file(*folders), key, env.get('ISSN_LANGUAGE', '1'))
-            write_names(user_dir, texts)
-            note = f'names: {sum(1 for t in texts.values() if t["name"])}'
-        except (OSError, ValueError, KeyError, ElementTree.ParseError) as error:
-            names.unlink(missing_ok=True)
-            note = f'no names ({error})'
+    language = env.get('ISSN_LANGUAGE', '1')
+    try:
+        texts, source = game_texts(trp, language, *folders, key=key)
+    except (OSError, ValueError, KeyError, ElementTree.ParseError) as error:
+        texts, source = {}, None
+        note = f'no names ({error})'
+    else:
+        note = 'no names (no trophy key)'
+    if texts:
+        write_names(user_dir, texts)
+        origin = 'the trophy key' if source == 'key' else "the port's list"
+        note = f'names: {sum(1 for t in texts.values() if t["name"])} ({origin})'
     else:
         names.unlink(missing_ok=True)
     return f'Trophies: {count} in {trp}, {unlocked} unlocked on this PC, {note}'

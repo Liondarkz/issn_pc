@@ -8,6 +8,7 @@ import unittest
 
 import paths  # noqa: F401
 import trophies
+import trophy_list
 
 KEY = bytes.fromhex('00112233445566778899AABBCCDDEEFF')  # made up for the test
 COMM = 'NPWR99999_00'
@@ -148,6 +149,50 @@ class TrophyFileTest(unittest.TestCase):
         env = {'ISSN_GAME_DIR': str(self.user), 'ISSN_TROPHY_FILE': 'stale'}
         self.assertIn('no trophy file', trophies.prepare(env, self.user))
         self.assertNotIn('ISSN_TROPHY_FILE', env)
+
+
+class BuiltinListTest(unittest.TestCase):
+    """The port's own names for inFAMOUS Second Son (no key): 48 trophies, the platinum first."""
+
+    def test_list_shape(self):
+        self.assertEqual(len(trophy_list.TROPHIES), 48)
+        grades = [t[0] for t in trophy_list.TROPHIES]
+        self.assertEqual((grades.count('P'), grades.count('G'), grades.count('S'), grades.count('B')), (1, 2, 11, 34))
+        self.assertEqual(grades[0], 'P')
+        for row in trophy_list.TROPHIES:
+            self.assertEqual(len(row), 7)
+            self.assertTrue(all(text.strip() == text and text for text in row[1:]), row)
+
+    def test_languages(self):
+        self.assertEqual(trophy_list.texts(17)[6]['name'], 'Coragem')
+        self.assertEqual(trophy_list.texts('1')[14]['name'], 'Everybody Out')
+        self.assertEqual(trophy_list.texts(20)[39]['name'], 'Autocarnicería total')
+        self.assertEqual(trophy_list.texts('x')[0]['name'], 'Enjoy Your Powers')
+        texts = trophy_list.texts(17)
+        self.assertFalse(texts[0]['base'])
+        self.assertTrue(all(texts[i]['base'] for i in range(1, 48)))
+
+    def test_used_only_for_this_game(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            game, user = root / 'dump/Image0', root / 'user'
+            (game / 'sce_sys').mkdir(parents=True)
+            user.mkdir()
+            trp = root / 'dump/Sc0/trophy/trophy00.trp'
+            make_trp(trp, [(f'TROP{i:03d}.PNG', png(i), 0) for i in range(48)])
+            env = {'ISSN_GAME_DIR': str(game), 'ISSN_LANGUAGE': '17'}
+            # Another game (no title ID, no NP id): no names.
+            self.assertIn('no names', trophies.prepare(env, user))
+            self.assertFalse((user / trophies.NAMES_FILE).exists())
+            # inFAMOUS Second Son's NP id in npbind.dat beside it: the port's list.
+            (root / 'dump/Sc0/npbind.dat').write_bytes(bytes(64) + trophy_list.COMM_ID.encode() + bytes(20))
+            self.assertIn("names: 48 (the port's list)", trophies.prepare(env, user))
+            lines = (user / trophies.NAMES_FILE).read_text(encoding='utf-8').splitlines()
+            self.assertEqual(lines[1], '0\tP\t0\tAproveite seus poderes')
+            self.assertEqual(lines[7], '6\tB\t1\tCoragem')
+            # A different number of trophies is another game, whatever the ids say.
+            make_trp(trp, [(f'TROP{i:03d}.PNG', png(i), 0) for i in range(10)])
+            self.assertIsNone(trophies.builtin_texts(trp, 17, game))
 
 
 if __name__ == '__main__':

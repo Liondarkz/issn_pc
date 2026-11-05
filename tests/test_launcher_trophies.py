@@ -77,16 +77,15 @@ class LauncherTrophiesTests(unittest.TestCase):
         self.app.trophy_key_entry.insert(0, KEY.hex())
         self.app.save_trophy_key()
         self.assertEqual(trophies.read_key(self.user), KEY)
-        # Names in the game language (Brazilian Portuguese: TROP_17); a locked hidden trophy stays hidden.
+        # The name in the game language (Brazilian Portuguese: TROP_17) only for the unlocked trophy.
         texts = [self.labels(card)[0] for card in self.cards()]
-        self.assertEqual(texts, ['Segundo', 'Tudo', 'Primeiro passo', 'Extra um'])
+        self.assertEqual(texts, ['Segundo', 'Trophy 0', 'Trophy 1', 'Trophy 3'])
+        self.assertEqual(self.labels(self.cards()[0])[1], 'Oculto\nUnlocked 2026-11-04 23:50:12')
+        self.assertEqual(self.labels(self.cards()[1])[1], 'Locked')
         self.assertIn('Key saved', self.app.trophy_key_state.cget('text'))
-        (self.user / trophies.UNLOCKED_FILE).write_text('', encoding='utf-8')
-        self.app.refresh_trophies()
-        self.assertIn('Hidden trophy', [self.labels(card)[0] for card in self.cards()])
         self.app.remove_trophy_key()
         self.assertIsNone(trophies.read_key(self.user))
-        self.assertEqual(self.labels(self.cards()[0])[0], 'Trophy 0')
+        self.assertEqual(self.labels(self.cards()[0])[0], 'Trophy 2')  # not inFAMOUS: no list either
 
 
 if __name__ == '__main__':
