@@ -702,6 +702,15 @@ extern "C" void issngpu_note_game_saved(const char* what) {
     IssnOverlay::NoteGameSaved(what ? what : "");
 }
 
+extern "C" void issngpu_note_trophy(int id, const char* name, const char* grade, const void* png, uint64_t size) {
+    // The icon is decoded here, on the game's thread; the overlay makes it a texture.
+    IssnPng::Image icon;
+    if (png && size && !IssnPng::DecodeRgba(static_cast<const unsigned char*>(png), size_t(size), icon)) {
+        LOG_WARNING(Lib_NpTrophy, "trophy {}: icon not decoded", id);
+    }
+    IssnOverlay::NoteTrophy(id, name ? name : "", grade ? grade : "", std::move(icon));
+}
+
 extern "C" int issngpu_overlay_captures_input(void) {
     return IssnOverlay::CapturesInput() ? 1 : 0;
 }

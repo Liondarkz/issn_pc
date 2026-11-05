@@ -145,6 +145,8 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.show_fps = i != 0;
     } else if (key == "save_note") {
         v.save_note = i != 0;
+    } else if (key == "trophy_note") {
+        v.trophy_note = i != 0;
     } else if (key == "mouse_enabled") {
         v.mouse_enabled = i != 0;
     } else if (key == "mouse_invert_y") {
@@ -469,6 +471,7 @@ void Save() {
     std::fprintf(file, "fov=%.3f\nsave_note=%d\n", v.fov.load(), int(v.save_note.load()));
     std::fprintf(file, "motion_blur=%d\nchromatic_aberration=%d\n", int(v.motion_blur.load()),
                  int(v.chromatic_aberration.load()));
+    std::fprintf(file, "trophy_note=%d\n", int(v.trophy_note.load()));
     std::fprintf(file, "hero_health=%d\nhero_powers=%d\nhero_karma=%d\n", int(v.hero_health.load()),
                  int(v.hero_powers.load()), int(v.hero_karma.load()));
     std::fprintf(file, "hero_neon_run=%d\nhero_video_flight=%d\nhero_smoke_dash=%d\n",

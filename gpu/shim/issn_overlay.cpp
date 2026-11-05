@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -860,6 +861,8 @@ void OverlayTab() {
         CheckRow("Show overlay", s.show_fps, "The performance overlay in a corner of the screen. F11 hides or shows it in play.");
         CheckRow("\"Game saved\" note", s.save_note,
                  "A short note at the top of the screen each time the game writes a save.");
+        CheckRow("Trophy popup", s.trophy_note,
+                 "The trophy's icon and name in a top corner for a few seconds when the game unlocks one.");
         ImGui::EndTable();
     }
     ImGui::BeginDisabled(!s.show_fps);
@@ -1446,6 +1449,121 @@ void SaveNote() {
     ImGui::PopStyleVar();
 }
 
+// issn 11-04: trophy popups (NoteTrophy). One at a time in a top corner (the one the
+// performance overlay is not in): the icon from the game's trophy file and the name, or
+// "Trophy N" without the player's trophy key. A burst (a save that already earned several)
+// goes faster; the platinum stays longer.
+struct TrophyPopup {
+    int id = 0;
+    std::string name, grade;
+    IssnPng::Image icon;
+};
+std::mutex trophy_mutex;
+std::deque<TrophyPopup> trophy_queue;  ///< waiting; icons are made textures when shown
+std::atomic<int> trophy_pending{0};    ///< waiting + shown (Visible)
+TrophyPopup trophy_shown;              ///< present thread, imgui_mutex held
+ImTextureData* trophy_texture = nullptr;
+std::int64_t trophy_until = 0;         ///< steady_clock milliseconds; 0 = none shown
+std::int64_t trophy_length = 0;
+constexpr std::int64_t TrophyNoteMs = 5000, TrophyQuickMs = 2000, TrophyPlatinumMs = 8000;
+
+// imgui_mutex held, before NewFrame: ends the popup shown and takes the next one.
+void UpdateTrophyNote() {
+    const std::int64_t now = NowMs();
+    if (trophy_until != 0 && now < trophy_until) {
+        return;
+    }
+    if (trophy_until != 0) {
+        trophy_until = 0;
+        if (trophy_texture) {
+            trophy_texture->WantDestroyNextFrame = true;
+            choice_retired.push_back(trophy_texture);
+            choice_retiring = true;
+            trophy_texture = nullptr;
+        }
+        --trophy_pending;
+    }
+    if (loading || menu_open) {
+        return; // the next one waits for the game picture
+    }
+    std::size_t left = 0;
+    {
+        std::scoped_lock lock{trophy_mutex};
+        if (trophy_queue.empty()) {
+            return;
+        }
+        trophy_shown = std::move(trophy_queue.front());
+        trophy_queue.pop_front();
+        left = trophy_queue.size();
+    }
+    if (!trophy_shown.icon.rgba.empty()) {
+        ImTextureData* tex = IM_NEW(ImTextureData)();
+        tex->Create(ImTextureFormat_RGBA32, trophy_shown.icon.width, trophy_shown.icon.height);
+        std::memcpy(tex->GetPixels(), trophy_shown.icon.rgba.data(), trophy_shown.icon.rgba.size());
+        ImGui::RegisterUserTexture(tex);
+        trophy_texture = tex;
+        trophy_shown.icon = {};
+    }
+    trophy_length = trophy_shown.grade == "P" ? TrophyPlatinumMs : left >= 2 ? TrophyQuickMs : TrophyNoteMs;
+    trophy_until = now + trophy_length;
+}
+
+ImVec4 TrophyColor(const std::string& grade) {
+    return grade == "P"   ? ImVec4(0.78f, 0.9f, 1.0f, 1.0f)
+           : grade == "G" ? ImVec4(1.0f, 0.8f, 0.3f, 1.0f)
+           : grade == "S" ? ImVec4(0.82f, 0.84f, 0.9f, 1.0f)
+           : grade == "B" ? ImVec4(0.86f, 0.56f, 0.36f, 1.0f)
+                          : ImVec4(0.45f, 0.9f, 1.0f, 1.0f);
+}
+
+void TrophyNote() {
+    const std::int64_t left = trophy_until - NowMs();
+    if (trophy_until == 0 || left <= 0) {
+        return;
+    }
+    const std::int64_t shown = trophy_length - left;
+    const float fade = std::clamp(std::min(float(shown) / 250.0f, float(left) / 500.0f), 0.0f, 1.0f);
+    const bool platinum = trophy_shown.grade == "P";
+    const auto& s = IssnSettings::Get();
+    const bool fps_top_right = s.show_fps && s.overlay_corner == 1;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const float pad = 16.0f * base_scale;
+    const float x = fps_top_right ? viewport->WorkPos.x + pad : viewport->WorkPos.x + viewport->WorkSize.x - pad;
+    ImGui::SetNextWindowPos(ImVec2(x, viewport->WorkPos.y + pad), ImGuiCond_Always,
+                            ImVec2(fps_top_right ? 0.0f : 1.0f, 0.0f));
+    ImGui::SetNextWindowBgAlpha(0.8f * fade);
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, fade);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f * base_scale);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_Border, TrophyColor(trophy_shown.grade));
+    ImGui::Begin("##trophy_note", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
+                     ImGuiWindowFlags_NoFocusOnAppearing);
+    const float icon = (platinum ? 80.0f : 64.0f) * base_scale;
+    if (trophy_texture) {
+        ImGui::Image(trophy_texture->GetTexRef(), ImVec2(icon, icon));
+        ImGui::SameLine();
+    }
+    ImGui::BeginGroup();
+    ImGui::Dummy(ImVec2(0.0f, platinum ? 6.0f * base_scale : 8.0f * base_scale));
+    ImGui::TextColored(TrophyColor(trophy_shown.grade), "%s",
+                       platinum ? LoadText("Platinum! Every trophy unlocked", "Platinado com sucesso!",
+                                           "¡Platino! Todos los trofeos")
+                                : LoadText("Trophy unlocked", "Troféu desbloqueado", "Trofeo desbloqueado"));
+    if (!trophy_shown.name.empty()) {
+        ImGui::TextUnformatted(trophy_shown.name.c_str());
+    } else {
+        const std::string label = std::string(LoadText("Trophy", "Troféu", "Trofeo")) + " " +
+                                  std::to_string(trophy_shown.id);
+        ImGui::TextUnformatted(label.c_str());
+    }
+    ImGui::EndGroup();
+    ImGui::End();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(3);
+}
+
 void BackgroundLoading() {
     const u32 done = background_done, total = std::max(background_total.load(), 1u);
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -1809,6 +1927,7 @@ bool Visible() {
     const auto& s = IssnSettings::Get();
     return initialized && (loading || loading_art || background_total || menu_open || text_entry_active ||
                            choice_active || choice_retiring || s.show_fps || save_note_until.load() != 0 ||
+                           trophy_pending.load() != 0 ||
                            (s.actor_watch_supported && s.enemy_health_bar));
 }
 
@@ -1851,6 +1970,19 @@ void NoteGameSaved(const std::string& what) {
         save_note_text = what;
     }
     save_note_until = NowMs() + SaveNoteMs;
+}
+
+void NoteTrophy(int id, const std::string& name, const std::string& grade, IssnPng::Image icon) {
+    std::printf("Trophy %d unlocked%s%s\n", id, name.empty() ? "" : ": ", name.c_str());
+    std::fflush(stdout);
+    if (!IssnSettings::Get().trophy_note) {
+        return;
+    }
+    {
+        std::scoped_lock lock{trophy_mutex};
+        trophy_queue.push_back({id, name, grade, std::move(icon)});
+    }
+    ++trophy_pending;
 }
 
 void NoteGameFrame() {
@@ -1900,6 +2032,7 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
     }
 
     UpdateLoadingArt();
+    UpdateTrophyNote();
     UpdateChoiceTextures();
     ImGui_ImplVulkan_NewFrame();
     ImGui::NewFrame();
@@ -1920,6 +2053,9 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
     }
     if (save_note_until.load() != 0 && !loading && !menu_open) {
         SaveNote();
+    }
+    if (trophy_until != 0 && !loading && !menu_open) {
+        TrophyNote();
     }
     if (text_entry_active) {
         TextEntryBox();

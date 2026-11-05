@@ -48,6 +48,10 @@ void NoteGameFrame();
 /// for a few seconds (settings: save_note).
 void NoteGameSaved(const std::string& what);
 
+/// issn 11-04: a trophy was unlocked: its icon and name in a corner for a few seconds, one after
+/// another when several come together (settings: trophy_note). `name` empty: "Trophy N".
+void NoteTrophy(int id, const std::string& name, const std::string& grade, IssnPng::Image icon);
+
 /// The menu is open or a text entry is shown: the game's input is held neutral.
 bool CapturesInput();
 

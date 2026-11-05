@@ -51,6 +51,8 @@ struct Values {
     std::atomic<bool> show_fps{false};
     /// "Game saved" note in a corner when the game writes a save (issn_overlay.cpp).
     std::atomic<bool> save_note{true};
+    /// issn 11-04: the trophy popup (icon and name) when the game unlocks a trophy.
+    std::atomic<bool> trophy_note{true};
     /// Sensor mode's aiming speed (the graffiti cursor), percent of the default: 25..200.
     std::atomic<int> sensor_aim{100};
     /// The graffiti guide was shown once; the menu's Controls tab opens it again.

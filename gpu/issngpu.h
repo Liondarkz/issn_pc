@@ -55,6 +55,10 @@ int issngpu_choice_poll(void);
 /* issn-axy: the game finished writing a save (`what`: its subtitle, e.g. the mission): a note
  * in the corner of the screen for a few seconds. */
 void issngpu_note_game_saved(const char *what);
+/* issn 11-04: a trophy was unlocked (src/runtime_trophy.c): a popup with its icon (PNG bytes from
+ * the game's trophy file, NULL: none) and name ("": "Trophy N"); grade "P", "G", "S", "B" or "".
+ * The data is copied before the call returns. */
+void issngpu_note_trophy(int id, const char *name, const char *grade, const void *png, uint64_t size);
 /* 1 while the in-game settings menu is open: the game's pad input is held neutral. */
 int issngpu_overlay_captures_input(void);
 /* issn 11-04: the menu's sensitivities, read live by runtime_pad.c. mouse: a factor on the mouse
