@@ -876,7 +876,7 @@ void PerformanceTab() {
     auto& s = IssnSettings::Get();
     ImGui::SeparatorText("Changes at once");
     if (BeginRows("##restart")) {
-        static const char* const fps_labels[] = {"30", "60", "120", "240", "Unlimited"};
+        static const char* const fps_labels[] = {"30", "40", "45", "60", "120", "240", "Unlimited"};
         ChoiceRow("Frame rate limit", s.fps_limit, fps_labels, G::FpsLimits.data(), int(G::FpsLimits.size()),
                   "The highest frame rate. Unlimited lets the game run as fast as the PC allows.");
         ImGui::EndTable();

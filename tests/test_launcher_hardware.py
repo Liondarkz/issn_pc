@@ -77,3 +77,41 @@ class HardwareTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class HandheldTest(unittest.TestCase):
+    """issn 11-05: the Steam Deck goal (issn_hw.handheld_settings)."""
+
+    def deck(self, gpu, cpu):
+        pc = hw.Pc(gpu_name=gpu, cpu_name=cpu, ram_gb=16)
+        pc.gpu_score, pc.vram_gb = hw.gpu_entry(gpu)
+        pc.cpu_score = hw.cpu_score(cpu)
+        return pc
+
+    def test_the_deck_is_recognised_by_its_graphics_or_processor(self):
+        lcd = self.deck('AMD Custom GPU 0405 (RADV VANGOGH)', 'AMD Custom APU 0405')
+        self.assertTrue(lcd.deck)
+        self.assertFalse(lcd.deck_oled)
+        self.assertEqual((lcd.gpu_score, lcd.cpu_score), (32, 64))
+        self.assertTrue(self.deck('AMD Custom GPU 0932', '').deck_oled)
+        self.assertFalse(self.deck('AMD Radeon RX 6600', 'AMD Ryzen 5 3600 6-Core Processor').deck)
+
+    def test_60_hz_gets_a_40_fps_limit(self):
+        chosen, reasons = hw.settings_for(self.deck('AMD Custom GPU 0405', 'AMD Custom APU 0405'), 'handheld',
+                                                800, 60)
+        self.assertEqual(chosen['ini']['fps_limit'], '40')
+        self.assertEqual(chosen['app']['frame_pacing'], '')
+        self.assertEqual(chosen['app']['render_height'], '720')
+        self.assertEqual(chosen['app']['perf_mode'], 'office')
+        self.assertIn(('deck40', 40), reasons)
+
+    def test_the_oled_90_hz_shows_45_fps_evenly(self):
+        chosen, reasons = hw.settings_for(self.deck('AMD Custom GPU 0932', 'AMD Custom APU 0932'), 'handheld',
+                                                800, 90)
+        self.assertEqual((chosen['app']['frame_pacing'], chosen['ini']['fps_limit']), ('2', '0'))
+        self.assertIn(('paced', (90, 45)), reasons)
+
+    def test_a_pc_like_the_deck_on_144_hz(self):
+        pc = self.deck('NVIDIA GeForce GTX 1050 Ti', 'AMD Ryzen 3 3100 4-Core Processor')
+        chosen, _reasons = hw.settings_for(pc, 'handheld', 1080, 144)
+        self.assertEqual(chosen['app']['frame_pacing'], '3')  # 48 FPS

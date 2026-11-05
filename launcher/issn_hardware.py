@@ -28,6 +28,9 @@ GPUS = [
     (r'rtx 2060', 88, 6), (r'gtx 1660', 72, 6), (r'gtx 1650', 52, 4), (r'gtx 1080 ti', 118, 11),
     (r'gtx 1080', 92, 8), (r'gtx 1070', 80, 8), (r'gtx 1060', 58, 6), (r'gtx 1050', 34, 4),
     (r'gtx 9[78]0', 56, 4),
+    # issn 11-05: the Steam Deck (AMD Custom GPU 0405 'Van Gogh', OLED 0932 'Sephiroth'; RADV calls
+    # them VANGOGH): 8 RDNA 2 units at up to 1.6 GHz, about a GTX 1050 Ti; memory shared (16 GB).
+    (r'custom gpu 0(405|932)|vangogh|sephiroth', 32, 4),
     (r'rx 9070 xt', 275, 16), (r'rx 9070', 245, 16), (r'rx 9060 xt', 160, 16), (r'rx 9060', 140, 8),
     (r'rx 7900 xtx', 290, 24), (r'rx 7900', 250, 20), (r'rx 7800 xt', 205, 16), (r'rx 7700', 170, 12),
     (r'rx 7600', 122, 8), (r'rx 69[05]0 xt', 220, 16), (r'rx 6800 xt', 200, 16), (r'rx 6800', 175, 16),
@@ -58,6 +61,9 @@ GPU_FPS_PER_POINT = 0.75
 LAPTOP_SHARE = 0.75  # laptop chips hold lower clocks under load
 
 
+DECK = r'custom (apu|gpu) 0(405|932)|vangogh|sephiroth'
+
+
 @dataclass
 class Pc:
     gpu_name: str = ''
@@ -79,6 +85,15 @@ class Pc:
     def fsr4(self):
         """FSR 4 runs on RX 7000 and RX 9000 cards."""
         return bool(re.search(r'rx [79]\d{3}', self.gpu_name.lower()))
+
+    @property
+    def deck(self):
+        """A Steam Deck (LCD 0405 or OLED 0932), by its graphics or its processor name."""
+        return bool(re.search(DECK, f'{self.gpu_name} {self.cpu_name}'.lower()))
+
+    @property
+    def deck_oled(self):
+        return self.deck and bool(re.search(r'0932|sephiroth', f'{self.gpu_name} {self.cpu_name}'.lower()))
 
     @property
     def dlss(self):
@@ -116,6 +131,9 @@ def cpu_score(name):
         laptop = bool(re.match(r'(H(?!X)|U|HS)', m.group(3)))
     elif re.search(r'\bRyzen\s+AI\b', n):
         score = 185
+    elif re.search(r'Custom APU 0(405|932)', n):
+        # Steam Deck: 4 Zen 2 cores at 2.4-3.5 GHz in a 15 W budget (a Ryzen 3 3100 held low).
+        return 64
     return round(score * LAPTOP_SHARE) if laptop and score else score
 
 
@@ -221,7 +239,7 @@ def tier(pc):
     return 'great'
 
 
-GOALS = ('smooth', 'balanced', 'quiet')
+GOALS = ('smooth', 'balanced', 'quiet', 'handheld')
 
 
 def paced_rate(refresh_hz, cpu_fps):
@@ -245,6 +263,8 @@ def settings_for(pc, goal, screen_height=1080, refresh_hz=60):
     holds; quiet: 60 FPS with less work for the card."""
     app, ini, reasons = {}, {}, []
     cpu = city_fps(pc) or 60
+    if goal == 'handheld':
+        return handheld_settings(pc, refresh_hz)
     if goal == 'recommended':
         divider, rate = paced_rate(refresh_hz, cpu)
         chosen, reasons = settings_for(pc, 'balanced', screen_height)
@@ -294,4 +314,34 @@ def settings_for(pc, goal, screen_height=1080, refresh_hz=60):
         reasons.append(('ram', pc.ram_gb))
     if pc.vram_gb and pc.vram_gb < 6:
         reasons.append(('vram', pc.vram_gb))
+    return {'app': app, 'ini': ini}, reasons
+
+
+def handheld_settings(pc, refresh_hz=60):
+    """issn 11-05 (João): the Steam Deck and PCs like it (about a GTX 1050 Ti and a 4-core Zen 2):
+    40 to 45 FPS held evenly instead of 60 that the city cannot keep. 720 lines (on the Deck's
+    16:10 screen the width follows, 1152 x 720), the game's own anti-aliasing (no FSR 4 on RDNA 2),
+    the game's Maximum performance mode, Short draw distance, shaders in the background. The rate:
+    on a 90 Hz screen (Deck OLED) 45 FPS, every frame shown twice; on 120 / 144 Hz 40 / 48; on 60 Hz
+    a 40 FPS limit (on the Deck, set the screen to 40 Hz in the quick menu's Performance for an even
+    picture). Estimates from the score tables, not measured on a Deck yet."""
+    app = {'render_height': '720', 'anti_aliasing': 'game', 'upscale_quality': '', 'perf_mode': 'office',
+           'draw_distance': '0.6', 'aniso': '', 'shader_compile': '', 'frame_gen': False}
+    ini = {'vsync': '1'}
+    reasons = []
+    rate = 0
+    if refresh_hz and refresh_hz >= 85:
+        divider = max(2, round(refresh_hz / 45))
+        rate = round(refresh_hz / divider)
+        app['frame_pacing'] = str(divider) if divider in (2, 3) else ''
+        if app['frame_pacing']:
+            ini['fps_limit'] = '0'
+            reasons.append(('paced', (round(refresh_hz), rate)))
+    if not rate or not app.get('frame_pacing'):
+        app['frame_pacing'] = ''
+        ini['fps_limit'] = '40'
+        rate = 40
+        reasons.append(('deck40' if pc.deck else 'handheld', rate))
+    if pc.ram_gb and pc.ram_gb < 16:
+        reasons.append(('ram', pc.ram_gb))
     return {'app': app, 'ini': ini}, reasons

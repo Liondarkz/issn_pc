@@ -38,9 +38,10 @@ public:
     // (vertex explosions); in the test scene it costs no measurable frame rate.
     u32 GetReadbacksMode() { static const auto value = u32(Number("ISSN_READBACKS", GpuReadbacksMode::Relaxed)); return value; }
     // issn-axy: the guest flips at most once per vblank, so the vblank rate is the frame rate cap.
-    // ISSN_VBLANK_HZ (> 0) wins; else the menu's frame rate limit (issn.ini fps_limit: 30, 60, 120,
+    // ISSN_VBLANK_HZ (> 0) wins; else the menu's frame rate limit (issn.ini fps_limit: 30, 40, 45, 60, 120,
     // 240; 0 = unlimited, 240 Hz as in axylpup's build). Second Son steps its simulation by the
-    // frame time, so it keeps its speed above 60 (tester: 100 FPS in the city).
+    // frame time, so it keeps its speed above 60 (tester: 100 FPS in the city). 40 and 45 (11-05):
+    // the Steam Deck goal (launcher issn_hardware.handheld_settings).
     // Read live: the vblank thread follows it (driver.cpp), so the menu's limit applies at once.
     u32 GetVblankFrequency() {
         static const long forced = Number("ISSN_VBLANK_HZ", 0);

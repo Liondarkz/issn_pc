@@ -751,6 +751,13 @@ WINDOWS_LANGUAGES = {0x19: 'ru', 0x01: 'ar', 0x0a: 'es', 0x16: 'pt', 0x0c: 'fr',
 EXTRA = {
     'pt': {
         # issn 11-05: the launcher's new pages
+        'Quick setup': 'Configuração rápida',
+        'Steam Deck / weak PC (40-45 FPS)': 'Steam Deck / PC fraco (40-45 FPS)',
+        'Draw distance: {}': 'Distância de visão: {}',
+        'Sets everything below for this PC; Save keeps it. Advanced view > Your PC has the other goals and what the launcher found.': 'Ajusta tudo abaixo para este PC; o Salvar guarda. Em Modo avançado > Seu PC ficam os outros objetivos e o que o launcher encontrou.',
+        'Steam Deck found: "Steam Deck / weak PC" sets the game for it (40-45 FPS).': 'Steam Deck encontrado: o "Steam Deck / PC fraco" ajusta o jogo para ele (40-45 FPS).',
+        'a 60 Hz screen: set the Steam Deck to 40 Hz (quick menu > Performance > Refresh rate) so every frame shows for the same time': 'tela de 60 Hz: coloque o Steam Deck em 40 Hz (menu rápido > Desempenho > Taxa de atualização) para cada quadro ficar o mesmo tempo na tela',
+        'a 60 Hz screen holds 40 FPS evenly only at 40 Hz or with FreeSync / G-Sync': 'uma tela de 60 Hz só mostra 40 FPS por igual em 40 Hz ou com FreeSync / G-Sync',
         'Look': 'Visual',
         'Theme': 'Tema',
         'Full': 'Completos',
@@ -1331,6 +1338,16 @@ EXTRA = {
     },
     'es': {
         # issn 11-05: the launcher's new pages
+        'Quick setup': 'Configuración rápida',
+        'Steam Deck / weak PC (40-45 FPS)': 'Steam Deck / PC modesto (40-45 FPS)',
+        'Recommended (best on most PCs)': 'Recomendado (lo mejor en la mayoría de los PC)',
+        'Draw distance: {}': 'Distancia de dibujado: {}',
+        'Short (faster)': 'Corta (más rápida)',
+        'Frame pacing: {}': 'Ritmo de fotogramas: {}',
+        'Sets everything below for this PC; Save keeps it. Advanced view > Your PC has the other goals and what the launcher found.': 'Ajusta todo lo de abajo para este PC; Guardar lo conserva. En Vista avanzada > Tu PC están los otros objetivos y lo que encontró el launcher.',
+        'Steam Deck found: "Steam Deck / weak PC" sets the game for it (40-45 FPS).': 'Steam Deck detectada: "Steam Deck / PC modesto" ajusta el juego para ella (40-45 FPS).',
+        'a 60 Hz screen: set the Steam Deck to 40 Hz (quick menu > Performance > Refresh rate) so every frame shows for the same time': 'pantalla de 60 Hz: pon la Steam Deck a 40 Hz (menú rápido > Rendimiento > Frecuencia de actualización) para que cada fotograma dure lo mismo',
+        'a 60 Hz screen holds 40 FPS evenly only at 40 Hz or with FreeSync / G-Sync': 'una pantalla de 60 Hz solo muestra 40 FPS de forma pareja a 40 Hz o con FreeSync / G-Sync',
         'Look': 'Apariencia',
         'Theme': 'Tema',
         'Full': 'Completos',

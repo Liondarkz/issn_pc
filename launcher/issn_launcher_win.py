@@ -377,7 +377,8 @@ DISPLAY_MODES = [('windowed', ('Windowed',)), ('borderless', ('Borderless',)), (
 FRAME_PACING = [('', ('Normal: a new frame at every refresh it is ready (default)',)),
                 ('2', ('Half the refresh rate, even (72 FPS on 144 Hz, 120 on 240 Hz)',)),
                 ('3', ('A third of the refresh rate, even (48 FPS on 144 Hz, 80 on 240 Hz)',))]
-FPS_LIMITS = [('30', ('30',)), ('60', ('60',)), ('120', ('120',)), ('240', ('240',)), ('0', ('Unlimited',))]
+FPS_LIMITS = [('30', ('30',)), ('40', ('40',)), ('45', ('45',)), ('60', ('60',)), ('120', ('120',)), ('240', ('240',)),
+              ('0', ('Unlimited',))]
 # The sidebar's pages, top to bottom, and the methods that refresh a page's lists when it is shown.
 # issn 11-05 (the launcher's new layout, as bbport's): the pages every player needs, then the expert's,
 # shown under "Advanced view" only.
@@ -2207,9 +2208,10 @@ class Launcher:
         buttons.pack(anchor='w', pady=(self.px(6), 0))
         self.pc_goal_buttons = []
         for goal, label in (('recommended', _('Recommended (best on most PCs)')),
+                            ('handheld', _('Steam Deck / weak PC (40-45 FPS)')),
                             ('smooth', _('Smooth (up to 120 FPS)')), ('balanced', _('Balanced (60 FPS, sharpest)')),
                             ('quiet', _('Quiet (60 FPS, lighter on the card)'))):
-            button = ttk.Button(first if goal == 'recommended' else buttons, text=label, state='disabled',
+            button = ttk.Button(first if goal in ('recommended', 'handheld') else buttons, text=label, state='disabled',
                                 style='Card.Accent.TButton' if goal == 'recommended' else 'Card.TButton',
                                 command=lambda g=goal: self.apply_goal(g))
             button.pack(side='left', padx=(0, self.px(6)))
@@ -2244,13 +2246,18 @@ class Launcher:
         limit = issn_hardware.limit(pc)
         if limit:
             text += ' · ' + (_('the processor sets the limit') if limit == 'cpu' else _('the graphics card sets the limit'))
-        if pc.integrated:
+        if pc.deck:
+            text += '\n' + _('Steam Deck found: "Steam Deck / weak PC" sets the game for it (40-45 FPS).')
+        elif pc.integrated:
             text += '\n' + _('This is an integrated graphics chip: a graphics card is needed for this game.')
         if pc.ram_gb and pc.ram_gb < 16:
             text += '\n' + _('16 GB of memory or more is recommended.')
         self.pc_verdict.configure(text=text, fg=NEON if issn_hardware.tier(pc) in ('great', 'good') else ACCENT_HI)
-        for button in self.pc_goal_buttons:
-            button.configure(state='normal')
+        for button in self.pc_goal_buttons + getattr(self, 'quick_goal_buttons', []):
+            try:
+                button.configure(state='normal')
+            except self.tk.TclError:  # a button of a window rebuilt since (theme, language)
+                pass
 
     def apply_goal(self, goal):
         """Sets the graphics for the goal on this PC; Save keeps them."""
@@ -2275,7 +2282,9 @@ class Launcher:
                                                if app['anti_aliasing'] == 'off' else _("the game's own")),
                  _('Performance mode: {}').format({'': _('off'), 'low': _('Balanced'), 'office': _('Maximum')}[app['perf_mode']]),
                  _('Texture filtering: {}x').format(app['aniso'])]
-        if goal == 'recommended':
+        if goal == 'handheld':
+            notes.append(_('Draw distance: {}').format(_('Short (faster)')))
+        if goal in ('recommended', 'handheld'):
             notes.append(_('Frame pacing: {}').format(
                 next((_(*text) for value, text in FRAME_PACING if value == app['frame_pacing']), '')))
             notes.append(_('Shader compilation: in the background'))
@@ -2289,17 +2298,43 @@ class Launcher:
                 why.append(_('{} GB of memory').format(value))
             elif kind == 'vram':
                 why.append(_('{} GB of video memory').format(value))
+            elif kind == 'deck40':
+                why.append(_('a 60 Hz screen: set the Steam Deck to 40 Hz (quick menu > Performance > Refresh '
+                             'rate) so every frame shows for the same time'))
+            elif kind == 'handheld':
+                why.append(_('a 60 Hz screen holds 40 FPS evenly only at 40 Hz or with FreeSync / G-Sync'))
         text = _('Set: {}.').format(' · '.join(notes))
         if why:
             text += ' ' + _('Because: {}.').format(', '.join(why))
-        self.pc_applied.configure(text=text + ' ' + _('Press Save to keep it; every setting below can still be changed.'))
+        text += ' ' + _('Press Save to keep it; every setting below can still be changed.')
+        for label in (self.pc_applied, getattr(self, 'quick_applied', None)):
+            try:
+                if label is not None:
+                    label.configure(text=text)
+            except self.tk.TclError:
+                pass
 
     def build_picture(self):
         """Picture & performance: the window, the size, the anti-aliasing, the frame rate and the game's
         own detail and effects - what a player changes (issn 11-05: Graphics and Performance joined)."""
         ttk = self.ttk
         f = self.scrolled_page('picture', _('Picture & performance'), _('How the game looks and how fast it runs.'))
-        self.build_display(f)
+        self.section(f, _('Quick setup'), top=4)
+        quick = ttk.Frame(f)
+        quick.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(6, 0))
+        for goal, label in (('recommended', _('Recommended (best on most PCs)')),
+                            ('handheld', _('Steam Deck / weak PC (40-45 FPS)'))):
+            button = ttk.Button(quick, text=label, state='disabled',
+                                style='Accent.TButton' if goal == 'recommended' else 'TButton',
+                                command=lambda g=goal: self.apply_goal(g))
+            button.pack(side='left', padx=(0, self.px(6)))
+            self.quick_goal_buttons = getattr(self, 'quick_goal_buttons', []) + [button]
+        self.note(f, _('Sets everything below for this PC; Save keeps it. Advanced view > Your PC has the other '
+                       'goals and what the launcher found.'), top=4)
+        self.quick_applied = ttk.Label(f, text='', style='Muted.TLabel', wraplength=self.px(680), justify='left')
+        self.quick_applied.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(4, 0))
+        self.section(f, _('Window', 'Окно'))
+        self.build_display(f, section=False)
         self.row(f, _('Screen shape'), self.choice(f, 'screen_shape', 'app', SCREEN_SHAPES, width=44),
                  _('Ultrawide and other screens: the game fills the shape and sees more at the sides (or above and '
                    'below on 16:10); the HUD moves to the edges and movies keep their shape with bars. Automatic '
@@ -2719,9 +2754,10 @@ class Launcher:
         self.open_path(folder)
         self.refresh_dlss_state()
 
-    def build_display(self, f):
-        """Window: the top of the Graphics page."""
-        self.section(f, _('Window', 'Окно'), top=4)
+    def build_display(self, f, section=True):
+        """Window: the display mode, VSync and HDR."""
+        if section:
+            self.section(f, _('Window', 'Окно'), top=4)
         self.row(f, _('Display mode'), self.choice(f, 'display_mode', 'ini', DISPLAY_MODES),
                  _('Borderless covers the screen without changing the display mode.'))
         self.check(f, 'vsync', 'ini', _('VSync'), _('Off allows tearing for the lowest latency.'), restart=True)
