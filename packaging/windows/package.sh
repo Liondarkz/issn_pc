@@ -24,7 +24,8 @@ export USERPROFILE=${USERPROFILE:-$(cygpath -w "/c/Users/$(id -un)")}
 if [[ ! -x out/pyenv/Scripts/python.exe ]]; then
     "$python" -m venv out/pyenv
 fi
-out/pyenv/Scripts/python.exe -m pip install -q --disable-pip-version-check pyinstaller pillow iced-x86==1.21.0
+out/pyenv/Scripts/python.exe -m pip install -q --disable-pip-version-check pyinstaller pillow iced-x86==1.21.0 \
+    pywebview  # issn 11-05: the new launcher window (WebView2), launcher/issn_webui.py
 # The scripts run inside inFAMOUS Second Son.exe (--script): the standard modules they import come along.
 hidden=()
 for module in argparse base64 collections hashlib json mmap re shutil struct tempfile xml.etree.ElementTree \
@@ -32,6 +33,7 @@ for module in argparse base64 collections hashlib json mmap re shutil struct tem
     hidden+=(--hidden-import "$module")
 done
 out/pyenv/Scripts/python.exe -m PyInstaller --noconfirm --clean --log-level WARN --windowed --copy-metadata pillow \
+    --collect-all webview --hidden-import issn_webui \
     --name "inFAMOUS Second Son" --icon "$(cygpath -w "$PWD/launcher/issn.ico")" --distpath out/pyi-dist \
     --workpath out/pyi-work --specpath out/pyi-work --paths "$(cygpath -w "$PWD/scripts")" "${hidden[@]}" \
     "$(cygpath -w "$PWD/launcher/issn_launcher_win.py")"
@@ -44,6 +46,7 @@ mkdir -p "$dest/bin" "$dest/launcher"
 cp -r "out/pyi-dist/inFAMOUS Second Son/." "$dest/"
 llvm-strip -o "$dest/Play inFAMOUS Second Son.exe" out/issn-play.exe
 cp launcher/issn.ico launcher/issn.png launcher/pix_qr.png "$dest/launcher/"
+cp -r launcher/web "$dest/launcher/"  # the new launcher's page (issn_webui)
 # issn: the title face ships only when there is one (launcher/issn_font.ttf; none yet).
 [[ -f launcher/issn_font.ttf ]] && cp launcher/issn_font.ttf "$dest/launcher/"
 # The executables without debug information (out/ keeps the symbols for crash reports).

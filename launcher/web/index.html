@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>inFAMOUS Second Son (PC)</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body data-theme="smoke" data-fx="full">
+<div class="app">
+  <nav class="side" aria-label="Páginas">
+    <div class="brand">
+      <div class="brand-title">INFAMOUS</div>
+      <div class="brand-sub">SECOND SON · PC</div>
+      <div class="brand-version" id="version"></div>
+    </div>
+    <div class="nav" id="nav"></div>
+    <div class="nav-rule"></div>
+    <button type="button" class="expert-switch" id="expert-switch" aria-pressed="false">
+      <span class="expert-label" data-t="Advanced view"></span><span class="switch" aria-hidden="true"><span></span></span>
+    </button>
+    <div class="nav" id="nav-expert"></div>
+    <div class="side-fill"></div>
+    <div class="side-foot">
+      <button type="button" class="link" id="discord">Discord</button>
+      <button type="button" class="link" id="classic" data-t="Classic launcher"></button>
+      <span class="muted small" data-t="In the game: Insert or R3+L2&#10;opens the port's menu."></span>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div class="fx" aria-hidden="true">
+      <div class="fx-neon">
+        <i class="run r1"></i><i class="run r2"></i><i class="run r3"></i>
+        <b class="glow g1"></b><b class="glow g2"></b>
+      </div>
+      <div class="fx-smoke">
+        <i class="puff p1"></i><i class="puff p2"></i><i class="puff p3"></i>
+        <i class="ember e1"></i><i class="ember e2"></i><i class="ember e3"></i><i class="ember e4"></i><i class="ember e5"></i>
+        <b class="floor"></b>
+      </div>
+      <div class="fx-video">
+        <b class="lines"></b><i class="scan"></i>
+        <i class="glitch q1"></i><i class="glitch q2"></i><i class="glitch q3"></i>
+        <b class="glow g1"></b>
+      </div>
+      <div class="fx-concrete">
+        <svg class="grain" width="100%" height="100%"><filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="3" stitchTiles="stitch"></feTurbulence><feColorMatrix values="0 0 0 0 .62  0 0 0 0 .6  0 0 0 0 .56  0 0 0 .5 0"></feColorMatrix></filter><rect width="100%" height="100%" filter="url(#grain)"></rect></svg>
+        <svg class="cracks" viewBox="0 0 1000 700" preserveAspectRatio="none"><path d="M690 0 L680 90 L712 160 L700 260 L752 330"></path><path d="M712 160 L790 190 L850 260"></path><path d="M110 700 L150 600 L132 530 L182 460"></path></svg>
+        <i class="dust d1"></i><i class="dust d2"></i><i class="dust d3"></i><i class="dust d4"></i>
+        <b class="glow g1"></b>
+      </div>
+    </div>
+    <div class="pages" id="pages">
+      <section class="page" id="page-home" aria-label="Jogar">
+        <div class="hero" id="hero">
+          <div class="hero-art" id="hero-art"></div>
+          <div class="hero-shade"></div>
+          <div class="hero-chip" id="hero-chip"></div>
+          <div class="hero-body">
+            <div class="hero-text">
+              <span class="tagline" id="tagline"></span>
+              <h1 class="hero-title">INFAMOUS SECOND SON</h1>
+              <span class="hero-sub" id="hero-sub"></span>
+            </div>
+            <button type="button" class="play" id="play"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z" fill="currentColor"></path></svg><span data-t="PLAY"></span></button>
+          </div>
+        </div>
+        <div class="cards">
+          <section class="card" aria-label="Verificação">
+            <h2 class="card-title" data-t="Ready check"></h2>
+            <div class="checks" id="checks"></div>
+          </section>
+          <section class="card" aria-label="Seu objetivo">
+            <h2 class="card-title" data-t="Your goal"></h2>
+            <div class="goals" id="goals"></div>
+            <div class="goal-note" id="goal-note"></div>
+            <a href="#" class="news-link" id="news-link"></a>
+          </section>
+        </div>
+      </section>
+    </div>
+    <footer class="statusbar">
+      <span class="status" id="status"></span>
+    </footer>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body>
+</html>

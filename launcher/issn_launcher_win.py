@@ -398,7 +398,8 @@ APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', s
                 'glyph_style': 'off', 'compute_priority': True, 'ordered_readback': False, 'draw_distance': '',
                 'perf_mode': '', 'render_height': '', 'upscale_quality': '', 'aniso': '', 'shader_compile': '', 'screen_shape': '',
                 'anti_aliasing': 'game', 'optiscaler_output': 'fsr22', 'expert_view': False,
-                'launcher_theme': issn_themes.DEFAULT, 'launcher_fx': 'full'}
+                'launcher_theme': issn_themes.DEFAULT, 'launcher_fx': 'full', 'launcher_goal': '',
+                'new_launcher': False}
 
 # PS4 button, default key, default gamepad button (SDL names; src/runtime_pad.c). L2/R2 come
 # from the analog triggers and the left touchpad click (photo mode) from L1 + the right click's
@@ -3381,6 +3382,12 @@ class Launcher:
         self.row(f, _('Effects'), self.choice(f, 'launcher_fx', 'app', FX_LEVELS, width=44),
                  _('The animation on the Play page. It stops by itself while the game runs.'))
         self.var('launcher_fx', 'app').trace_add('write', lambda *_a: self.root.after_idle(self.draw_banner))
+        holder = ttk.Frame(f)
+        holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
+        ttk.Button(holder, text=_('Open the new launcher (test)'), style='Accent.TButton',
+                   command=self.open_new_launcher).pack(side='left')
+        self.note(f, _('The new look (as in the preview), shown by Windows\' WebView2. While it is a test some pages '
+                       'still open here; it remembers the choice, and its side bar has a button back to this one.'), top=4)
         self.section(f, _('Launcher', 'Лаунчер'))
         self.row(f, _('Launcher language', 'Язык лаунчера'), self.choice(f, 'ui_language', 'app', UI_LANGUAGES),
                  _('Applies when the launcher opens again.', 'Применится при следующем открытии лаунчера.'))
@@ -3403,6 +3410,18 @@ class Launcher:
         ttk.Button(holder, text=_('Add to Steam'), command=self.add_to_steam).pack(side='left', padx=6)
         self.note(f, _('The desktop shortcut opens this launcher; the Steam entry starts the game straight away with '
                        'these settings.'), top=4)
+
+    def open_new_launcher(self):
+        """Customize > Open the new launcher (test): saves, remembers the choice and starts the launcher
+        again in the new window (issn_webui); it comes back here by itself when it cannot open."""
+        if not self.collect():
+            return
+        self.app['new_launcher'] = True
+        atomic_write(CONFIG_FILE, json.dumps({**load_json(CONFIG_FILE, {}), 'new_launcher': True}, indent=2,
+                                             ensure_ascii=False))
+        command = [sys.executable] if FROZEN else [sys.executable, str(Path(__file__).resolve())]
+        subprocess.Popen(command, cwd=PORT_DIR)
+        self.root.destroy()
 
     def theme_picked(self):
         """Customize > Theme: the window again in the theme's colours (the settings stay in their
@@ -4468,6 +4487,15 @@ def main():
         except (AttributeError, OSError):
             pass
     FONT_LOADED = register_font(FONT_FILE)  # titles keep the usual serif without it
+    # issn 11-05: the new launcher (launcher/web in WebView2, issn_webui) when chosen; the classic
+    # window below when it cannot open, or with --classic.
+    if '--classic' not in args and ('--new-ui' in args or settings.get('new_launcher')):
+        try:
+            import issn_webui
+            if issn_webui.run(sys.modules[__name__], settings):
+                return
+        except Exception as error:  # noqa: BLE001 - the classic window still opens
+            print(f'New launcher failed: {error}', file=sys.stderr)
     import tkinter as tk
     from tkinter import filedialog, font, messagebox, ttk
     root = tk.Tk() if WINDOWS else tk.Tk(className='issn')
