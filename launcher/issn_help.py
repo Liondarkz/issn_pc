@@ -51,14 +51,14 @@ TOPICS = {
         'The graphics driver stopped the game',
         'The graphics card reported "device lost": the driver reset itself, often from running out of video '
         'memory or an unstable overclock.',
-        ['Lower Graphics > Resolution, or use FSR 4 / DLSS quality.',
+        ['Lower Picture & performance > Resolution, or use FSR 4 / DLSS quality.',
          'Update the graphics driver; remove a GPU overclock or undervolt for a test.']),
     'memory': (
         'Not enough memory',
         'The game reserves several GB at its start, more at high resolutions.',
         ['Close other programs (browsers, recorders) before playing.',
          'Let Windows manage the page file (System > Advanced > Performance > Virtual memory: automatic).',
-         'Lower Graphics > Resolution: 1440p and above need more memory.']),
+         'Lower Picture & performance > Resolution: 1440p and above need more memory.']),
     'no_seed': (
         'The shaders were not prepared before playing',
         'This start had no shader seed, so every new place and effect compiled its shaders while you played '
@@ -70,19 +70,19 @@ TOPICS = {
         'The picture was not shown for a while',
         'The window was minimized, covered or lost by the graphics driver, so frames were skipped. If the screen '
         'stayed black while the game was in front, this is the cause.',
-        ['Turn Graphics > Allow HDR output off.',
-         'Play in Borderless instead of Fullscreen (Graphics > Display mode).',
+        ['Turn Picture & performance > Allow HDR output off.',
+         'Play in Borderless instead of Fullscreen (Picture & performance > Display mode).',
          'Update the graphics driver.']),
     'dlss_files': (
         'DLSS could not start',
         'DLSS needs NVIDIA\'s Streamline files of the exact version the port uses; the launcher downloads them.',
-        ['Graphics > Download DLSS now (the launcher fetches Streamline 2.14.16 from NVIDIA\'s GitHub).',
+        ['Picture & performance > Download DLSS now (the launcher fetches Streamline 2.14.16 from NVIDIA\'s GitHub).',
          'A newer Streamline crashed the game for a tester: the launcher uses 2.14.16.']),
     'xess_files': (
         'XeSS could not start',
         'XeSS needs Intel\'s libxess.dll, which the launcher downloads, and a graphics card with the Vulkan '
         'features it uses.',
-        ['Graphics > Download XeSS now (the launcher fetches it from Intel\'s GitHub).',
+        ['Picture & performance > Download XeSS now (the launcher fetches it from Intel\'s GitHub).',
          'Update the graphics driver. If XeSS still does not start, pick FSR 4 or the game\'s own.']),
     'location': (
         'The port is in a folder that causes problems',

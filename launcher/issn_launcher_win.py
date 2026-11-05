@@ -378,9 +378,13 @@ FRAME_PACING = [('', ('Normal: a new frame at every refresh it is ready (default
                 ('3', ('A third of the refresh rate, even (48 FPS on 144 Hz, 80 on 240 Hz)',))]
 FPS_LIMITS = [('30', ('30',)), ('60', ('60',)), ('120', ('120',)), ('240', ('240',)), ('0', ('Unlimited',))]
 # The sidebar's pages, top to bottom, and the methods that refresh a page's lists when it is shown.
-PAGES = ('home', 'news', 'graphics', 'performance', 'game', 'trophies', 'advanced', 'help')
-PAGE_REFRESH = {'home': ('refresh_status',), 'news': ('refresh_news',), 'help': ('run_help',), 'game': ('refresh_lists', 'refresh_game_patches'),
-                'trophies': ('refresh_trophies',)}
+# issn 11-05 (the launcher's new layout, as bbport's): the pages every player needs, then the expert's,
+# shown under "Advanced view" only.
+PAGES = ('home', 'picture', 'controls', 'game', 'trophies', 'news', 'customize', 'help',
+         'graphics', 'files', 'pc', 'advanced')
+EXPERT_PAGES = ('graphics', 'files', 'pc', 'advanced')
+PAGE_REFRESH = {'home': ('refresh_status',), 'news': ('refresh_news',), 'help': ('run_help',),
+                'files': ('refresh_lists', 'refresh_game_patches'), 'trophies': ('refresh_trophies',)}
 APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', str(PORT_DIR.parent / 'CUSA00004') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
                 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False, 'save_backups': True, 'vram_limit': '', 'frame_pacing': '', 'frame_gen': False, 'seed_any_profile': False,
@@ -391,7 +395,7 @@ APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', s
                 'check_updates': False, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation',
                 'glyph_style': 'off', 'compute_priority': True, 'ordered_readback': False, 'draw_distance': '',
                 'perf_mode': '', 'render_height': '', 'upscale_quality': '', 'aniso': '', 'shader_compile': '', 'screen_shape': '',
-                'anti_aliasing': 'game', 'optiscaler_output': 'fsr22'}
+                'anti_aliasing': 'game', 'optiscaler_output': 'fsr22', 'expert_view': False}
 
 # PS4 button, default key, default gamepad button (SDL names; src/runtime_pad.c). L2/R2 come
 # from the analog triggers and the left touchpad click (photo mode) from L1 + the right click's
@@ -1209,8 +1213,9 @@ NEON, HOVER = '#24d3f2', '#15171e'
 NEON_PINK = '#ff3ea5'
 NAV_ACTIVE, NAV_HOVER = '#16181f', '#111319'  # side bar rows: the page shown, under the mouse
 # Segoe Fluent Icons / Segoe MDL2 Assets code points for the side bar (Windows only).
-NAV_ICONS = {'home': '\ue80f', 'news': '\ue789', 'graphics': '\ue7f4', 'performance': '\uec4a',
-             'game': '\ue7fc', 'trophies': '\ue734', 'advanced': '\ue713', 'help': '\ue897'}
+NAV_ICONS = {'home': '\ue768', 'picture': '\ue7f4', 'controls': '\ue7fc', 'game': '\ue8b7', 'trophies': '\ue734',
+             'news': '\ue789', 'customize': '\ue790', 'help': '\ue897', 'graphics': '\ue9e9', 'files': '\uea86',
+             'pc': '\ue977', 'advanced': '\ue713'}
 FONT_FAMILIES = set()  # filled once the window exists (pick_fonts)
 # issn_theme's colours (rounded widgets): fields, hovers and borders between PANEL and TEXT.
 THEME_COLORS = {'bg': '#09090c', 'panel': '#101116', 'card': '#181a21', 'field': '#14161d', 'card_hover': '#1d2029',
@@ -1581,14 +1586,20 @@ class Launcher:
         tk.Label(brand, text=f'SECOND SON  /  PC  ·  v{VERSION}', bg=BG, fg=ACCENT_HI,
                  font=heading_font(12, UI_FONT, every_language=True), bd=0, pady=0).pack(anchor='w')
         self.nav, self.current_page = {}, None
-        titles = {'home': _('Home'), 'news': _("What's new", 'Что нового'), 'graphics': _('Graphics', 'Графика'),
-                  'performance': _('Performance'),
-                  'game': _('Game', 'Игра'), 'trophies': _('Achievements'), 'advanced': _('Advanced', 'Дополнительно'), 'help': _('Help', 'Помощь')}
+        titles = {'home': _('Play'), 'picture': _('Picture & performance'), 'controls': _('Controls', 'Управление'),
+                  'game': _('Game & saves'), 'trophies': _('Achievements'), 'news': _("What's new", 'Что нового'),
+                  'customize': _('Customize'), 'help': _('Help', 'Помощь'), 'graphics': _('More graphics'),
+                  'files': _('Patches & mods'), 'pc': _('Your PC'), 'advanced': _('Advanced', 'Дополнительно')}
         icon_font = ('Segoe Fluent Icons' if 'Segoe Fluent Icons' in FONT_FAMILIES else 'Segoe MDL2 Assets', 12)
+        self.expert_rows = []
         for name in PAGES:
-            row = tk.Frame(side, bg=BG, cursor='hand2', height=self.px(42))
+            if name == EXPERT_PAGES[0]:
+                self.build_expert_switch(side)
+            row = tk.Frame(side, bg=BG, cursor='hand2', height=self.px(40))
             row.pack(fill='x', padx=(0, self.px(14)), pady=1)
             row.pack_propagate(False)
+            if name in EXPERT_PAGES:
+                self.expert_rows.append(row)
             marker = tk.Frame(row, bg=BG, width=self.px(3))
             marker.pack(side='left', fill='y')
             widgets = [row]
@@ -1604,6 +1615,7 @@ class Launcher:
                 widget.bind('<Enter>', lambda _e, n=name: self.paint_nav(n, hover=True))
                 widget.bind('<Leave>', lambda _e, n=name: self.paint_nav(n, hover=False))
             self.nav[name] = (row, marker, widgets[1:])
+        self.show_expert_rows()
         foot = tk.Frame(side, bg=BG)
         foot.pack(side='bottom', fill='x', padx=self.px(24), pady=self.px(18))
         self.side_note = tk.Label(foot, text=_("In the game: Insert or R3+L2\nopens the port's menu."),
@@ -1640,13 +1652,17 @@ class Launcher:
 
         self.pages = {}
         self.build_home()
-        self.build_news()
-        self.build_graphics()
-        self.build_performance()
+        self.build_picture()
+        self.build_controls_page()
         self.build_game()
         self.build_trophies()
-        self.build_advanced()
+        self.build_news()
+        self.build_customize()
         self.build_help()
+        self.build_graphics()
+        self.build_files()
+        self.build_pc()
+        self.build_advanced()
         self.root.bind_all('<MouseWheel>', self.wheel)
         if not WINDOWS:  # X11 (Tk 8.6): the wheel arrives as buttons 4 and 5; on Windows those are side buttons
             self.root.bind_all('<Button-4>', self.wheel)
@@ -1669,7 +1685,46 @@ class Launcher:
         for widget in widgets:
             widget.configure(bg=bg, fg=TEXT if current or hover else MUTED)
 
+    def build_expert_switch(self, side):
+        """issn 11-05: the line and the "Advanced view" switch between the player's pages and the
+        expert's (graphics, patches and mods, the PC, advanced), as bbport's launcher."""
+        tk = self.tk
+        tk.Frame(side, bg=LINE, height=1).pack(fill='x', padx=(self.px(24), self.px(24)), pady=(self.px(10), self.px(6)))
+        holder = tk.Frame(side, bg=BG, cursor='hand2')
+        holder.pack(fill='x', padx=(self.px(24), self.px(24)), pady=(0, self.px(4)))
+        self.expert_label = tk.Label(holder, text='', bg=BG, fg=MUTED, font=(UI_FONT, 9, 'bold'), anchor='w')
+        self.expert_label.pack(side='left', fill='x', expand=True)
+        for widget in (holder, self.expert_label):
+            widget.bind('<Button-1>', lambda _e: self.set_expert(not self.app.get('expert_view')))
+        self.expert_holder = holder
+
+    def set_expert(self, on):
+        self.app['expert_view'] = bool(on)
+        # Kept at once (a view, not a setting to Save): only this key changes in settings.json.
+        if getattr(self, 'saved', None):
+            self.saved['app']['expert_view'] = bool(on)
+        try:
+            CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write(CONFIG_FILE, json.dumps({**load_json(CONFIG_FILE, {}), 'expert_view': bool(on)},
+                                                 indent=2, ensure_ascii=False))
+        except OSError:
+            pass
+        self.show_expert_rows()
+        if not on and self.current_page in EXPERT_PAGES:
+            self.show('home')
+
+    def show_expert_rows(self):
+        on = bool(self.app.get('expert_view'))
+        self.expert_label.configure(text=('▾  ' if on else '▸  ') + _('Advanced view').upper())
+        for row in self.expert_rows:
+            if on:
+                row.pack(fill='x', padx=(0, self.px(14)), pady=1)
+            else:
+                row.pack_forget()
+
     def show(self, name):
+        if name in EXPERT_PAGES and not self.app.get('expert_view'):
+            self.set_expert(True)
         for page in self.pages.values():
             page.pack_forget()
         self.pages[name].pack(fill='both', expand=True)
@@ -1772,6 +1827,7 @@ class Launcher:
         self.help_body = ttk.Frame(f)
         self.help_body.grid(row=self.next_row(f), column=0, columnspan=2, sticky='we', pady=(6, 0))
         self.help_body.columnconfigure(0, weight=1)
+        self.build_about(f)  # issn 11-05: the author, the credits and the support links end the Help page
 
     def run_help(self):
         try:
@@ -2000,11 +2056,11 @@ class Launcher:
             text += ' ' + _('Because: {}.').format(', '.join(why))
         self.pc_applied.configure(text=text + ' ' + _('Press Save to keep it; every setting below can still be changed.'))
 
-    def build_graphics(self):
-        """Window, anti-aliasing (the game's own, FSR 4 or DLSS) and the overlay."""
-        tk, ttk = self.tk, self.ttk
-        f = self.scrolled_page('graphics', _('Graphics', 'Графика'), _('How the game appears on your screen.'))
-        self.build_pc_check(f)
+    def build_picture(self):
+        """Picture & performance: the window, the size, the anti-aliasing, the frame rate and the game's
+        own detail and effects - what a player changes (issn 11-05: Graphics and Performance joined)."""
+        ttk = self.ttk
+        f = self.scrolled_page('picture', _('Picture & performance'), _('How the game looks and how fast it runs.'))
         self.build_display(f)
         self.row(f, _('Screen shape'), self.choice(f, 'screen_shape', 'app', SCREEN_SHAPES, width=44),
                  _('Ultrawide and other screens: the game fills the shape and sees more at the sides (or above and '
@@ -2033,6 +2089,45 @@ class Launcher:
                    "9000 and a recent Mesa (RADV); without it the game keeps its own."), restart=True)
         self.note(f, _('Off: no anti-aliasing at all, the sharpest picture with jagged edges (no smearing in '
                        'motion).'), top=2)
+        if WINDOWS:  # DLSS (Streamline) and XeSS: their vendors' files, fetched on demand
+            self.vendor_state = {}
+            for key, open_folder in (('xess', self.open_xess_folder), ('dlss', self.open_dlss_folder)):
+                package = UPSCALER_PACKAGES[key]
+                holder = ttk.Frame(f)
+                holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
+                ttk.Button(holder, text=_('Download {} now').format(package.name),
+                           command=lambda k=key: self.download_upscaler(k)).pack(side='left')
+                ttk.Button(holder, text=_('Open the {} folder').format(package.name),
+                           command=open_folder).pack(side='left', padx=6)
+                self.vendor_state[key] = ttk.Label(holder, text='', style='Muted.TLabel')
+                self.vendor_state[key].pack(side='left', padx=10)
+            self.dlss_state = self.vendor_state['dlss']
+            self.xess_state = self.vendor_state['xess']
+            self.note(f, _("XeSS and DLSS use Intel's and NVIDIA's own files, which the port may not include: the "
+                           "launcher downloads them from Intel's and NVIDIA's GitHub releases (XeSS SDK 3.0.2, about "
+                           "60 MB; Streamline 2.14.16, about 35 MB) when you pick one, and checks each file."), top=6)
+            self.var('anti_aliasing', 'app').trace_add('write', lambda *_a: self.anti_aliasing_picked())
+        self.section(f, _('Frame rate', 'Частота кадров'))
+        self.row(f, _('Frame rate limit'), self.choice(f, 'fps_limit', 'ini', FPS_LIMITS),
+                 _('The highest frame rate. The game keeps its speed at any frame rate; Unlimited runs as fast '
+                   'as the PC allows.'), restart=True)
+        self.row(f, _('Frame pacing'), self.choice(f, 'frame_pacing', 'app', FRAME_PACING, width=44),
+                 _('For screens without G-Sync / FreeSync: when the game runs between half and the full '
+                   'refresh rate, some frames stay on screen longer than others and motion judders even at a '
+                   'high FPS. Half or a third shows every frame for the same time (V-Sync on). Pick the one '
+                   'your PC holds in the heaviest places.'), restart=True)
+        self.check(f, 'frame_gen', 'app', _('Frame generation (FSR 3.1, test)'),
+                   _('Makes a frame between every two of the game: 60 FPS on the screen become 120. Needs FSR 4, '
+                     'XeSS or DLSS as anti-aliasing (above). Adds a little input delay; best with a base of '
+                     '60 FPS or more, and with Frame pacing at half on fast screens (72 becomes 144 on 144 Hz).'))
+        self.section(f, _('Detail'))
+        self.row(f, _('Draw distance'), self.choice(f, 'draw_distance', 'app', DRAW_DISTANCE),
+                 _('How far buildings and details keep their full detail in the open city. Long and Very long '
+                   'show less pop-in than the PS4 and cost some FPS.'), restart=True)
+        self.row(f, _('Performance mode'), self.choice(f, 'perf_mode', 'app', PERF_MODES),
+                 _('The game\'s own lower settings, from axylpup\'s 1.1: shorter detail distance, one shadow '
+                   'level less, lighter particles and fewer high-resolution textures nearby. Figures are '
+                   'from his PC in the heaviest city view.'), restart=True)
         # issn 11-04 (Discord poll): the game's own effects (gpu issn_postfx.h), also in the game's menu.
         self.section(f, _('Effects'))
         self.check(f, 'motion_blur', 'ini', _('Motion blur'),
@@ -2041,35 +2136,13 @@ class Launcher:
         self.check(f, 'chromatic_aberration', 'ini', _('Chromatic aberration'),
                    _('The red and blue fringes toward the edges of the screen. Turning it off helps players '
                      'who feel sick with it; it also changes at once in the game (Insert > Image).'))
-        if not WINDOWS:  # DLSS (Streamline) is Windows only
-            self.section(f, _('Overlay'))
-            self.check(f, 'show_fps', 'ini', _('Show performance overlay'),
-                       _('Items, size and corner: in-game menu (Insert / R3+L2) > Overlay.'))
-            self.note(f, _('Screenshots: F12 (saved in the user/screenshots folder).'), top=10)
-            return
-        self.vendor_state = {}
-        for key, open_folder in (('xess', self.open_xess_folder), ('dlss', self.open_dlss_folder)):
-            package = UPSCALER_PACKAGES[key]
-            holder = ttk.Frame(f)
-            holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
-            ttk.Button(holder, text=_('Download {} now').format(package.name),
-                       command=lambda k=key: self.download_upscaler(k)).pack(side='left')
-            ttk.Button(holder, text=_('Open the {} folder').format(package.name),
-                       command=open_folder).pack(side='left', padx=6)
-            self.vendor_state[key] = ttk.Label(holder, text='', style='Muted.TLabel')
-            self.vendor_state[key].pack(side='left', padx=10)
-        self.dlss_state = self.vendor_state['dlss']
-        self.xess_state = self.vendor_state['xess']
-        self.note(f, _("XeSS and DLSS use Intel's and NVIDIA's own files, which the port may not include: the "
-                       "launcher downloads them from Intel's and NVIDIA's GitHub releases (XeSS SDK 3.0.2, about "
-                       "60 MB; Streamline 2.14.16, about 35 MB) when you pick one, and checks each file."), top=6)
-        self.var('anti_aliasing', 'app').trace_add('write', lambda *_a: self.anti_aliasing_picked())
-        self.build_optiscaler(f)
         self.section(f, _('Overlay'))
         self.check(f, 'show_fps', 'ini', _('Show performance overlay'),
-                   _('Items, size and corner: in-game menu (Insert / R3+L2) > Overlay.'))
-        self.note(f, _('Screenshots: F12 (saved in the user\\screenshots folder).'), top=10)
-        self.refresh_dlss_state()
+                   _('Items, size and corner: in-game menu (Insert / R3+L2) > Overlay. F11 hides it in the game.'))
+        self.note(f, _('Screenshots: F12 (saved in the user\\screenshots folder).') if WINDOWS else
+                  _('Screenshots: F12 (saved in the user/screenshots folder).'), top=10)
+        if WINDOWS:
+            self.refresh_dlss_state()
 
     # ---- OptiScaler (optional, a separate program; issn_downloads does the files) -------------
     def build_optiscaler(self, f):
@@ -2419,29 +2492,12 @@ class Launcher:
                      'Если HDR включён в Windows и монитор его поддерживает.') if WINDOWS else
                    _('When the desktop (KDE Plasma 6, GNOME 48 or gamescope) has HDR on and the display supports it.'))
 
-    def build_performance(self):
-        f = self.scrolled_page('performance', _('Performance'), _('Frame rate and speed options.'))
-        self.section(f, _('Frame rate', 'Частота кадров'), top=4)
-        self.row(f, _('Frame rate limit'), self.choice(f, 'fps_limit', 'ini', FPS_LIMITS),
-                 _('The highest frame rate. The game keeps its speed at any frame rate; Unlimited runs as fast '
-                   'as the PC allows.'), restart=True)
-        self.row(f, _('Frame pacing'), self.choice(f, 'frame_pacing', 'app', FRAME_PACING, width=44),
-                 _('For screens without G-Sync / FreeSync: when the game runs between half and the full '
-                   'refresh rate, some frames stay on screen longer than others and motion judders even at a '
-                   'high FPS. Half or a third shows every frame for the same time (V-Sync on). Pick the one '
-                   'your PC holds in the heaviest places.'), restart=True)
-        self.check(f, 'frame_gen', 'app', _('Frame generation (FSR 3.1, test)'),
-                   _('Makes a frame between every two of the game: 60 FPS on the screen become 120. Needs FSR 4, '
-                     'XeSS or DLSS as anti-aliasing (Graphics). Adds a little input delay; best with a base of '
-                     '60 FPS or more, and with Frame pacing at half on fast screens (72 becomes 144 on 144 Hz).'))
-        self.section(f, 'inFAMOUS')
-        self.row(f, _('Draw distance'), self.choice(f, 'draw_distance', 'app', DRAW_DISTANCE),
-                 _('How far buildings and details keep their full detail in the open city. Long and Very long '
-                   'show less pop-in than the PS4 and cost some FPS.'), restart=True)
-        self.row(f, _('Performance mode'), self.choice(f, 'perf_mode', 'app', PERF_MODES),
-                 _('The game\'s own lower settings, from axylpup\'s 1.1: shorter detail distance, one shadow '
-                   'level less, lighter particles and fewer high-resolution textures nearby. Figures are '
-                   'from his PC in the heaviest city view.'), restart=True)
+    def build_graphics(self):
+        """More graphics (advanced view): video memory, shader compilation, the graphics card and
+        OptiScaler - what most players never need to touch."""
+        f = self.scrolled_page('graphics', _('More graphics'),
+                               _('Video memory, shaders, the graphics card and OptiScaler.'))
+        self.section(f, _('Memory and shaders'), top=4)
         self.row(f, _('Video memory limit'), self.choice(f, 'vram_limit', 'app', VRAM_LIMITS),
                  _('How much video memory the game may fill before it frees textures it is not using. Lower it '
                    'if the game closes with "Device lost" or the log says the video memory is nearly full, '
@@ -2457,9 +2513,27 @@ class Launcher:
         self.row(f, _('Graphics card'), self.choice(f, 'gpu_id', 'app', cards),
                  _('The GPU the game runs on. Choose your dedicated card if the game uses the integrated one.'),
                  restart=True)
+        if WINDOWS:
+            self.build_optiscaler(f)
+
+    def build_pc(self):
+        """Your PC (advanced view): what the launcher found here, what to expect and the three goals."""
+        f = self.scrolled_page('pc', _('Your PC'), _('Your graphics card, processor and memory, and what to expect.'))
+        self.build_pc_check(f)
+
+    def build_controls_page(self):
+        f = self.scrolled_page('controls', _('Controls', 'Управление'),
+                               _('Controller, keyboard and mouse, the button icons and the sensitivity.'))
+        self.build_controls(f)
+
+    def build_files(self):
+        """Patches & mods (advanced view): the game's code patches, third-party patches and mods."""
+        f = self.scrolled_page('files', _('Patches & mods'), _("The game's patches, third-party patches and mods."))
+        self.build_patches(f)
+        self.build_mods(f)
 
     def build_game(self):
-        f = self.scrolled_page('game', _('Game', 'Игра'), _('Your game dump, saves and the game patches.'))
+        f = self.scrolled_page('game', _('Game & saves'), _('Your game dump, your saves and the game language.'))
         self.section(f, _('Folders'), top=4)
         self.folder(f, 'game_dir', _('Game folder', 'Папка игры'),
                     _('Choose the folder with eboot.bin', 'Выберите папку с eboot.bin'),
@@ -2485,9 +2559,6 @@ class Launcher:
         self.check(f, 'skip_intro', 'app', _('Skip the intro logos'),
                    _('The game opens straight on its title screen, without the PlayStation and Sucker Punch '
                      'logos.'), restart=True)
-        self.build_patches(f)
-        self.build_mods(f)
-        self.build_controls(f)
 
     def user_dir(self):
         return Path(self.var('user_dir', 'app').get() or DATA_DIR / 'user')
@@ -3009,10 +3080,10 @@ class Launcher:
             ttk.Button(world, text=label, style='Card.TButton', command=lambda u=url: open_url(u)).pack(anchor='w', pady=(0, 6))
 
     def show_support(self):
-        self.show('advanced')
+        self.show('help')
         anchor = getattr(self, 'support_anchor', None)
         if anchor is not None:
-            self.pages['advanced'].scroll_to(anchor)
+            self.pages['help'].scroll_to(anchor)
 
     def link_buttons(self, parent, links):
         holder = self.ttk.Frame(parent)
@@ -3020,30 +3091,42 @@ class Launcher:
             self.ttk.Button(holder, text=label, command=lambda u=url: open_url(u)).pack(side='left', padx=(0, 6))
         return holder
 
-    def build_advanced(self):
-        tk, ttk = self.tk, self.ttk
-        f = self.scrolled_page('advanced', _('Advanced', 'Дополнительно'),
-                               _('Launcher options, files and diagnostics.'))
+    def build_customize(self):
+        """Customize (issn 11-05, as bbport's "Launcher customization"): the launcher's language, what it
+        does when the game starts, updates and the shortcuts. The look (themes) comes next."""
+        ttk = self.ttk
+        f = self.scrolled_page('customize', _('Customize'),
+                               _("The launcher's language, what it does while you play, and shortcuts to the game."))
         self.section(f, _('Launcher', 'Лаунчер'), top=4)
         self.row(f, _('Launcher language', 'Язык лаунчера'), self.choice(f, 'ui_language', 'app', UI_LANGUAGES),
                  _('Applies when the launcher opens again.', 'Применится при следующем открытии лаунчера.'))
+        self.section(f, _('While you play'))
         self.check(f, 'close_on_play', 'app', _('Close the launcher when the game starts', 'Закрывать лаунчер при запуске игры'))
         if WINDOWS and UPDATES:
+            self.section(f, _('Updates'))
             self.check(f, 'check_updates', 'app', _('Check for updates when the launcher opens',
                                                     'Проверять обновления при открытии лаунчера'))
-        holder = ttk.Frame(f)
-        holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
-        if WINDOWS and UPDATES:
+            holder = ttk.Frame(f)
+            holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
             ttk.Button(holder, text=_('Check for updates', 'Проверить обновления'),
                        command=lambda: threading.Thread(target=self.check_update, args=(True,), daemon=True).start()
                        ).pack(side='left')
-        ttk.Button(holder, text=_('Desktop shortcut', 'Ярлык на рабочем столе'), command=self.shortcut).pack(side='left', padx=6)
-        ttk.Button(holder, text=_('Add to Steam'), command=self.add_to_steam).pack(side='left')
-        ttk.Label(holder, text=f'v{VERSION}', style='Muted.TLabel').pack(side='left', padx=10)
+            ttk.Label(holder, text=f'v{VERSION}', style='Muted.TLabel').pack(side='left', padx=10)
+        self.section(f, _('Shortcuts'))
+        holder = ttk.Frame(f)
+        holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(6, 0))
+        ttk.Button(holder, text=_('Desktop shortcut', 'Ярлык на рабочем столе'), command=self.shortcut).pack(side='left')
+        ttk.Button(holder, text=_('Add to Steam'), command=self.add_to_steam).pack(side='left', padx=6)
+        self.note(f, _('The desktop shortcut opens this launcher; the Steam entry starts the game straight away with '
+                       'these settings.'), top=4)
+
+    def build_advanced(self):
+        tk, ttk = self.tk, self.ttk
+        f = self.scrolled_page('advanced', _('Advanced', 'Дополнительно'),
+                               _('Files, diagnostics and the log.'))
         if not WINDOWS:
             self.build_linux_options(f)
-        self.build_about(f)
-        self.section(f, _('Files'))
+        self.section(f, _('Files'), top=4 if WINDOWS else 22)
         holder = ttk.Frame(f)
         holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(6, 0))
         ttk.Button(holder, text=_('Port folder', 'Папка порта'), command=lambda: self.open_path(DATA_DIR)).pack(side='left')
@@ -3107,7 +3190,7 @@ class Launcher:
         info = game_info(folder)
         title = info[0] if info else APP_NAME
         self.root.title(f'{title} (PC)')
-        if self.current_page == 'game':
+        if self.current_page == 'files':
             self.refresh_game_patches()
         self.banner_key = None
         self.draw_banner()
