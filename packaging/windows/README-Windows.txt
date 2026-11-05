@@ -263,7 +263,7 @@ a folder that contains eboot.bin, sce_module and sce_sys. How to dump it: docs/i
 Built on the God of War III Remastered port (gow3_pc, by Felipe Prado), which comes from
 bloodborne_pc (deadinside28, Supermedo). Graphics: axylpup's shadPS4 build for inFAMOUS Second Son
 (github.com/axylpup/shadPS4), from the shadPS4 video core, with earlier work by Ayoub
-(shadPS4-AYOUB1080p) and HayatoG (iss_pc). FSR 4: AMD FidelityFX (MIT). Launcher title face: Bebas
+(shadPS4-AYOUB1080p) and HayatoG (iss_pc, github.com/HayatoG/iss_pc: video core, draw distance, sensor mode). FSR 4: AMD FidelityFX (MIT). Launcher title face: Bebas
 Neue (SIL Open Font License).
 
 Requirements
