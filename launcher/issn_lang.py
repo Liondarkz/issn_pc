@@ -1590,6 +1590,75 @@ EXTRA = {
     },
 }
 
+# issn 11-04: the Achievements page (trophies). Kept apart from EXTRA so its additions do not
+# collide with other pages' texts.
+TROPHY_TEXTS = {
+    'pt': {
+        'Achievements': 'Conquistas',
+        "The game's trophies: the ones unlocked in this port are in color, with the date.":
+            'Os troféus do jogo: os liberados neste port ficam coloridos, com a data.',
+        'In the game': 'No jogo',
+        'Trophy popup': 'Aviso de troféu',
+        "The trophy's icon and name in a top corner for a few seconds when the game unlocks one. Also in Insert > Overlay.":
+            'O ícone e o nome do troféu num canto de cima por alguns segundos quando o jogo libera um. Também em Insert > Overlay.',
+        'Trophy names (optional)': 'Nomes dos troféus (opcional)',
+        "The names and descriptions in the game's trophy file are encrypted; without a key the popup and this page show \"Trophy N\" with its icon. If you have your own PS4 trophy key (the same one shadPS4 asks for), paste it here: it stays only on this PC, in user\\trophy-key.txt, and the port never ships or sends it.":
+            'Os nomes e as descrições no arquivo de troféus do jogo são criptografados; sem uma chave, o aviso e esta página mostram "Troféu N" com o ícone. Se você tem a sua própria chave de troféus do PS4 (a mesma que o shadPS4 pede), cole aqui: ela fica só neste PC, em user\\trophy-key.txt, e o port nunca a distribui nem envia.',
+        'Save key': 'Salvar chave',
+        'Remove key': 'Remover chave',
+        'Trophy key': 'Chave de troféus',
+        'No key: names are not shown.': 'Sem chave: os nomes não aparecem.',
+        'Key saved on this PC: names shown.': 'Chave salva neste PC: nomes aparecendo.',
+        'The key is saved but the names could not be read: {}': 'A chave está salva, mas os nomes não puderam ser lidos: {}',
+        'No trophy file in the game folder (sce_sys\\trophy\\trophy00.trp, or Sc0\\trophy beside it). Choose the game folder on the Game page.':
+            'Nenhum arquivo de troféus na pasta do jogo (sce_sys\\trophy\\trophy00.trp, ou Sc0\\trophy ao lado). Escolha a pasta do jogo na página Jogo.',
+        '{} of {} unlocked ({}%)': '{} de {} liberados ({}%)',
+        'Platinum! Every trophy unlocked': 'Platinado com sucesso!',
+        'Platinum': 'Platina', 'Gold': 'Ouro', 'Silver': 'Prata', 'Bronze': 'Bronze',
+        'Hidden trophy': 'Troféu oculto',
+        'Trophy {}': 'Troféu {}',
+        'Unlocked {}': 'Liberado em {}',
+        'Locked': 'Bloqueado',
+        'A trophy key is 32 hexadecimal digits (0-9, A-F).': 'A chave de troféus tem 32 dígitos hexadecimais (0-9, A-F).',
+        'This key does not open the trophy names: {}': 'Esta chave não abre os nomes dos troféus: {}',
+        'Could not save the key: {}': 'Não foi possível salvar a chave: {}',
+        'Could not remove the key: {}': 'Não foi possível remover a chave: {}',
+    },
+    'es': {
+        'Achievements': 'Logros',
+        "The game's trophies: the ones unlocked in this port are in color, with the date.":
+            'Los trofeos del juego: los desbloqueados en este port aparecen en color, con la fecha.',
+        'In the game': 'En el juego',
+        'Trophy popup': 'Aviso de trofeo',
+        "The trophy's icon and name in a top corner for a few seconds when the game unlocks one. Also in Insert > Overlay.":
+            'El icono y el nombre del trofeo en una esquina superior durante unos segundos cuando el juego desbloquea uno. También en Insert > Overlay.',
+        'Trophy names (optional)': 'Nombres de los trofeos (opcional)',
+        "The names and descriptions in the game's trophy file are encrypted; without a key the popup and this page show \"Trophy N\" with its icon. If you have your own PS4 trophy key (the same one shadPS4 asks for), paste it here: it stays only on this PC, in user\\trophy-key.txt, and the port never ships or sends it.":
+            'Los nombres y las descripciones del archivo de trofeos del juego están cifrados; sin una clave, el aviso y esta página muestran "Trofeo N" con su icono. Si tienes tu propia clave de trofeos de PS4 (la misma que pide shadPS4), pégala aquí: se queda solo en este PC, en user\\trophy-key.txt, y el port nunca la distribuye ni la envía.',
+        'Save key': 'Guardar clave',
+        'Remove key': 'Quitar clave',
+        'Trophy key': 'Clave de trofeos',
+        'No key: names are not shown.': 'Sin clave: los nombres no se muestran.',
+        'Key saved on this PC: names shown.': 'Clave guardada en este PC: nombres visibles.',
+        'The key is saved but the names could not be read: {}': 'La clave está guardada, pero no se pudieron leer los nombres: {}',
+        'No trophy file in the game folder (sce_sys\\trophy\\trophy00.trp, or Sc0\\trophy beside it). Choose the game folder on the Game page.':
+            'No hay archivo de trofeos en la carpeta del juego (sce_sys\\trophy\\trophy00.trp, o Sc0\\trophy al lado). Elige la carpeta del juego en la página Juego.',
+        '{} of {} unlocked ({}%)': '{} de {} desbloqueados ({}%)',
+        'Platinum! Every trophy unlocked': '¡Platino! Todos los trofeos',
+        'Platinum': 'Platino', 'Gold': 'Oro', 'Silver': 'Plata', 'Bronze': 'Bronce',
+        'Hidden trophy': 'Trofeo oculto',
+        'Trophy {}': 'Trofeo {}',
+        'Unlocked {}': 'Desbloqueado el {}',
+        'Locked': 'Bloqueado',
+        'A trophy key is 32 hexadecimal digits (0-9, A-F).': 'Una clave de trofeos tiene 32 dígitos hexadecimales (0-9, A-F).',
+        'This key does not open the trophy names: {}': 'Esta clave no abre los nombres de los trofeos: {}',
+        'Could not save the key: {}': 'No se pudo guardar la clave: {}',
+        'Could not remove the key: {}': 'No se pudo quitar la clave: {}',
+    },
+}
+for _language, _texts in TROPHY_TEXTS.items():
+    EXTRA.setdefault(_language, {}).update(_texts)
+
 _tables = {}
 
 

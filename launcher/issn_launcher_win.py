@@ -43,6 +43,7 @@ PORT_DIR = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).r
 sys.path.insert(0, str(PORT_DIR / 'scripts'))
 import save_backup  # noqa: E402  (scripts/)
 import steam_shortcut  # noqa: E402  (scripts/)
+import trophies  # noqa: E402  (scripts/)
 from patches import game_profile, game_sfo  # noqa: E402  (scripts/)
 from prepare import load_sfo  # noqa: E402  (scripts/)
 DATA_DIR = Path(os.environ.get('ISSN_DATA_DIR', PORT_DIR))
@@ -358,9 +359,9 @@ def heading_text(text, every_language=False):
 # launcher's own settings.json (passed to run.py as environment variables).
 
 INI_FLAGS = {'cheat_double_jumps', 'cheat_very_hard', 'object_motion', 'show_fps', 'vsync', 'async_shaders', 'deferred_readback',
-             'stale_readback', 'motion_blur', 'chromatic_aberration'}
+             'stale_readback', 'motion_blur', 'chromatic_aberration', 'trophy_note'}
 # The graphics keys are also in the in-game menu (Insert / R3+L2); run.py reads the startup ones.
-INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1',
+INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'trophy_note': '1',
                 'object_motion': '1', 'show_fps': '1', 'output_res': '1920x1080',
                 'live_resolution': 'auto', 'display_mode': 'windowed', 'vsync': '1', 'fps_limit': '0',
                 'async_shaders': '1', 'deferred_readback': '1', 'stale_readback': '1',
@@ -377,8 +378,9 @@ FRAME_PACING = [('', ('Normal: a new frame at every refresh it is ready (default
                 ('3', ('A third of the refresh rate, even (48 FPS on 144 Hz, 80 on 240 Hz)',))]
 FPS_LIMITS = [('30', ('30',)), ('60', ('60',)), ('120', ('120',)), ('240', ('240',)), ('0', ('Unlimited',))]
 # The sidebar's pages, top to bottom, and the methods that refresh a page's lists when it is shown.
-PAGES = ('home', 'news', 'graphics', 'performance', 'game', 'advanced', 'help')
-PAGE_REFRESH = {'home': ('refresh_status',), 'news': ('refresh_news',), 'help': ('run_help',), 'game': ('refresh_lists', 'refresh_game_patches')}
+PAGES = ('home', 'news', 'graphics', 'performance', 'game', 'trophies', 'advanced', 'help')
+PAGE_REFRESH = {'home': ('refresh_status',), 'news': ('refresh_news',), 'help': ('run_help',), 'game': ('refresh_lists', 'refresh_game_patches'),
+                'trophies': ('refresh_trophies',)}
 APP_DEFAULTS = {'ui_language': '', 'game_dir': os.environ.get('ISSN_GAME_DIR', str(PORT_DIR.parent / 'CUSA00004') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
                 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1', 'game_language': '', 'pad_emulation': '', 'spray_stick': '', 'stick_deadzone': '', 'skip_intro': False, 'save_backups': True, 'vram_limit': '', 'frame_pacing': '', 'frame_gen': False, 'seed_any_profile': False,
@@ -1208,7 +1210,7 @@ NEON_PINK = '#ff3ea5'
 NAV_ACTIVE, NAV_HOVER = '#16181f', '#111319'  # side bar rows: the page shown, under the mouse
 # Segoe Fluent Icons / Segoe MDL2 Assets code points for the side bar (Windows only).
 NAV_ICONS = {'home': '\ue80f', 'news': '\ue789', 'graphics': '\ue7f4', 'performance': '\uec4a',
-             'game': '\ue7fc', 'advanced': '\ue713', 'help': '\ue897'}
+             'game': '\ue7fc', 'trophies': '\ue734', 'advanced': '\ue713', 'help': '\ue897'}
 FONT_FAMILIES = set()  # filled once the window exists (pick_fonts)
 # issn_theme's colours (rounded widgets): fields, hovers and borders between PANEL and TEXT.
 THEME_COLORS = {'bg': '#09090c', 'panel': '#101116', 'card': '#181a21', 'field': '#14161d', 'card_hover': '#1d2029',
@@ -1581,7 +1583,7 @@ class Launcher:
         self.nav, self.current_page = {}, None
         titles = {'home': _('Home'), 'news': _("What's new", 'Что нового'), 'graphics': _('Graphics', 'Графика'),
                   'performance': _('Performance'),
-                  'game': _('Game', 'Игра'), 'advanced': _('Advanced', 'Дополнительно'), 'help': _('Help', 'Помощь')}
+                  'game': _('Game', 'Игра'), 'trophies': _('Achievements'), 'advanced': _('Advanced', 'Дополнительно'), 'help': _('Help', 'Помощь')}
         icon_font = ('Segoe Fluent Icons' if 'Segoe Fluent Icons' in FONT_FAMILIES else 'Segoe MDL2 Assets', 12)
         for name in PAGES:
             row = tk.Frame(side, bg=BG, cursor='hand2', height=self.px(42))
@@ -1642,6 +1644,7 @@ class Launcher:
         self.build_graphics()
         self.build_performance()
         self.build_game()
+        self.build_trophies()
         self.build_advanced()
         self.build_help()
         self.root.bind_all('<MouseWheel>', self.wheel)
@@ -2488,6 +2491,160 @@ class Launcher:
 
     def user_dir(self):
         return Path(self.var('user_dir', 'app').get() or DATA_DIR / 'user')
+
+    # ---- issn 11-04: achievements (the game's trophies, scripts/trophies.py) -----------------------
+    def build_trophies(self):
+        """The game's trophies: icons from the player's own trophy file, which ones this PC unlocked
+        (user/trophies.txt, written by the game) and when; names with the player's own key."""
+        tk, ttk = self.tk, self.ttk
+        f = self.scrolled_page('trophies', _('Achievements'),
+                               _("The game's trophies: the ones unlocked in this port are in color, with the date."))
+        self.trophy_summary = ttk.Label(f, text='', wraplength=self.px(680), justify='left')
+        self.trophy_summary.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(4, 0))
+        self.trophy_progress = ttk.Progressbar(f, orient='horizontal', length=self.px(420), maximum=100)
+        self.trophy_progress.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(6, 4))
+        self.trophy_list = tk.Frame(f, bg=PANEL)
+        self.trophy_list.grid(row=self.next_row(f), column=0, columnspan=2, sticky='we', pady=(8, 0))
+        self.trophy_list.columnconfigure(0, weight=1)
+        self.section(f, _('In the game'))
+        self.check(f, 'trophy_note', 'ini', _('Trophy popup'),
+                   _("The trophy's icon and name in a top corner for a few seconds when the game unlocks one. "
+                     'Also in Insert > Overlay.'))
+        self.section(f, _('Trophy names (optional)'))
+        self.note(f, _("The names and descriptions in the game's trophy file are encrypted; without a key the "
+                       'popup and this page show "Trophy N" with its icon. If you have your own PS4 trophy key '
+                       '(the same one shadPS4 asks for), paste it here: it stays only on this PC, in '
+                       'user\\trophy-key.txt, and the port never ships or sends it.'), top=4)
+        holder = ttk.Frame(f)
+        self.trophy_key_entry = ttk.Entry(holder, width=40, show='•')
+        self.trophy_key_entry.pack(side='left')
+        ttk.Button(holder, text=_('Save key'), command=self.save_trophy_key).pack(side='left', padx=(6, 0))
+        ttk.Button(holder, text=_('Remove key'), command=self.remove_trophy_key).pack(side='left', padx=(6, 0))
+        self.row(f, _('Trophy key'), holder)
+        self.trophy_key_state = ttk.Label(f, text='', style='Muted.TLabel', wraplength=self.px(680), justify='left')
+        self.trophy_key_state.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(4, 0))
+        self.trophy_icons, self.trophy_cache = [], {}
+
+    def trophy_folders(self):
+        return [self.var('update_dir', 'app').get(), self.var('game_dir', 'app').get()]
+
+    def trophy_texts(self, trp):
+        """({id: text} in the game language with the saved key, a note on the key)."""
+        key = trophies.read_key(self.user_dir())
+        if key is None:
+            return {}, _('No key: names are not shown.')
+        language = game_language({**self.app, 'game_language': self.var('game_language', 'app').get()})
+        cache = ('texts', str(trp), key, language)
+        if cache not in self.trophy_cache:
+            try:
+                texts = trophies.read_texts(trp, trophies.npbind_file(*self.trophy_folders()), key, language)
+                self.trophy_cache[cache] = (texts, _('Key saved on this PC: names shown.'))
+            except (OSError, ValueError, KeyError, trophies.ElementTree.ParseError) as error:
+                self.trophy_cache[cache] = ({}, _('The key is saved but the names could not be read: {}').format(error))
+        return self.trophy_cache[cache]
+
+    def trophy_icon(self, trp, entries, trophy_id, unlocked):
+        """The icon as a small PhotoImage: in color when unlocked, dim and grey when not."""
+        cache = ('icon', str(trp), trophy_id, unlocked)
+        if cache not in self.trophy_cache:
+            photo = None
+            data = trophies.icon(trp, entries, trophy_id)
+            if data:
+                try:
+                    import io
+                    from PIL import Image, ImageEnhance, ImageOps, ImageTk
+                    size = self.px(56)
+                    image = Image.open(io.BytesIO(data)).convert('RGBA').resize((size, size), Image.LANCZOS)
+                    if not unlocked:
+                        alpha = image.getchannel('A')
+                        image = ImageEnhance.Brightness(ImageOps.grayscale(image).convert('RGBA')).enhance(0.45)
+                        image.putalpha(alpha)
+                    backdrop = Image.new('RGBA', image.size, CARD)
+                    photo = ImageTk.PhotoImage(Image.alpha_composite(backdrop, image).convert('RGB'), master=self.root)
+                except (ImportError, OSError, ValueError):
+                    photo = None
+            self.trophy_cache[cache] = photo
+        return self.trophy_cache[cache]
+
+    def refresh_trophies(self):
+        tk = self.tk
+        for child in self.trophy_list.winfo_children():
+            child.destroy()
+        self.trophy_icons = []
+        trp, ids, unlocked = trophies.summary(self.user_dir(), *self.trophy_folders())
+        texts, key_note = self.trophy_texts(trp) if trp else ({}, '')
+        self.trophy_key_state.configure(text=key_note)
+        if not trp:
+            self.trophy_summary.configure(text=_('No trophy file in the game folder (sce_sys\\trophy\\trophy00.trp, '
+                                                 'or Sc0\\trophy beside it). Choose the game folder on the Game page.'))
+            self.trophy_progress.configure(value=0)
+            return
+        entries = trophies.read_entries(trp)
+        done = sum(1 for i in ids if i in unlocked)
+        percent = round(100 * done / len(ids)) if ids else 0
+        platinum = next((i for i, t in texts.items() if t['grade'] == 'P'), 0 if ids and ids[0] == 0 else None)
+        line = _('{} of {} unlocked ({}%)').format(done, len(ids), percent)
+        if platinum is not None and platinum in unlocked:
+            line += '  ·  ' + _('Platinum! Every trophy unlocked')
+        self.trophy_summary.configure(text=line)
+        self.trophy_progress.configure(value=percent)
+        grades = {'P': (_('Platinum'), '#c8e6ff'), 'G': (_('Gold'), '#ffcc4d'), 'S': (_('Silver'), '#d2d6e0'),
+                  'B': (_('Bronze'), '#db8f5c')}
+        # Unlocked first, newest first; then the others in the game's order.
+        newest = sorted((i for i in ids if i in unlocked), key=lambda i: (unlocked[i], i), reverse=True)
+        for row, trophy_id in enumerate(newest + [i for i in ids if i not in unlocked]):
+            got = trophy_id in unlocked
+            text = texts.get(trophy_id, {})
+            card = tk.Frame(self.trophy_list, bg=CARD, highlightthickness=1, highlightbackground=LINE)
+            card.grid(row=row, column=0, sticky='we', pady=(0, self.px(4)))
+            card.columnconfigure(1, weight=1)
+            photo = self.trophy_icon(trp, entries, trophy_id, got)
+            if photo:
+                self.trophy_icons.append(photo)
+                tk.Label(card, image=photo, bg=CARD, bd=0).grid(row=0, column=0, rowspan=2, padx=self.px(8),
+                                                               pady=self.px(6))
+            hidden = text.get('hidden') and not got
+            name = _('Hidden trophy') if hidden else text.get('name') or _('Trophy {}').format(trophy_id)
+            tk.Label(card, text=name, bg=CARD, fg=TEXT if got else MUTED, font=(UI_FONT, 11, 'bold'),
+                     anchor='w').grid(row=0, column=1, sticky='w', pady=(self.px(8), 0))
+            detail = '' if hidden else text.get('detail', '')
+            when = _('Unlocked {}').format(unlocked[trophy_id]) if got else _('Locked')
+            tk.Label(card, text=f'{detail}\n{when}' if detail else when, bg=CARD, fg=MUTED, font=(UI_FONT, 9),
+                     anchor='w', justify='left', wraplength=self.px(520)).grid(row=1, column=1, sticky='w',
+                                                                               pady=(0, self.px(8)))
+            grade = grades.get(text.get('grade') or ('P' if trophy_id == platinum else ''))
+            if grade:
+                tk.Label(card, text=grade[0], bg=CARD, fg=grade[1] if got else MUTED,
+                         font=(UI_FONT, 9, 'bold')).grid(row=0, column=2, rowspan=2, padx=self.px(12))
+
+    def save_trophy_key(self):
+        key = trophies.parse_key(self.trophy_key_entry.get())
+        if key is None:
+            self.messagebox.showerror(APP_NAME, _('A trophy key is 32 hexadecimal digits (0-9, A-F).'))
+            return
+        trp = trophies.trophy_file(*self.trophy_folders())
+        if trp:  # a key that does not open this game's file is not kept
+            try:
+                trophies.read_texts(trp, trophies.npbind_file(*self.trophy_folders()), key, '1')
+            except (OSError, ValueError, KeyError, trophies.ElementTree.ParseError) as error:
+                self.messagebox.showerror(APP_NAME, _('This key does not open the trophy names: {}').format(error))
+                return
+        try:
+            trophies.save_key(self.user_dir(), key)
+        except OSError as error:
+            self.messagebox.showerror(APP_NAME, _('Could not save the key: {}').format(error))
+            return
+        self.trophy_key_entry.delete(0, 'end')
+        self.refresh_trophies()
+
+    def remove_trophy_key(self):
+        try:
+            trophies.save_key(self.user_dir(), None)
+            (self.user_dir() / trophies.NAMES_FILE).unlink(missing_ok=True)
+        except OSError as error:
+            self.messagebox.showerror(APP_NAME, _('Could not remove the key: {}').format(error))
+            return
+        self.refresh_trophies()
 
     def build_save_backups(self, f):
         """run.py backs the saves up before every start; one of them can be restored here."""
