@@ -7,6 +7,8 @@
 #include <set>
 #include <chrono>
 #include <cstdlib>
+#include <cstring>
+#include <atomic>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -14264,6 +14266,34 @@ RenderState Rasterizer::BeginRendering(const GraphicsPipeline* pipeline) {
             const u64 n = c.scaled_passes.fetch_add(1, std::memory_order_relaxed) + 1;
             if ((n & 0x3fff) == 0 && db_desc.first) {
                 WaterScaleLog("periodic", texture_cache.GetImage(db_desc.first));
+            }
+        }
+    }
+    // issn 11-05 (issues #28, #32): on NVIDIA the GPU is lost right after the first pass with no
+    // attachment at all (no colour, no depth) in the opening village, whatever the anti-aliasing.
+    // ISSN_EMPTY_PASS=skip (test): such passes rasterize nothing (scissors 0, as the water blur
+    // skip above), counted in the log.
+    {
+        static const bool skip_empty = [] {
+            const char* e = std::getenv("ISSN_EMPTY_PASS");
+            const bool on = e && std::strcmp(e, "skip") == 0;
+            if (on) {
+                LOG_WARNING(Render_Vulkan, "ISSN_EMPTY_PASS=skip: passes with no attachment draw nothing (test)");
+            }
+            return on;
+        }();
+        if (skip_empty && !state.depth_stencil_attachment.image_view) [[unlikely]] {
+            bool any_color = false;
+            for (u32 cb = 0; cb < state.num_color_attachments; ++cb) {
+                any_color = any_color || state.color_attachments[cb].image_view;
+            }
+            if (!any_color) {
+                state.skip = 1;
+                static std::atomic<u64> skipped{0};
+                const u64 n = skipped.fetch_add(1, std::memory_order_relaxed) + 1;
+                if (n == 1 || n == 100 || n == 10000) {
+                    LOG_WARNING(Render_Vulkan, "ISSN_EMPTY_PASS=skip: {} passes skipped", n);
+                }
             }
         }
     }
