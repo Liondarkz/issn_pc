@@ -212,6 +212,16 @@ static LONG fatal_exception(EXCEPTION_POINTERS *info) {
         fprintf(stderr,"Fault: exception 0x%08lx at %s (thread %lu)\n",record->ExceptionCode,where,GetCurrentThreadId());
     fprintf(stderr,"  rax=%016llx rbx=%016llx rcx=%016llx rdx=%016llx\n  rsi=%016llx rdi=%016llx rbp=%016llx rsp=%016llx\n",
             c->Rax,c->Rbx,c->Rcx,c->Rdx,c->Rsi,c->Rdi,c->Rbp,c->Rsp);
+    /* issn 11-05 (#33, uriel): right after art/cache/all_shaders.xpps is read, the game looks up
+     * its shaders by name (eboot 0x44b170) and finds the table empty (rcx = 0 entries): the
+     * package holds none of the shaders this eboot.bin asks for. Seen only with dumps that were
+     * not the merged 01.07 game; most likely an update folder without its own all_shaders.xpps
+     * over an older base game, or a damaged file. */
+    if (image && c->Rip-(uintptr_t)image==0x44b1e0 && c->Rcx==0)
+        fprintf(stderr,"STOP: the game found none of its shaders in art/cache/all_shaders.xpps. This "
+                       "file most likely does not match the game's 01.07 eboot.bin (an update folder "
+                       "without it over an older base game) or is damaged. Choose a game folder that "
+                       "already has the 01.07 update merged in, or dump the game and its update again.\n");
     if (gpu_enabled) issngpu_dump_guest_writes(info);
     /* rbp chain (guest and host code keep frame pointers). */
     uintptr_t rbp=(uintptr_t)c->Rbp;

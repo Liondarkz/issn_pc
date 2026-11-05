@@ -300,6 +300,14 @@ def main():
         game = update_view
         print(f'Game and update combined from {env["ISSN_PATCH_DIR"]}', flush=True)
     original_game = game.resolve()
+    # issn 11-05 (#33): the shader package the game reads first; its size and the folder it really
+    # comes from (the update or the base game) tell a mismatched dump at a glance.
+    shaders = game / 'art' / 'cache' / 'all_shaders.xpps'
+    try:
+        print(f'Game data: all_shaders.xpps {shaders.stat().st_size:,} bytes from {shaders.resolve().parent.parent.parent}',
+              flush=True)
+    except OSError as error:
+        print(f'Game data: art/cache/all_shaders.xpps missing or unreadable ({error})', flush=True)
     # issn_pc: the port is made for the 01.07 update (code patches, mouse hook, seed). A base 01.00
     # dump ends in an unsupported system call after the intro (sceKernelLoadStartModule, tester log
     # 10-24) - say so here instead. ISSN_ALLOW_OLD_VERSION=1 tries anyway.
