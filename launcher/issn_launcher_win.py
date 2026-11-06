@@ -3421,8 +3421,8 @@ class Launcher:
         holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
         ttk.Button(holder, text=_('Open the new launcher (test)'), style='Accent.TButton',
                    command=self.open_new_launcher).pack(side='left')
-        self.note(f, _('The new look (as in the preview), shown by Windows\' WebView2. While it is a test some pages '
-                       'still open here; it remembers the choice, and its side bar has a button back to this one.'), top=4)
+        self.note(f, _('The new look (as in the preview), shown by Windows\' WebView2, with every page of this '
+                       'launcher. It remembers the choice, and its side bar has a button back to this one.'), top=4)
         self.section(f, _('Launcher', 'Лаунчер'))
         self.row(f, _('Launcher language', 'Язык лаунчера'), self.choice(f, 'ui_language', 'app', UI_LANGUAGES),
                  _('Applies when the launcher opens again.', 'Применится при следующем открытии лаунчера.'))

@@ -74,10 +74,62 @@ async function show(id) {
   const info = state.pages.find((p) => p.id === id);
   if (info && info.expert && !state.expert) await setExpert(true);
   page = id;
-  document.querySelectorAll('.page').forEach((p) => p.classList.toggle('on', p.id === 'page-' + id));
-  if (!$('page-' + id)) await buildPage(id);
+  if (id !== 'home') await buildPage(id);  // always fresh: other pages and downloads change their data
   document.querySelectorAll('.page').forEach((p) => p.classList.toggle('on', p.id === 'page-' + id));
   renderNav();
+}
+
+// The answer of an action: a message, a question, a folder to pick, a page to open or rebuild.
+async function handle(result) {
+  if (!result) return;
+  if (result.toast) toast(result.toast);
+  if (result.message) toast(result.message);
+  if (result.alert) await ask(result.alert, false);
+  if (result.confirm) {
+    const c = result.confirm;
+    if (await ask(c.text, true)) await handle(await api.action(c.action, c.args || []));
+    else if (c.no) await handle(await api.action(c.no.action, c.no.args || []));
+  }
+  if (result.pick) {
+    const chosen = await api.choose_folder('', '');
+    if (chosen) await handle(await api.action(result.pick.action, [...(result.pick.args || []), chosen]));
+  }
+  if (result.page && result.page !== page) await show(result.page);
+  else if (result.reload && page !== 'home') await buildPage(page);
+  if (result.reload || result.page) await refresh(false);
+  if (result.play) await pressPlay();
+}
+
+// A question (yes / no) or a message (OK) over the page.
+function ask(text, question) {
+  return new Promise((resolve) => {
+    const close = (answer) => { box.remove(); resolve(answer); };
+    const box = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true' },
+      el('div', { class: 'modal-box' }, el('p', { text }),
+        el('div', { class: 'modal-buttons' },
+          question ? el('button', { type: 'button', class: 'btn', text: t('No'), onclick: () => close(false) }) : null,
+          el('button', { type: 'button', class: 'btn primary', text: question ? t('Yes') : t('OK'), onclick: () => close(true) }))));
+    document.body.append(box);
+    box.querySelector('.btn.primary').focus();
+  });
+}
+
+async function runButton(b, arg) {
+  if (b.copy !== null && b.copy !== undefined) {
+    try { await navigator.clipboard.writeText(b.copy); toast(t('Copied ✓')); } catch (e) { toast(b.copy); }
+    return;
+  }
+  if (b.url) { await api.action('open_url', [b.url]); return; }
+  if (!b.action) return;
+  if (b.confirm && !(await ask(b.confirm, true))) return;
+  const args = [...(b.args || [])];
+  if (arg !== undefined) args.push(arg);
+  await handle(await api.action(b.action, args));
+}
+
+function buttonRow(list, arg) {
+  return el('div', { class: 'button-row' }, ...list.filter(Boolean).map((b) =>
+    el('button', { type: 'button', class: 'btn' + (b.primary ? ' primary' : ''), text: b.label, onclick: () => runButton(b, arg ? arg() : undefined) })));
 }
 
 async function setExpert(on) {
@@ -123,7 +175,9 @@ async function applyGoal(id) {
 // ---- settings pages, from the Python side's description ---------------------------------------
 async function buildPage(id) {
   const schema = await api.page(id);
-  const root = el('section', { class: 'page', id: 'page-' + id, 'aria-label': schema.title });
+  const old = $('page-' + id);
+  const scroll = old ? old.scrollTop : 0;
+  const root = el('section', { class: 'page' + (old && old.classList.contains('on') ? ' on still' : ''), id: 'page-' + id, 'aria-label': schema.title });
   const body = el('div', { class: 'settings' }, el('h1', { text: schema.title }), el('p', { class: 'subtitle', text: schema.subtitle }));
   for (const section of schema.sections || []) body.append(renderSection(section));
   if (schema.placeholder) {
@@ -131,11 +185,12 @@ async function buildPage(id) {
       el('button', { type: 'button', class: 'btn primary', text: t('Open the classic launcher'), onclick: () => api.classic() })));
   }
   root.append(body);
-  $('pages').append(root);
+  if (old) old.replaceWith(root); else $('pages').append(root);
+  root.scrollTop = scroll;
 }
 
 function renderSection(section) {
-  const box = el('div', { class: 'section' });
+  const box = el('div', { class: 'section' + (section.title ? '' : ' plain') });
   if (section.title) box.append(el('h2', { text: section.title }));
   for (const row of section.rows) box.append(renderRow(row));
   return box;
@@ -149,13 +204,16 @@ function renderRow(row) {
           el('b', { style: `background:${th.accent2}` })),
         el('div', { class: 'name' }, th.name, el('small', { text: th.desc })))));
   }
+  const special = renderSpecial(row);
+  if (special) return special;
   const label = el('div', { class: 'label' }, row.label, row.restart ? el('span', { class: 'restart', text: t('restart') }) : null);
   let control;
   const change = async (value) => {
+    if (row.store === 'patch' || row.store === 'game_patch') { await api.set_choice(row.store, row.key, value); return; }
     const result = await api.set_value(row.key, row.store, value);
-    if (result && result.toast) toast(result.toast);
     if (row.key === 'launcher_fx') document.body.dataset.fx = value;
     await refresh(false);
+    await handle({ ...(result || {}), reload: (result && result.reload) || row.reload });
   };
   if (row.type === 'choice') {
     control = el('select', { 'aria-label': row.label, onchange: (e) => change(e.target.value) },
@@ -177,13 +235,82 @@ function renderRow(row) {
         const chosen = await api.choose_folder(row.key, input.value);
         if (chosen) { input.value = chosen; change(chosen); }
       } }));
-  } else if (row.type === 'buttons') {
-    control = el('div', { class: 'segments' }, ...row.options.map(([action, text]) =>
-      el('button', { type: 'button', class: 'btn', text, onclick: async () => toast((await api.action(action)) || '') })));
+  } else if (row.type === 'number') {
+    control = el('input', { type: 'number', min: row.min, max: row.max, step: row.step, value: row.value, 'aria-label': row.label,
+      onchange: (e) => change(e.target.value) });
   } else {
     control = el('span');
   }
   return el('div', { class: 'row' }, label, control, row.hint ? el('div', { class: 'hint', text: row.hint }) : null);
+}
+
+// Rows that are not a label and a control: notes, cards, button rows, lists.
+function renderSpecial(row) {
+  switch (row.type) {
+    case 'note': return el('p', { class: 'note', text: row.text });
+    case 'buttons': return el('div', { class: 'row wide' }, buttonRow(row.buttons), row.hint ? el('div', { class: 'hint', text: row.hint }) : null);
+    case 'card': return renderCard(row);
+    case 'cards': return el('div', { class: 'card-grid' }, ...row.cards.map(renderCard));
+    case 'progress': return el('div', { class: 'row wide' }, el('div', { class: 'label', text: row.text }),
+      el('div', { class: 'bar' }, el('span', { style: `width:${Math.max(0, Math.min(100, row.value))}%` })));
+    case 'pick': {
+      const select = el('select', { 'aria-label': row.label }, ...row.options.map((o) => el('option', { value: o, text: o })));
+      return el('div', { class: 'row' }, el('div', { class: 'label', text: row.label }),
+        el('div', { class: 'folder' }, select, buttonRow(row.buttons, () => select.value)),
+        row.hint ? el('div', { class: 'hint', text: row.hint }) : null);
+    }
+    case 'entry': {
+      const list = row.suggestions && row.suggestions.length ? 'list-' + row.id : null;
+      const input = el('input', { type: row.secret ? 'password' : 'text', 'aria-label': row.label, list, autocomplete: 'off' });
+      return el('div', { class: 'row' }, el('div', { class: 'label', text: row.label }),
+        el('div', { class: 'folder' }, input, buttonRow(row.buttons, () => input.value),
+          list ? el('datalist', { id: list }, ...row.suggestions.map((v) => el('option', { value: v }))) : null),
+        row.hint ? el('div', { class: 'hint', text: row.hint }) : null);
+    }
+    case 'trophies': return el('div', { class: 'trophies' }, ...row.items.map((it) =>
+      el('div', { class: 'trophy' + (it.got ? ' got' : '') },
+        it.icon ? el('img', { src: it.icon, alt: '' }) : el('span', { class: 'trophy-blank' }),
+        el('div', { class: 'trophy-text' }, el('b', { text: it.name }), it.detail ? el('span', { text: it.detail }) : null,
+          el('small', { text: it.when })),
+        it.grade ? el('span', { class: 'grade', style: it.got ? `color:${it.color}` : '', text: it.grade }) : null)));
+    case 'controls': return renderControls(row);
+    case 'mods': return el('div', { class: 'row wide' }, el('div', { class: 'mods' }, ...row.items.map((m, i) =>
+      el('div', { class: 'mod' },
+        el('button', { type: 'button', class: 'btn small', text: '▲', 'aria-label': 'up', disabled: i === 0, onclick: async () => handle(await api.action('mod_move', [m.name, -1])) }),
+        el('button', { type: 'button', class: 'btn small', text: '▼', 'aria-label': 'down', disabled: i === row.items.length - 1, onclick: async () => handle(await api.action('mod_move', [m.name, 1])) }),
+        el('label', { class: 'mod-name' }, el('input', { type: 'checkbox', checked: m.on, onchange: async (e) => handle(await api.action('mod_toggle', [m.name, e.target.checked])) }),
+          `${i + 1}.  ${m.name}`)))),
+      row.hint ? el('div', { class: 'hint', text: row.hint }) : null, row.warning ? el('pre', { class: 'warning', text: row.warning }) : null);
+    case 'log': return el('div', { class: 'row wide' }, buttonRow(row.buttons), el('pre', { class: 'log', text: row.text || '—' }));
+    default: return null;
+  }
+}
+
+function renderCard(c) {
+  return el('div', { class: 'info ' + (c.tone || '') },
+    el('div', { class: 'info-head' }, el('b', { text: c.title }), c.badge ? el('span', { class: 'badge', text: c.badge }) : null,
+      c.date ? el('small', { text: c.date }) : null),
+    c.image ? el('img', { class: 'info-image', src: c.image, alt: '' }) : null,
+    c.text ? el('p', { text: c.text }) : null,
+    c.mono ? el('pre', { text: c.mono }) : null,
+    c.steps && c.steps.length ? el('ol', {}, ...c.steps.map((st) => el('li', { text: st }))) : null,
+    c.buttons && c.buttons.length ? buttonRow(c.buttons) : null);
+}
+
+function renderControls(row) {
+  const head = el('div', { class: 'ctl head' }, el('span', { text: t('GAME BUTTON') }), el('span', { text: t('KEYBOARD') }), el('span', { text: t('GAMEPAD') }));
+  return el('div', { class: 'controls' }, head, ...row.rows.map((r) => el('div', { class: 'ctl' },
+    el('span', { class: 'ctl-name', text: r.name }),
+    el('input', { type: 'text', value: r.key, placeholder: r.default_key, 'aria-label': r.name,
+      onchange: (e) => api.set_control('key', r.button, e.target.value) }),
+    r.pad_options ? el('select', { 'aria-label': r.name, onchange: (e) => api.set_control('pad', r.button, e.target.value) },
+      ...r.pad_options.map(([v, label]) => el('option', { value: v, text: label, selected: v === r.pad })))
+      : el('span', { class: 'muted', text: r.fixed }))));
+}
+
+async function pressPlay() {
+  const result = await api.play();
+  await handle(result);
 }
 
 async function setTheme(id) {
@@ -215,6 +342,12 @@ async function poll() {
     const running = !!s.running;
     document.body.classList.toggle('idle', running);
     if (running !== !!state.running) { state.running = running; renderHome(); }
+    if (s.seq !== undefined && s.seq !== poll.seq) {
+      const first = poll.seq === undefined;
+      poll.seq = s.seq;
+      if (!first) { await refresh(false); if (page !== 'home' && !document.querySelector('.modal')) await buildPage(page); }
+    }
+    if (s.goto) await show(s.goto);
   } catch (e) { /* the window is closing */ }
   setTimeout(poll, 1000);
 }
@@ -232,11 +365,7 @@ async function start() {
   $('expert-switch').onclick = () => setExpert(!state.expert);
   $('discord').onclick = () => api.action('discord');
   $('classic').onclick = () => api.classic();
-  $('play').onclick = async () => {
-    const result = await api.play();
-    if (result && result.message) toast(result.message);
-    if (result && result.page) show(result.page);
-  };
+  $('play').onclick = pressPlay;
   show('home');
   poll();
 }
@@ -284,7 +413,8 @@ const SAMPLE_API = {
       { title: 'Animação', rows: [{ type: 'segments', key: 'launcher_fx', store: 'app', label: 'Efeitos animados', value: SAMPLE.fx,
         options: [['full', 'Completos'], ['light', 'Leves'], ['off', 'Desligados']], hint: 'Leves e Desligados gastam menos do PC.' }] }],
   } : { title: (SAMPLE.pages.find((p) => p.id === id) || {}).title || id, subtitle: '', sections: [], placeholder: 'Esta página ainda está no launcher clássico.' },
-  choose_folder: async () => '', action: async () => '', play: async () => ({ message: 'Abrindo o jogo…' }), classic: async () => {},
+  choose_folder: async () => '', action: async () => ({}), play: async () => ({ message: 'Abrindo o jogo…' }), classic: async () => {},
+  set_choice: async () => ({}), set_control: async () => ({}),
 };
 
 // pywebview announces its api with this event; a plain browser never does.
