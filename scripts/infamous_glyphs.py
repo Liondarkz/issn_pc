@@ -52,7 +52,9 @@ XBOX = {'cross': ('A', (108, 196, 74)), 'circle': ('B', (232, 72, 66)), 'square'
 SHORT_NAMES = {'left shift': 'SHIFT', 'right shift': 'SHIFT', 'left ctrl': 'CTRL', 'right ctrl': 'CTRL',
                'left alt': 'ALT', 'right alt': 'ALT', 'return': 'ENTER', 'enter': 'ENTER', 'space': 'SPACE',
                'backspace': 'BKSP', 'escape': 'ESC', 'tab': 'TAB', 'caps lock': 'CAPS', 'up': 'arrow:up',
-               'down': 'arrow:down', 'left': 'arrow:left', 'right': 'arrow:right'}
+               'down': 'arrow:down', 'left': 'arrow:left', 'right': 'arrow:right',
+               # issn 11-06: the mouse's middle and side buttons (src/runtime_pad.c mouse_keys)
+               'mouse middle': 'M3', 'mouse 4': 'M4', 'mouse 5': 'M5'}
 
 
 # issn: the keyboard's words for the touchpad prompts that show no icon (written in place, never

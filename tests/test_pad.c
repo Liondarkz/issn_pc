@@ -64,6 +64,22 @@ int main(void) {
         assert(near(level.acceleration[1],1.0f,1e-4f) && near(level.orientation[3],1.0f,1e-6f) &&
                level.angular_velocity[2]==0.0f);
     }
+    /* issn 11-06: the mouse's middle / side buttons in the key map. */
+    {
+        ButtonMap map={{{SDL_SCANCODE_SPACE,BTN_CROSS}},1};
+        assert(apply_button_map(&map,"cross=Mouse 4, square=mouse middle, circle=Mouse 9",true)==2);
+        int cross=-1, square=-1;
+        for (size_t i=0;i<map.count;++i) {
+            if (map.entries[i].ps==BTN_CROSS) cross=map.entries[i].source;
+            if (map.entries[i].ps==BTN_SQUARE) square=map.entries[i].source;
+        }
+        assert(cross==MOUSE_SOURCE+SDL_BUTTON_X1 && square==MOUSE_SOURCE+SDL_BUTTON_MIDDLE);
+        assert(!strcmp(mouse_key_name(cross),"Mouse 4"));
+        key_mouse_buttons=SDL_BUTTON_MASK(SDL_BUTTON_X1);
+        const bool none[SDL_SCANCODE_COUNT]={0};
+        assert(key_source_down(none,cross) && !key_source_down(none,square) && !key_source_down(none,SDL_SCANCODE_SPACE));
+        key_mouse_buttons=0;
+    }
     const char *tmp=getenv("TMPDIR") ? getenv("TMPDIR") : getenv("TEMP") ? getenv("TEMP") : "/tmp";
     char path[1024];
     snprintf(path,sizeof(path),"%s/issn-pad-test-XXXXXX",tmp);
@@ -417,5 +433,5 @@ int main(void) {
     SDL_Quit();
     unlink(path);
     puts("PASS: pad ABI, staged left/right clicks, L1 chord, SDL touch coordinates, overlay capture, "
-         "motion sensors, orientation, shake, spray pose, swipe, two fingers, light bar, controller aim boost");
+         "motion sensors, orientation, shake, spray pose, swipe, two fingers, light bar, controller aim boost, mouse keys");
 }

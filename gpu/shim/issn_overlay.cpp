@@ -533,16 +533,27 @@ std::string KeyMapWith(const std::string& map, const char* button, const char* n
     return out;
 }
 
-void AssignKey(int row, SDL_Scancode code) {
+void AssignKeyName(int row, const char* name) {
     auto& s = IssnSettings::Get();
     const KeyRow& k = KeyRows[row];
-    const char* name = SDL_GetScancodeName(code);
     if (!name || !*name) {
         return;
     }
     s.key_map = KeyMapWith(s.key_map, k.button, SDL_strcasecmp(name, k.fallback) ? name : nullptr);
     runtime_pad_apply_key_map(s.key_map.c_str());
     dirty = true;
+}
+
+void AssignKey(int row, SDL_Scancode code) {
+    AssignKeyName(row, SDL_GetScancodeName(code));
+}
+
+// issn 11-06: the mouse's middle and side buttons can be keys too (src/runtime_pad.c mouse_keys).
+const char* MouseKeyName(Uint8 button) {
+    return button == SDL_BUTTON_MIDDLE ? "Mouse Middle"
+           : button == SDL_BUTTON_X1   ? "Mouse 4"
+           : button == SDL_BUTTON_X2   ? "Mouse 5"
+                                       : nullptr;
 }
 
 void ControlsTab() {
@@ -559,8 +570,9 @@ void ControlsTab() {
         ImGui::EndTable();
     }
     ImGui::SeparatorText("Keyboard");
-    ImGui::TextWrapped("Click Change, then press the key. Esc cancels. The mouse buttons stay L2 (aim) and R2 "
-                       "(shoot); W/A/S/D move and the mouse turns the camera.");
+    ImGui::TextWrapped("Click Change, then press the key, or the mouse's middle or side button. Esc cancels. "
+                       "The left and right mouse buttons stay R2 (shoot) and L2 (aim); W/A/S/D move and the "
+                       "mouse turns the camera.");
     if (ImGui::BeginTable("##keys", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
         ImGui::TableSetupColumn("button", ImGuiTableColumnFlags_WidthStretch, 0.55f);
         ImGui::TableSetupColumn("key", ImGuiTableColumnFlags_WidthStretch, 0.25f);
@@ -1949,6 +1961,13 @@ bool HandleEvent(const SDL_Event& event) {
                 }
             }
             return false;
+        }
+        if (capturing_key >= 0 && event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+            if (const char* name = MouseKeyName(event.button.button)) { // Controls tab: a mouse key
+                AssignKeyName(capturing_key, name);
+                capturing_key = -1;
+                return true;
+            }
         }
         const int button = event.button.button == SDL_BUTTON_LEFT    ? 0
                            : event.button.button == SDL_BUTTON_RIGHT  ? 1

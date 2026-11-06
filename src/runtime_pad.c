@@ -453,6 +453,29 @@ static ButtonMap key_map={{
     {SDL_SCANCODE_X,SHAKE}, {SDL_SCANCODE_H,SPRAY_POSE},
 },23};
 
+/* issn 11-06: the mouse's middle and side buttons as keys of the key map (ideia do Sleeping): a
+ * source of MOUSE_SOURCE + the SDL button number, named "Mouse Middle", "Mouse 4" and "Mouse 5"
+ * in ISSN_KEY_MAP and issn.ini key_map. Left and right stay R2 / L2 (sample_mouse). */
+#define MOUSE_SOURCE 0x10000
+static const struct { const char *name; int button; } mouse_keys[]={
+    {"Mouse Middle",SDL_BUTTON_MIDDLE}, {"Mouse 4",SDL_BUTTON_X1}, {"Mouse 5",SDL_BUTTON_X2},
+};
+static int mouse_key_source(const char *name) {
+    for (size_t i=0;i<sizeof(mouse_keys)/sizeof(*mouse_keys);++i)
+        if (!SDL_strcasecmp(name,mouse_keys[i].name)) return MOUSE_SOURCE+mouse_keys[i].button;
+    return 0;
+}
+static const char *mouse_key_name(int source) {
+    for (size_t i=0;i<sizeof(mouse_keys)/sizeof(*mouse_keys);++i)
+        if (source==MOUSE_SOURCE+mouse_keys[i].button) return mouse_keys[i].name;
+    return "";
+}
+static SDL_MouseButtonFlags key_mouse_buttons; /* this read's mouse buttons, for the key map */
+static bool key_source_down(const bool *k, int source) {
+    if (source>=MOUSE_SOURCE) return (key_mouse_buttons & SDL_BUTTON_MASK(source-MOUSE_SOURCE))!=0;
+    return k && source>=0 && k[source];
+}
+
 static char *trim(char *text) {
     while (*text==' ' || *text=='\t') ++text;
     char *end=text+strlen(text);
@@ -482,7 +505,8 @@ static int apply_button_map(ButtonMap *map, const char *spec, bool keyboard) {
         entry=next;
         uint32_t ps=0;
         for (size_t i=0;i<sizeof(ps_names)/sizeof(*ps_names);++i) if (!SDL_strcasecmp(button,ps_names[i].name)) ps=ps_names[i].ps;
-        const int source=!*name ? -1 : keyboard ? (int)SDL_GetScancodeFromName(name) : (int)SDL_GetGamepadButtonFromString(name);
+        const int mouse=keyboard && *name ? mouse_key_source(name) : 0;
+        const int source=!*name ? -1 : mouse ? mouse : keyboard ? (int)SDL_GetScancodeFromName(name) : (int)SDL_GetGamepadButtonFromString(name);
         if (!ps || source<=(keyboard ? (int)SDL_SCANCODE_UNKNOWN : (int)SDL_GAMEPAD_BUTTON_INVALID)) {
             printf("Runtime: pad map: ignored '%s=%s'\n",button,name);
             continue;
@@ -533,7 +557,11 @@ const char *runtime_pad_key_name(const char *button) {
     pthread_mutex_lock(&lock);
     const char *name="";
     for (size_t i=0;i<key_map.count;++i)
-        if (key_map.entries[i].ps==ps) { name=SDL_GetScancodeName((SDL_Scancode)key_map.entries[i].source); break; }
+        if (key_map.entries[i].ps==ps) {
+            const int source=key_map.entries[i].source;
+            name=source>=MOUSE_SOURCE ? mouse_key_name(source) : SDL_GetScancodeName((SDL_Scancode)source);
+            break;
+        }
     pthread_mutex_unlock(&lock);
     return name;
 }
@@ -870,7 +898,9 @@ static void sample_host(PadData *d) {
     /* The keyboard works with or without a gamepad: its buttons add to the pad's, and a stick
      * follows the keys only while one of them is held. */
     if (!k) return;
-    for (size_t i=0;i<key_map.count;++i) if (k[key_map.entries[i].source]) d->buttons|=key_map.entries[i].ps;
+    /* the mouse's middle / side buttons, while the game window has the mouse */
+    key_mouse_buttons=SDL_WasInit(SDL_INIT_VIDEO) && SDL_GetMouseFocus() ? SDL_GetMouseState(NULL,NULL) : 0;
+    for (size_t i=0;i<key_map.count;++i) if (key_source_down(k,key_map.entries[i].source)) d->buttons|=key_map.entries[i].ps;
     if (d->buttons & BTN_L2) d->l2=255;
     if (d->buttons & BTN_R2) d->r2=255;
     key_axis(&d->left_x,k[SDL_SCANCODE_A],k[SDL_SCANCODE_D]);
@@ -883,7 +913,7 @@ static void sample_host(PadData *d) {
      * the left stick and the d-pad alone. Second Son: the door, the wreckage, the Mobile Command
      * Center's core. */
     for (size_t i=0;i<key_map.count;++i)
-        if (key_map.entries[i].ps==CLICK_RIGHT && k[key_map.entries[i].source]) key_touch_held=1;
+        if (key_map.entries[i].ps==CLICK_RIGHT && key_source_down(k,key_map.entries[i].source)) key_touch_held=1;
     if (key_touch_held) {
         const bool up=k[SDL_SCANCODE_UP] || k[SDL_SCANCODE_W], down=k[SDL_SCANCODE_DOWN] || k[SDL_SCANCODE_S],
                    left=k[SDL_SCANCODE_LEFT] || k[SDL_SCANCODE_A], right=k[SDL_SCANCODE_RIGHT] || k[SDL_SCANCODE_D];

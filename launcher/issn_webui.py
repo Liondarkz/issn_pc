@@ -528,6 +528,7 @@ class Api:
                        "game's pause menu; Touchpad left (photo mode) is L1 + Touchpad right on the gamepad. Shake moves "
                        'the motion sensors like a shaken controller (the spray can), for pads without them. Insert '
                        "and R3+L2 always open the port's menu. Applied when the game starts.")),
+                note(_("The mouse's middle and side buttons can be keys too: Mouse Middle, Mouse 4, Mouse 5 (also with Change in Insert > Controls).")),  # issn 11-06: runtime_pad.c mouse_keys
                 buttons(button('reset_controls', _('Reset to defaults'),
                                confirm=_('Put every key and gamepad button back to the default?')))]}]
         return {'subtitle': _('Controller, keyboard and mouse, the button icons and the sensitivity.'), 'sections': sections}
