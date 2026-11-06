@@ -162,6 +162,8 @@ if [[ ${1:-} == --test ]]; then
     out/services-test
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -I. -Isrc tests/test_trophy.c src/runtime_trophy.c -o out/trophy-test
     out/trophy-test
+    "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -I. -Isrc tests/test_paper_trail.c src/runtime_paper_trail.c -o out/paper-trail-test
+    out/paper-trail-test
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -mbmi -mlzcnt -mmovbe -I. -Isrc tests/test_isa_emulate.c out/isa_emulate.o -o out/isa-emulate-test
     out/isa-emulate-test
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -c src/isa_rewrite.c -I. -Isrc -o out/isa_rewrite.o

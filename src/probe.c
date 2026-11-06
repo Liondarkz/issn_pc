@@ -982,6 +982,27 @@ static void install_exposure_meter(Segment *segments, uint64_t count) {
 
 /* Damage dealt/taken and green/blue/gold orb multipliers (src/damage_hook.h, src/orb_hook.h):
  * the stubs read the menu's floats directly, so changes apply on the next hit or pickup. */
+#include "paper_trail_hook.h"
+extern void issn_paper_trail_attach(unsigned char *guest_image);
+extern ABI int issn_paper_trail_answer(unsigned char *object);
+/* issn 11-05: Paper Trail without its website (src/paper_trail_hook.h), with ISSN_PAPER_TRAIL=1
+ * (launcher: Game > Paper Trail). Silent for other builds. */
+static void install_paper_trail(Segment *segments, uint64_t count, uint64_t size) {
+    const char *on = getenv("ISSN_PAPER_TRAIL");
+    if (!on || strcmp(on, "1")) return;
+    if (!mapped(segments, count, ISSN_PAPER_TRAIL_UPDATE, sizeof(issn_paper_trail_update_code)) ||
+        !mapped(segments, count, ISSN_PAPER_TRAIL_STATUS, sizeof(issn_paper_trail_status_code)) ||
+        !mapped(segments, count, ISSN_PAPER_TRAIL_URL, sizeof(issn_paper_trail_url)) ||
+        !mapped(segments, count, ISSN_PAPER_TRAIL_SAVE_ARG + 0x84, 0) || !issn_paper_trail_match(image, size)) {
+        printf("Paper Trail: unavailable (code not found in this eboot.bin)\n");
+        return;
+    }
+    issn_paper_trail_attach(image);
+    issn_paper_trail_jump(image + ISSN_PAPER_TRAIL_UPDATE, (const void *)issn_paper_trail_answer);
+    issn_paper_trail_jump(image + ISSN_PAPER_TRAIL_STATUS, (const void *)issn_paper_trail_answer);
+    printf("Paper Trail: on (the missions open without the website)\n");
+}
+
 static void install_stat_multipliers(Segment *segments, uint64_t count, uint64_t size) {
     const uint64_t damage_at = issn_signature_find(image, size, &issn_damage_site);
     const uint64_t pickup_at = issn_signature_find(image, size, &issn_orb_pickup_site);
@@ -1443,6 +1464,7 @@ int main(int argc, char **argv) {
     if (gpu_enabled) install_fov(segments, ns, size);
     if (gpu_enabled) install_exposure_meter(segments, ns);
     if (gpu_enabled) install_hero_cheats(segments, ns, size);
+    install_paper_trail(segments, ns, size);
     if (gpu_enabled) issngpu_apply_game_patches();
 #ifdef _WIN32
     printf("Guest TCB loads redirected to the TEB TLS slot: %" PRIu64 "\n", patch_tcb_loads(segments, ns));
