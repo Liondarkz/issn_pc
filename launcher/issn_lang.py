@@ -1806,6 +1806,8 @@ EXTRA = {
 TROPHY_TEXTS = {
     'pt': {
         'Achievements': 'Conquistas',
+        'Error': 'Erro',
+        'This page could not be loaded. Send a print of it on the Discord.': 'Esta página não carregou. Mande um print dela no Discord.',
         "The game's trophies: the ones unlocked in this port are in color, with the date.":
             'Os troféus do jogo: os liberados neste port ficam coloridos, com a data.',
         'In the game': 'No jogo',
@@ -1837,6 +1839,8 @@ TROPHY_TEXTS = {
     },
     'es': {
         'Achievements': 'Logros',
+        'Error': 'Error',
+        'This page could not be loaded. Send a print of it on the Discord.': 'Esta página no se pudo cargar. Envía una captura en el Discord.',
         "The game's trophies: the ones unlocked in this port are in color, with the date.":
             'Los trofeos del juego: los desbloqueados en este port aparecen en color, con la fecha.',
         'In the game': 'En el juego',

@@ -174,7 +174,15 @@ async function applyGoal(id) {
 
 // ---- settings pages, from the Python side's description ---------------------------------------
 async function buildPage(id) {
-  const schema = await api.page(id);
+  let schema;
+  try {
+    schema = await api.page(id);
+    if (!schema || typeof schema !== 'object') throw new Error(String(schema));
+  } catch (e) {  // a page that fails says so instead of staying blank (issn 11-06)
+    schema = { title: t('Error'), subtitle: '', sections: [{ title: '', rows: [
+      { type: 'card', tone: 'bad', title: t('This page could not be loaded. Send a print of it on the Discord.'),
+        text: String((e && (e.message || e)) || e) }] }] };
+  }
   const old = $('page-' + id);
   const scroll = old ? old.scrollTop : 0;
   const root = el('section', { class: 'page' + (old && old.classList.contains('on') ? ' on still' : ''), id: 'page-' + id, 'aria-label': schema.title });

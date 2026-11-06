@@ -4,7 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>inFAMOUS Second Son (PC)</title>
-<link rel="stylesheet" href="app.css">
+<!-- WebView2 keeps its own cache: the stamp makes it read the files of this version (issn 11-06) -->
+<script>window.ISSN_STAMP = new URLSearchParams(location.search).get('v') || String(Date.now());
+document.write('<link rel="stylesheet" href="app.css?v=' + window.ISSN_STAMP + '">');</script>
+<noscript><link rel="stylesheet" href="app.css"></noscript>
 </head>
 <body data-theme="smoke" data-fx="full">
 <div class="app">
@@ -86,6 +89,6 @@
   </main>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script src="app.js"></script>
+<script>document.write('<script src="app.js?v=' + window.ISSN_STAMP + '"><\/script>');</script>
 </body>
 </html>

@@ -171,3 +171,31 @@ class WebUiTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def test_stale_webview_cache_is_cleared_when_the_page_changes(tmp_path):
+    """issn 11-06: WebView2 kept the old app.js after an update (empty rows, blank pages)."""
+    web = tmp_path / 'web'
+    web.mkdir()
+    for name in ('index.html', 'app.js', 'app.css'):
+        (web / name).write_text(name, encoding='utf-8')
+    storage = tmp_path / 'webview'
+    cache = storage / 'EBWebView' / 'Default' / 'Cache'
+    kept = storage / 'EBWebView' / 'Default' / 'Local Storage'
+    cache.mkdir(parents=True)
+    kept.mkdir(parents=True)
+    stamp = issn_webui.web_stamp(web)
+    assert issn_webui.clear_stale_cache(storage, stamp)
+    assert not cache.exists() and kept.exists()
+    cache.mkdir()
+    assert not issn_webui.clear_stale_cache(storage, stamp)  # same files: the cache stays
+    assert cache.exists()
+    (web / 'app.js').write_text('a newer app.js', encoding='utf-8')
+    assert issn_webui.clear_stale_cache(storage, issn_webui.web_stamp(web))
+    assert not cache.exists()
+
+
+def test_page_files_are_loaded_with_the_stamp():
+    html = (issn_webui.WEB_DIR / 'index.html').read_text(encoding='utf-8')
+    assert 'app.js?v=' in html and 'app.css?v=' in html
+    assert '<script src="app.js"></script>' not in html

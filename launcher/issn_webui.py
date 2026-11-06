@@ -33,7 +33,8 @@ WEB_DIR = Path(__file__).resolve().parent / 'web'
 # The texts of the page's fixed labels (data-t in index.html and app.js), translated with _().
 PAGE_TEXTS = ('Advanced view', 'Classic launcher', 'PLAY', 'RUNNING', 'Ready check', 'Your goal', 'THEME', 'restart',
               'Browse…', 'Open the classic launcher', "In the game: Insert or R3+L2\nopens the port's menu.",
-              'Yes', 'No', 'OK', 'Copied ✓', 'GAME BUTTON', 'KEYBOARD', 'GAMEPAD')
+              'Yes', 'No', 'OK', 'Copied ✓', 'GAME BUTTON', 'KEYBOARD', 'GAMEPAD', 'Error',
+              'This page could not be loaded. Send a print of it on the Discord.')
 
 # The news line of the Play page for this version.
 NEWS = ('New in 0.3.7:', 'the black city lights up by itself')
@@ -1615,6 +1616,41 @@ class Api:
             self._window.destroy()
 
 
+def web_stamp(web):
+    """A short stamp that changes whenever a file of the page changes (size or time)."""
+    parts = []
+    for name in ('index.html', 'app.js', 'app.css'):
+        try:
+            info = (web / name).stat()
+            parts.append(f'{info.st_size}-{int(info.st_mtime)}')
+        except OSError:
+            parts.append('0')
+    return '-'.join(parts)
+
+
+def clear_stale_cache(storage, stamp):
+    """WebView2 keeps app.js and app.css in its own cache (under %APPDATA%), and after an update it kept
+    showing the old page with the new Python (issn 11-06, João: empty rows, blank pages). pywebview serves the
+    page from 127.0.0.1:42001 (the same address every time) and its no-cache header is lost (bottle's
+    static_file sends only Last-Modified), so the old files counted as fresh. When the page's files change, the
+    cache folders go; the settings it stores (Local Storage) stay. The ?v= stamp on the address does the rest."""
+    marker = storage / 'page-stamp.txt'
+    try:
+        if marker.read_text(encoding='utf-8').strip() == stamp:
+            return False
+    except OSError:
+        pass
+    for profile in storage.glob('**/EBWebView/*') if storage.exists() else []:
+        for name in ('Cache', 'Code Cache', 'GPUCache', 'Service Worker'):
+            shutil.rmtree(profile / name, ignore_errors=True)
+    try:
+        storage.mkdir(parents=True, exist_ok=True)
+        marker.write_text(stamp, encoding='utf-8')
+    except OSError:
+        pass
+    return True
+
+
 def run(L, settings):
     """Shows the new launcher. False when it cannot (no pywebview, no WebView2): the caller opens the
     classic one."""
@@ -1626,7 +1662,9 @@ def run(L, settings):
     api = Api(L)
     try:
         web = L.PORT_DIR / 'launcher' / 'web' if L.FROZEN else WEB_DIR  # package.sh copies it there
-        window = webview.create_window(f'{L.APP_NAME} (PC)', url=str(web / 'index.html'), js_api=api,
+        stamp = web_stamp(web)
+        clear_stale_cache(L.CONFIG_DIR / 'webview', stamp)
+        window = webview.create_window(f'{L.APP_NAME} (PC)', url=str(web / 'index.html') + '?v=' + stamp, js_api=api,
                                        width=1280, height=780, min_size=(1100, 680), background_color=L.BG)
         api._window = window
         webview.start(gui='edgechromium' if L.WINDOWS else None, private_mode=False,
