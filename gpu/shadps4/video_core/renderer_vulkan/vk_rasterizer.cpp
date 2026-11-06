@@ -44,6 +44,7 @@
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
 #include "video_core/renderer_vulkan/issn_fsr4.h"
 #include "video_core/renderer_vulkan/issn_xess.h"
+#include "video_core/renderer_vulkan/issn_sharpen.h"
 #include "video_core/renderer_vulkan/issn_framegen.h"
 #include "video_core/renderer_vulkan/vk_dlss.h"
 #include "video_core/renderer_vulkan/vk_dlss_upscale.h"
@@ -1935,6 +1936,13 @@ void Rasterizer::DlssResolve() {
                                                 target, jx, jy, dlss_reset_pending);
             dlss_reset_pending = false;
             if (upscaler && evaluated) {
+                // issn 11-05: XeSS has no sharpening of its own: the port's, on the window-size
+                // scene before the HUD is laid over it (FSR 4 and OptiScaler sharpen themselves).
+                if (Sharpen::OwnerFor(Sharpen::Strength(), Dlss::Mode(),
+                                      Sharpen::OptiScalerPresent(), true) == Sharpen::Owner::Port) {
+                    SharpenScene(target.image, target.format, target.layout, target.width,
+                                 target.height);
+                }
                 upscaler->SceneWritten(cmdbuf);
                 hud_layer = true;
             }
@@ -2050,6 +2058,12 @@ void Rasterizer::DlssResolve() {
                                        target, jx, jy, dlss_reset_pending);
             dlss_reset_pending = false;
             if (upscaler && evaluated) {
+                // issn 11-05: DLSS has no sharpening of its own (2.5.1 on): the port's, on the
+                // window-size scene before the HUD is laid over it.
+                if (Sharpen::Strength() > 0) [[unlikely]] {
+                    SharpenScene(target.image, target.format, target.layout, target.width,
+                                 target.height);
+                }
                 upscaler->SceneWritten(cmdbuf);
                 hud_layer = true;
             }
@@ -2103,6 +2117,16 @@ void Rasterizer::DlssResolve() {
     } else {
         out.CopyImage(*in);
     }
+    // issn 11-05 (issn_sharpen.h): the port's sharpening on the scene before the HUD - anti-aliasing
+    // Off, DLSS / XeSS at the game's size, or a frame the upscaler skipped (a plain copy). FSR 4
+    // and OptiScaler sharpen themselves; the HUD layer was handled with the scene above.
+    if (!hud_layer && Sharpen::OwnerFor(Sharpen::Strength(), Dlss::Mode(),
+                                        Sharpen::OptiScalerPresent(),
+                                        evaluated) == Sharpen::Owner::Port) [[unlikely]] {
+        out.Transit(vk::ImageLayout::eGeneral, vk::AccessFlagBits2::eShaderWrite, {});
+        SharpenScene(out.GetImage(), out.info.pixel_format, vk::ImageLayout::eGeneral,
+                     out.info.size.width, out.info.size.height);
+    }
     out.flags |= VideoCore::ImageFlagBits::GpuModified;
     out.flags &= ~VideoCore::ImageFlagBits::Dirty;
     if (fsr4_mode && (dlss_calls & 4095) == 0) {
@@ -2117,6 +2141,52 @@ void Rasterizer::DlssResolve() {
                  dlss_phases[1], dlss_phases[2], dlss_phases[3], dlss_phases[0],
                  Dlss::g_jitter_combo.load(std::memory_order_relaxed));
     }
+}
+
+// ---- issn 11-05: sharpening (issn_sharpen.h) ----
+
+void Rasterizer::SharpenScene(vk::Image image, vk::Format format, vk::ImageLayout layout,
+                              u32 width, u32 height) {
+    const int percent = Sharpen::Strength();
+    if (percent == 0) {
+        return;
+    }
+    if (!sharpen) {
+        sharpen = std::make_unique<Sharpen::Pass>(instance);
+    }
+    if (native_batch.open) [[unlikely]] {
+        NativeClose(12);
+    }
+    rs_memo.valid = false;
+    scheduler.EndRendering();
+    if (sharpen->Run(scheduler.AcquireCommandBuffer().Handle(), image, format, layout, width,
+                     height, percent)) {
+        // A compute pipeline and push descriptors of its own (as the upscalers): nothing the
+        // next draw relies on may be assumed still bound.
+        scheduler.GetDynamicState().Invalidate();
+        GraphicsBindTracker::Invalidate();
+        scheduler.InvalidateNativeHeaps();
+    }
+}
+
+void Rasterizer::SharpenGameResolve() {
+    const auto& regs = liverpool->BackRegs();
+    const u64 resolve = Dlss::g_resolve_ps.load(std::memory_order_relaxed);
+    if (resolve == 0 || regs.ps_program.Address<VAddr>() != resolve) {
+        return;
+    }
+    if (native_batch.open) [[unlikely]] {
+        NativeClose(12); // the resolve may sit in the open batch: recorded first
+    }
+    rs_memo.valid = false;
+    scheduler.EndRendering();
+    VideoCore::TextureCache::ImageDesc out_desc{regs.color_buffers[0], liverpool->BackCbExtent(0)};
+    auto& out = texture_cache.GetImage(texture_cache.FindImage(out_desc, true));
+    out.Transit(vk::ImageLayout::eGeneral, vk::AccessFlagBits2::eShaderWrite, {});
+    SharpenScene(out.GetImage(), out.info.pixel_format, vk::ImageLayout::eGeneral,
+                 out.info.size.width, out.info.size.height);
+    out.flags |= VideoCore::ImageFlagBits::GpuModified;
+    out.flags &= ~VideoCore::ImageFlagBits::Dirty;
 }
 
 // ---- issn 11-04: motion blur / chromatic aberration switches and the pass list (issn_postfx.h) --
@@ -2751,6 +2821,9 @@ void Rasterizer::Draw(bool is_indexed, u32 index_offset) {
         }
     }
     DrawTail(pipeline, is_indexed, index_offset, sample, t_entry, t_pipeline, pipeline_ns);
+    if (Sharpen::g_strength.load(std::memory_order_relaxed) > 0) [[unlikely]] {
+        SharpenGameResolve(); // issn 11-05 (issn_sharpen.h)
+    }
 }
 
 namespace {
@@ -3091,6 +3164,9 @@ void Rasterizer::ExecuteDraw(const SplitDraw& draw,
             }
             if (joined) {
                 rec_outcome = was_colour ? 2u : 1u;
+                if (Sharpen::g_strength.load(std::memory_order_relaxed) > 0) [[unlikely]] {
+                    SharpenGameResolve(); // issn 11-05 (issn_sharpen.h)
+                }
                 return;
             }
         }
@@ -3100,6 +3176,9 @@ void Rasterizer::ExecuteDraw(const SplitDraw& draw,
         // The lookup ran on the front: the Pipeline phase and pipeline_ns are 0 here.
         DrawTail(draw.pipeline, draw.args.is_indexed, draw.args.index_offset, sample, t_entry,
                  t_entry, 0, front_vi);
+        if (Sharpen::g_strength.load(std::memory_order_relaxed) > 0) [[unlikely]] {
+            SharpenGameResolve(); // issn 11-05 (issn_sharpen.h)
+        }
         if (native_timing) {
             const u64 dt = __rdtsc() - t1;
             if (native_stats.last_open_colour) {

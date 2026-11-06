@@ -39,6 +39,9 @@ namespace Vulkan {
 namespace Fsr4Aa {
 class Upscaler;
 }
+namespace Sharpen {
+class Pass;
+}
 namespace Xess {
 class Upscaler;
 }
@@ -362,6 +365,14 @@ public:
     u64 dlss_last_resolve_ns{}; ///< a gap (Home off, menus, loads) restarts FSR's history    ///< the colour input differs in format from the target (blit, no copy)
     std::unique_ptr<Fsr4Aa::Upscaler> fsr4; ///< ISSN_FSR4 (issn_fsr4.h), made at the first resolve
     std::unique_ptr<Xess::Upscaler> xess; ///< ISSN_XESS (issn_xess.h), made at the first resolve
+    /// issn 11-05 (issn_sharpen.h): the port's RCAS pass, made at the first sharpened frame.
+    std::unique_ptr<Sharpen::Pass> sharpen;
+    /// Sharpens a scene image in place (outside rendering), when the port owns the sharpening.
+    void SharpenScene(vk::Image image, vk::Format format, vk::ImageLayout layout, u32 width,
+                      u32 height);
+    /// After a draw: the game's own T2x resolve (the game's AA, or Home switched the port's off)
+    /// gets the port's sharpening on its target.
+    void SharpenGameResolve();
     struct NeoIdDerive;
     std::shared_ptr<NeoIdDerive> neo_id_derive;
     VAddr neo_depth_addr{};

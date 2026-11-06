@@ -1,0 +1,45 @@
+// SPDX-FileCopyrightText: Copyright 2026 shadPS4 Emulator Project
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+#version 450
+
+// issn 11-05: the port's sharpening pass (renderer_vulkan/issn_sharpen.h) - AMD's Robust Contrast
+// Adaptive Sharpening (RCAS, the non-scaling CAS of FidelityFX FSR 1; ffx_fsr1.h / ffx_a.h, MIT,
+// Copyright (c) 2021 Advanced Micro Devices, Inc.) on the scene before the HUD, in place of the
+// game's own T2x output or the copy of "anti-aliasing Off". 32-bit path (no half floats needed);
+// the alpha passes through, the edges read clamped.
+
+layout (push_constant) uniform const_buffer {
+    uvec4 Const0; // FsrRcasCon(attenuation)
+};
+
+#define A_GPU 1
+#define A_GLSL 1
+#include "fsr/ffx_a.h"
+
+layout (set = 0, binding = 0) uniform texture2D InputTexture;
+layout (set = 0, binding = 1, rgba16f) uniform writeonly image2D OutputTexture;
+layout (set = 0, binding = 2) uniform sampler InputSampler;
+
+#define FSR_RCAS_F 1
+#define FSR_RCAS_PASSTHROUGH_ALPHA 1
+AF4 FsrRcasLoadF(ASU2 p) {
+    const ivec2 last = textureSize(sampler2D(InputTexture, InputSampler), 0) - ivec2(1);
+    return texelFetch(sampler2D(InputTexture, InputSampler), clamp(p, ivec2(0), last), 0);
+}
+void FsrRcasInputF(inout AF1 r, inout AF1 g, inout AF1 b) {}
+
+#include "fsr/ffx_fsr1.h"
+
+layout (local_size_x = 8, local_size_y = 8) in;
+void main() {
+    const ivec2 size = textureSize(sampler2D(InputTexture, InputSampler), 0);
+    const ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
+    if (pos.x >= size.x || pos.y >= size.y) {
+        return;
+    }
+    AF3 c;
+    AF1 a;
+    FsrRcasF(c.r, c.g, c.b, a, AU2(pos), Const0);
+    imageStore(OutputTexture, pos, AF4(clamp(c, AF3(0.0), AF3(1.0)), a));
+}

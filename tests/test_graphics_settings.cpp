@@ -86,17 +86,19 @@ int main() {
     assert(v.async_shaders);
     {
         std::ofstream out(path);
-        out << "cheat_double_jumps=1\ncheat_very_hard=1\nmotion_blur=0\n";
+        out << "cheat_double_jumps=1\ncheat_very_hard=1\nmotion_blur=0\nsharpening=250\n";
     }
     IssnSettings::Load();
     // issn 11-04: the game's motion blur and chromatic aberration (on unless the file says 0).
     assert(!v.motion_blur && v.chromatic_aberration);
+    assert(v.sharpening == 100);  // issn 11-05: 0-100 %, clamped
     IssnSettings::Save();
     const std::string cheats = Read(path);
     assert(cheats.find("cheat_double_jumps=1\n") != std::string::npos);
     assert(cheats.find("cheat_very_hard=1\n") != std::string::npos);
     assert(cheats.find("motion_blur=0\n") != std::string::npos);
     assert(cheats.find("chromatic_aberration=1\n") != std::string::npos);
+    assert(cheats.find("sharpening=100\n") != std::string::npos);
     std::remove(path);
     std::puts("PASS: graphics settings");
 }

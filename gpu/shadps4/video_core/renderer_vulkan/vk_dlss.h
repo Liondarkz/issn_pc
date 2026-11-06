@@ -113,9 +113,11 @@ inline std::atomic<u64> g_resolve_ps{0};
 /// then the game's own resolve runs (the first frames of a session).
 inline std::atomic<bool> g_inputs_seen{false};
 
-/// PipelineCache::GetProgram: remembers where the resolve shader lives.
+/// PipelineCache::GetProgram: remembers where the resolve shader lives. Also with the game's own
+/// AA (issn 11-05: the sharpening follows its resolve, vk_rasterizer.cpp SharpenGameResolve);
+/// IsResolve still needs g_ready, which only the port's AA modes set.
 inline void NoteProgram(bool fragment, u64 hash, VAddr base) {
-    if (fragment && hash == ResolvePsHash && Enabled()) [[unlikely]] {
+    if (fragment && hash == ResolvePsHash) [[unlikely]] {
         g_resolve_ps.store(base, std::memory_order_relaxed);
     }
 }

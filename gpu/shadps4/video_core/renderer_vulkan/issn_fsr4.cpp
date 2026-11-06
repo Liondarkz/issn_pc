@@ -18,6 +18,7 @@
 #include "ffx_vk_fsr4_v07_assets.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
+#include "video_core/renderer_vulkan/issn_sharpen.h"
 #include "video_core/buffer_cache/buffer.h"
 #include "video_core/texture_cache/image.h"
 
@@ -616,12 +617,16 @@ struct Upscaler::Impl {
         d.motionVectorScale = {mv_sign * float(motion.width), mv_sign * float(motion.height)};
         d.renderSize = {color.width, color.height};
         d.upscaleSize = {ow, oh};
-        // ISSN_FSR4_SHARPNESS (0..1, default 0.2): RCAS after the model.
-        static const float sharpness = [] {
+        // RCAS after the model. issn 11-05: the player's sharpening (issn_sharpen.h; 0-100 %, off
+        // by default, live) - FSR 4 owns it, the port's own pass stays off. ISSN_FSR4_SHARPNESS
+        // (0..1, test) still wins when set.
+        static const float forced = [] {
             const char* v = std::getenv("ISSN_FSR4_SHARPNESS");
-            const float s = v && *v ? float(std::atof(v)) : 0.2f;
-            return s < 0.0f ? 0.0f : (s > 1.0f ? 1.0f : s);
+            const float s = v && *v ? float(std::atof(v)) : -1.0f;
+            return s < 0.0f ? -1.0f : (s > 1.0f ? 1.0f : s);
         }();
+        const float sharpness =
+            forced >= 0.0f ? forced : float(Sharpen::Strength()) / 100.0f;
         d.enableSharpening = sharpness > 0.0f;
         d.sharpness = sharpness;
         d.enableAutoExposure = false;

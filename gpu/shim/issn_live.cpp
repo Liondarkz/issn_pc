@@ -4,6 +4,7 @@
 #include "issn_settings.h"
 #include "video_core/renderer_vulkan/issn_framegen.h"
 #include "video_core/renderer_vulkan/issn_postfx.h"
+#include "video_core/renderer_vulkan/issn_sharpen.h"
 #include "video_core/texture_cache/sampler.h"
 
 #include <algorithm>
@@ -18,6 +19,7 @@ void ApplyLiveChoices() {
         Vulkan::FrameGen::SetEnabled(v.menu_frame_gen.load() > 0);
     }
     // issn 11-04: the game's motion blur and chromatic aberration (issn_postfx.h).
+    Vulkan::Sharpen::g_strength.store(v.sharpening.load(), std::memory_order_relaxed); // issn 11-05
     Vulkan::PostFx::g_off[Vulkan::PostFx::MotionBlur].store(!v.motion_blur.load(), std::memory_order_relaxed);
     Vulkan::PostFx::g_off[Vulkan::PostFx::Chromatic].store(!v.chromatic_aberration.load(),
                                                            std::memory_order_relaxed);

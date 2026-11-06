@@ -156,6 +156,9 @@ struct Values {
     /// issn 11-04 (video_core issn_postfx.h): the game's motion blur and chromatic aberration,
     /// live from the menu and the launcher (issn.ini motion_blur / chromatic_aberration).
     std::atomic<bool> motion_blur{true}, chromatic_aberration{true};
+    /// issn 11-05 (video_core issn_sharpen.h): sharpening strength in percent, 0 = off (default),
+    /// live; FSR 4 / OptiScaler sharpen themselves, otherwise the port's RCAS pass.
+    std::atomic<int> sharpening{0};
     /// Field of view factor (src/fov_hook.h, issn_view.cpp), live; fov_supported once hooked.
     std::atomic<float> fov{1.0f};
     std::atomic<bool> fov_supported{false};

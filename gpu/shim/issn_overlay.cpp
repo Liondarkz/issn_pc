@@ -36,6 +36,7 @@ extern "C" const char* runtime_pad_key_name(const char* button);
 #include "video_core/renderdoc.h"
 #include "video_core/renderer_vulkan/vk_dlss.h"
 #include "video_core/renderer_vulkan/issn_postfx.h"
+#include "video_core/renderer_vulkan/issn_sharpen.h"
 #include "video_core/renderer_vulkan/issn_framegen.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
@@ -661,6 +662,31 @@ void PictureRows() {
                    "The blur when the camera or Delsin moves fast. Off: a sharp picture in motion.");
         effect_row("Chromatic aberration", s.chromatic_aberration, P::Chromatic,
                    "The red and blue fringes toward the edges of the screen.");
+        // issn 11-05 (video_core issn_sharpen.h): sharpening, live, applied once - by FSR 4 or
+        // OptiScaler when they run, otherwise by the port's RCAS pass before the HUD.
+        {
+            const int before = s.sharpening;
+            SliderRow("Sharpening", s.sharpening, 0, 100, s.sharpening == 0 ? "Off" : "%d%%",
+                      "Makes the picture crisper. 0 is off; 30-50% is a good start. Applied once: by "
+                      "FSR 4 or OptiScaler when they run, otherwise by the port before the HUD.");
+            if (s.sharpening != before) IssnSettings::ApplyLiveChoices();
+            if (s.sharpening > 0) {
+                namespace Sh = Vulkan::Sharpen;
+                const int mode =
+                    Vulkan::Dlss::g_user_on.load(std::memory_order_relaxed) ? Vulkan::Dlss::Mode() : 0;
+                switch (Sh::OwnerFor(s.sharpening, mode, Sh::OptiScalerPresent(), true)) {
+                case Sh::Owner::Fsr4:
+                    InfoRow("Sharpened by", "FSR 4 (its own RCAS)");
+                    break;
+                case Sh::Owner::OptiScaler:
+                    InfoRow("Sharpened by", "OptiScaler: strength set at launch (its menu: F8)");
+                    break;
+                default:
+                    InfoRow("Sharpened by", "the port (AMD RCAS, before the HUD)");
+                    break;
+                }
+            }
+        }
         static const char* const fg_labels[] = {"Off", "On (test)"};
         if (Vulkan::FrameGen::Wanted()) {
             const int before = s.menu_frame_gen;

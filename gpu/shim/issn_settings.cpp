@@ -137,6 +137,8 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.reactive_max = Clamp(f, 0.0f, 1.0f);
     } else if (key == "debug_view") {
         v.debug_view = std::clamp(i, 0, DebugViewCount - 1);
+    } else if (key == "sharpening") {
+        v.sharpening = i < 0 ? 0 : i > 100 ? 100 : i;
     } else if (key == "motion_blur") {
         v.motion_blur = i != 0;
     } else if (key == "chromatic_aberration") {
@@ -471,6 +473,7 @@ void Save() {
                  v.far_clip.load(), v.mip_lod_bias.load(), v.lod_bands[0].load(), v.lod_bands[1].load(),
                  v.lod_bands[2].load(), v.lod_bands[3].load(), v.lod_bands[4].load(), v.lod_bands[5].load());
     std::fprintf(file, "fov=%.3f\nsave_note=%d\n", v.fov.load(), int(v.save_note.load()));
+    std::fprintf(file, "sharpening=%d\n", v.sharpening.load());
     std::fprintf(file, "motion_blur=%d\nchromatic_aberration=%d\n", int(v.motion_blur.load()),
                  int(v.chromatic_aberration.load()));
     std::fprintf(file, "trophy_note=%d\n", int(v.trophy_note.load()));
