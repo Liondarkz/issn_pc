@@ -4,6 +4,8 @@
 #include <atomic>
 #include <cstdlib>
 #include <algorithm>
+#include <cmath>
+#include <cstdio>
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/texture_cache/sampler.h"
@@ -98,9 +100,26 @@ Sampler::Sampler(const Vulkan::Instance& instance, const AmdGpu::Sampler& sample
 
     // SHADPS4_TEX_LOD_BIAS=-1.5 (test, 10-20): added to every sampler's mip bias - DLSS's advice
     // for renders below the output size (log2(render / output)).
+    // issn 11-06 (João tested teste-mip-bias.bat, -0.58 with FSR 4 Quality: sharper): automatic
+    // when an upscaler draws below the window (ISSN_UPSCALE_FACTOR, Quality 1.5 ... 3), so the
+    // textures keep the detail of the output size: -log2(factor). ISSN_TEX_LOD_AUTO=0 turns it off;
+    // SHADPS4_TEX_LOD_BIAS still wins.
     static const float extra_bias = [] {
-        const char* v = std::getenv("SHADPS4_TEX_LOD_BIAS");
-        return v ? static_cast<float>(std::atof(v)) : 0.0f;
+        if (const char* v = std::getenv("SHADPS4_TEX_LOD_BIAS"); v && *v) {
+            return static_cast<float>(std::atof(v));
+        }
+        const char* autov = std::getenv("ISSN_TEX_LOD_AUTO");
+        const char* f = std::getenv("ISSN_UPSCALE_FACTOR");
+        const double factor = f ? std::atof(f) : 0.0;
+        float bias = 0.0f;
+        if (!(autov && autov[0] == '0') && factor > 1.01 && factor <= 4.0) {
+            bias = -static_cast<float>(std::log2(factor));
+        }
+        std::printf("Texture mip bias: %.2f (%s)\n", bias,
+                    bias != 0.0f ? "the upscaler draws below the window; ISSN_TEX_LOD_AUTO=0 turns it off"
+                                 : "no upscaler below the window size");
+        std::fflush(stdout);
+        return bias;
     }();
     const vk::SamplerCreateInfo sampler_ci = {
         .pNext = custom_color ? &*custom_color : nullptr,

@@ -27,7 +27,7 @@ namespace Vulkan::PostFx {
 enum Effect : u32 { MotionBlur = 0, Chromatic = 1, EffectCount = 2 };
 
 /// Built-in hashes per effect (CUSA00223 01.07). Empty until the in-game test names them.
-inline constexpr u64 MotionBlurHashes[] = {0};
+inline constexpr u64 MotionBlurHashes[] = {0xae9a2520}; // 2 passes at half size (João, 11-06)
 inline constexpr u64 ChromaticHashes[] = {0};
 
 constexpr u32 MaxHashes = 8;
