@@ -343,7 +343,15 @@ def main():
             print(output, end='', flush=True)
             if code == 0:
                 isa_args = ['--isa-rewrite', str(out / 'isa-rewrite.bin')]
-        run_script('content_profile.py', game, '--out', out, '--sku', env.get('ISSN_CONTENT_SKU', 'full'))
+        # issn 11-06: add-ons (DLC) from the player's own dumps: issn.ini addcont_dir / addcont_off
+        # (or ISSN_ADDCONT_DIR / ISSN_ADDCONT_OFF); no folder = no add-on (claude/dlc-estudo.md).
+        addcont_args = []
+        addcont_dir = env.get('ISSN_ADDCONT_DIR', ini.get('addcont_dir', '')).strip().strip('"')
+        if addcont_dir:
+            addcont_args = ['--addcont', addcont_dir,
+                            '--addcont-off', env.get('ISSN_ADDCONT_OFF', ini.get('addcont_off', ''))]
+        run_script('content_profile.py', game, '--out', out, '--sku', env.get('ISSN_CONTENT_SKU', 'full'),
+                   *addcont_args)
 
         # issn: settings a game needs (scripts/game_profiles.py); derived again on each start.
         import game_profiles

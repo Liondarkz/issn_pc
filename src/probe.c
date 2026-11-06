@@ -1202,17 +1202,27 @@ int main(int argc, char **argv) {
     if (cpu_missing_sets && (!isa_sets || !isa_file))
         printf("CPU: lacks SSE4A and runs without the ISA rewrite: an EXTRQ would end the game\n");
     if (content_profile) {
+        /* G3CONT01: SKU + 4 user parameters. G3CONT02 (issn 11-06): the same, then the number
+         * of add-ons and their 16-character entitlement labels (scripts/content_profile.py). */
         FILE *profile=fopen(content_profile,"rb");
-        unsigned char data[28];
+        unsigned char data[28+4+8*16];
         if (!profile) fail("cannot open content profile");
-        if (fread(data,1,sizeof(data),profile)!=sizeof(data) || fgetc(profile)!=EOF || memcmp(data,"G3CONT01",8)) fail("invalid content profile");
+        size_t got=fread(data,1,sizeof(data),profile);
+        int extra=fgetc(profile);
         fclose(profile);
+        int v2=got>=8 && !memcmp(data,"G3CONT02",8);
+        if (extra!=EOF || got<28 || (!v2 && (got!=28 || memcmp(data,"G3CONT01",8)))) fail("invalid content profile");
         uint32_t values[5];
         for (unsigned i=0;i<5;++i) {
             unsigned char *p=data+8+i*4;
             values[i]=(uint32_t)p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;
         }
         runtime_content_configure(values);
+        if (v2) {
+            uint32_t count=got>=32 ? (uint32_t)data[28]|(uint32_t)data[29]<<8|(uint32_t)data[30]<<16|(uint32_t)data[31]<<24 : 0;
+            if (!count || count>8 || got!=32+count*16 || runtime_content_addons((const char (*)[16])(data+32),count))
+                fail("invalid add-on list in the content profile");
+        }
     }
     if (app0) {
         runtime_file_configure(app0, user_dir ? user_dir : "user");

@@ -51,6 +51,9 @@ void runtime_sema_report(void);
 unsigned runtime_sema_waiters(uint32_t id);
 uintptr_t runtime_time_resolve(const char *name);
 void runtime_content_configure(const uint32_t values[5]);
+/* issn 11-06: entitlement labels of the player's add-on dumps (16 characters each, at most 8);
+ * 0 when accepted. Must come before the game loads AppContent. */
+int runtime_content_addons(const char (*labels)[16], unsigned count);
 uintptr_t runtime_content_resolve(const char *name);
 void runtime_content_report(void);
 typedef struct { const char *name; void *function; } RuntimeExport;
