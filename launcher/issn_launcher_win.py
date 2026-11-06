@@ -3134,7 +3134,7 @@ class Launcher:
 
     def refresh_game_patches(self):
         import xml.etree.ElementTree as ET
-        from patches import ALWAYS_ON, EXCLUSIVE_PREFIX
+        from patches import ALWAYS_ON, EXCLUSIVE_PREFIX, ONE_OF, PRO_ONLY_PREFIX
         tk, f = self.tk, self.game_patch_frame
         self.store_game_patches()
         for widget in f.winfo_children():
@@ -3153,15 +3153,30 @@ class Launcher:
                                                          if m.get('isEnabled', 'false').lower() == 'true'}
         self.note(f, _('{} · version {} · {}. Resolution and frame rate patches follow Performance.',
                        '{} · версия {} · {}.').format(title_id, version, xml.name), top=0)
+        groups = {}  # issn 11-06: one resolution / field of view patch at a time (patches.ONE_OF)
         for meta in metas:
             name = meta.get('Name')
             if name.startswith(EXCLUSIVE_PREFIX) or name.startswith('Frame Rate Patch') or name in ALWAYS_ON:
                 continue
-            var = tk.BooleanVar(value=name in on)
+            if name.startswith(PRO_ONLY_PREFIX):  # needs the PS4 Pro mode; the port runs as a base PS4
+                continue
+            group = next((g for g, match in ONE_OF if match(name)), None)
+            var = tk.BooleanVar(value=name in on and not (group and any(v.get() for v in groups.get(group, []))))
             self.game_patch_vars[name] = var
+            if group:
+                groups.setdefault(group, []).append(var)
+                var.trace_add('write', lambda *_a, v=var, g=group: self.one_patch_of(groups[g], v))
             author = meta.get('Author')
             self.check(f, None, None, name + (f'  ({author})' if author else ''), meta.get('Note'), var=var)
         self.game_patch_title = title_id
+
+    @staticmethod
+    def one_patch_of(group, var):
+        """Ticking a patch of a ONE_OF group unticks the others."""
+        if var.get():
+            for other in group:
+                if other is not var and other.get():
+                    other.set(False)
 
     def store_game_patches(self):
         """The page's selection into settings (the whole list for this game, without the resolution

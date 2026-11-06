@@ -383,6 +383,9 @@ def main():
         if env.get('ISSN_EXPERIMENTAL_UPSCALER') != '1':
             env.setdefault('ISSN_UPSCALER', 'none')
         if profile:
+            chosen_names = [n.strip() for n in env.get('ISSN_PATCHES', '').split(';') if n.strip()]
+            for name, reason in patches.one_per_group(chosen_names)[1]:
+                print(f'Patches: {name} left out: {reason}', flush=True)
             names = selected_patches(profile[1], profile[2], env.get('ISSN_PATCHES', ''), env.get('ISSN_PATCHES_ONLY') == '1')
             # issn.ini decides the resolution and frame rate patches (in-game menu, launcher); their
             # names are God of War III's (issn: other games keep their patch file's choice).

@@ -269,3 +269,25 @@ class SignatureTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class SecondSonOnePerGroupTests(unittest.TestCase):
+    """issn 11-06: Marcio had every Second Son patch on (black screen after GameState)."""
+
+    def test_everything_on_keeps_one_of_each(self):
+        import patches
+        xml = ROOT / 'patches' / 'inFAMOUS_Second_Son.xml'
+        every = sorted(patches.available_patches(xml, '01.00'))
+        names = patches.selected_patches(xml, '01.00', ';'.join(every), only=True)
+        self.assertFalse([n for n in names if n.startswith('PS4 Pro mode')])
+        self.assertEqual(1, len([n for n in names if n.startswith('Native ')]))
+        self.assertEqual(1, len([n for n in names if n.startswith('Wider field of view')]))
+        self.assertIn('Anti-freeze guard (collision loop)', names)
+        self.assertIn('Bigger light list (needed for native 4K)', names)
+
+    def test_first_of_a_group_wins(self):
+        import patches
+        kept, dropped = patches.one_per_group(['Wider field of view x1.30', 'Wider field of view x1.15',
+                                               'PS4 Pro mode: native 2560x1440 without checkerboard'])
+        self.assertEqual(['Wider field of view x1.30'], kept)
+        self.assertEqual(2, len(dropped))

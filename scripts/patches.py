@@ -278,6 +278,33 @@ REPLACED_BY_EXCLUSIVE={'Bug Fix - Texture Corruption Fix'}
 ALWAYS_ON={'Bug Fix - Startup Black Screen'}
 
 
+# inFAMOUS Second Son notes (issn 11-06): the "PS4 Pro mode" patches need the Pro mode, which the port
+# never reports (sceKernelIsNeoMode is 0), and the native resolution and field of view patches each
+# rewrite the same immediates, so only one of each group may be on. Marcio's black screen after the
+# GameState thread had all eleven on: sizes from four patches mixed in one frame setup.
+PRO_ONLY_PREFIX='PS4 Pro mode:'
+ONE_OF=(('resolution', lambda n: n.startswith('Native ') and n.endswith('(render and output)')),
+        ('field of view', lambda n: n.startswith('Wider field of view')))
+
+
+def one_per_group(names):
+    """(kept, dropped): names without the Pro mode patches and with only the first of each ONE_OF group;
+    dropped is [(name, reason)]."""
+    kept,dropped,seen=[],[],{}
+    for name in names:
+        if name.startswith(PRO_ONLY_PREFIX):
+            dropped.append((name,'needs the PS4 Pro mode, the port runs as a base PS4'))
+            continue
+        group=next((g for g,match in ONE_OF if match(name)),None)
+        if group and group in seen:
+            dropped.append((name,f'one {group} patch at a time ({seen[group]} is on)'))
+            continue
+        if group:
+            seen[group]=name
+        kept.append(name)
+    return kept,dropped
+
+
 def selected_patches(xml, app_version, extra, only=False):
     """The file's isEnabled patches for this version, then the names in extra (";"-separated).
     only: extra is the whole selection (the launcher's), without the file's defaults but with
@@ -289,7 +316,7 @@ def selected_patches(xml, app_version, extra, only=False):
     exclusive=[n for n in names if n.startswith(EXCLUSIVE_PREFIX)]
     if len(exclusive)>1:
         raise ValueError(f'choose one resolution patch, not {exclusive}')
-    return [n for n in names if not (exclusive and n in REPLACED_BY_EXCLUSIVE)]
+    return one_per_group([n for n in names if not (exclusive and n in REPLACED_BY_EXCLUSIVE)])[0]
 
 
 def patch_requirements(xml, names, app_version):
