@@ -1805,6 +1805,18 @@ TROPHY_TEXTS = {
         'Could not remove the key: {}': 'No se pudo quitar la clave: {}',
     },
 }
+TROPHY_TEXTS['pt'].update({
+    'Paper Trail': 'Paper Trail (Trilha de Papel)',
+    'Paper Trail without internet': 'Paper Trail sem internet',
+    "Paper Trail's missions were unlocked by a website that closed in 2018. With this on, the port answers for it: every step counts as done and the missions open once the story reaches them (about a third of the way in).":
+        'As missões do Paper Trail eram liberadas por um site que fechou em 2018. Com isto ligado, o port responde no lugar dele: todos os passos contam como feitos e as missões abrem quando a história chega nelas (mais ou menos 1/3 do jogo).',
+})
+TROPHY_TEXTS['es'].update({
+    'Paper Trail': 'Paper Trail (Rastro de papel)',
+    'Paper Trail without internet': 'Paper Trail sin internet',
+    "Paper Trail's missions were unlocked by a website that closed in 2018. With this on, the port answers for it: every step counts as done and the missions open once the story reaches them (about a third of the way in).":
+        'Las misiones de Paper Trail se desbloqueaban con un sitio web que cerró en 2018. Con esto activado, el port responde en su lugar: todos los pasos cuentan como hechos y las misiones se abren cuando la historia llega a ellas (más o menos a un tercio del juego).',
+})
 for _language, _texts in TROPHY_TEXTS.items():
     EXTRA.setdefault(_language, {}).update(_texts)
 

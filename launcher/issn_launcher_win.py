@@ -360,9 +360,9 @@ def heading_text(text, every_language=False):
 # launcher's own settings.json (passed to run.py as environment variables).
 
 INI_FLAGS = {'cheat_double_jumps', 'cheat_very_hard', 'object_motion', 'show_fps', 'vsync', 'async_shaders', 'deferred_readback',
-             'stale_readback', 'motion_blur', 'chromatic_aberration', 'trophy_note'}
+             'stale_readback', 'motion_blur', 'chromatic_aberration', 'trophy_note', 'paper_trail'}
 # The graphics keys are also in the in-game menu (Insert / R3+L2); run.py reads the startup ones.
-INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'trophy_note': '1',
+INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'trophy_note': '1', 'paper_trail': '0',
                 'object_motion': '1', 'show_fps': '1', 'output_res': '1920x1080',
                 'live_resolution': 'auto', 'display_mode': 'windowed', 'vsync': '1', 'fps_limit': '0',
                 'async_shaders': '1', 'deferred_readback': '1', 'stale_readback': '1',
@@ -2834,6 +2834,12 @@ class Launcher:
         self.check(f, 'skip_intro', 'app', _('Skip the intro logos'),
                    _('The game opens straight on its title screen, without the PlayStation and Sucker Punch '
                      'logos.'), restart=True)
+        # issn 11-05: Paper Trail's missions without infamouspapertrail.com (src/paper_trail_hook.h).
+        self.section(f, _('Paper Trail'))
+        self.check(f, 'paper_trail', 'ini', _('Paper Trail without internet'),
+                   _("Paper Trail's missions were unlocked by a website that closed in 2018. With this on, "
+                     "the port answers for it: every step counts as done and the missions open once the "
+                     'story reaches them (about a third of the way in).'), restart=True)
 
     def user_dir(self):
         return Path(self.var('user_dir', 'app').get() or DATA_DIR / 'user')

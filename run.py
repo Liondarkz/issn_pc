@@ -259,6 +259,9 @@ def main():
             derived.append(key)
     # issn-axy: a restart from the in-game menu starts its anti-aliasing / quality / frame gen.
     ini = graphics_options.read_ini(env['ISSN_CONFIG'])
+    # issn 11-05: Paper Trail without its website (launcher: Game > Paper Trail).
+    if 'ISSN_PAPER_TRAIL' not in env:
+        env['ISSN_PAPER_TRAIL'] = '1' if ini.get('paper_trail') == '1' else '0'
     if ini.get('restart_unconfirmed') == '1' and not reverted:
         menu_env, menu_off = graphics_options.menu_environment(ini, WINDOWS)
         for key in menu_off:
