@@ -369,7 +369,7 @@ INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'trophy_note': '1', 'paper_tr
                 'render_resolution': 'native', 'engine_fps': '120',
                 'frames_queued': '1', 'cheat_very_hard': '0', 'cheat_double_jumps': '0',
                 'mouse_sensitivity': '1.00', 'pad_sensitivity': '1.00',
-                'motion_blur': '1', 'chromatic_aberration': '1'}
+                'motion_blur': '1', 'chromatic_aberration': '1', 'sharpening': '0'}
 DISPLAY_MODES = [('windowed', ('Windowed',)), ('borderless', ('Borderless',)), ('fullscreen', ('Fullscreen',))]
 # issn: frame pacing on screens without G-Sync / FreeSync (axylpup's 1.1 "Fifo (half refresh)",
 # vk_swapchain.cpp): every game frame is presented N times with V-Sync, so each stays exactly N
@@ -753,6 +753,28 @@ def optiscaler_choices(pc):
             and not (key == 'fsr4' and vendor in ('nvidia', 'intel'))]
 
 
+# issn 11-05: sharpening strengths offered where there is no slider (the new launcher's list).
+SHARPENING = [('0', ('Off',))] + [(str(p), (f'{p}%',)) for p in range(5, 101, 5)]
+
+
+def sharpening_percent(value):
+    try:
+        return max(0, min(100, int(float(str(value).strip().rstrip('%') or 0))))
+    except ValueError:
+        return 0
+
+
+def sync_optiscaler_sharpening():
+    """Before a start: the issn.ini sharpening into OptiScaler.ini when OptiScaler is in bin\\
+    (it sharpens instead of the port then; gpu issn_sharpen.h). Returns the Sharpness or None."""
+    if not WINDOWS:
+        return None
+    try:
+        return issn_downloads.set_sharpening(optiscaler_bin(), sharpening_percent(load_ini()[0].get('sharpening', 0)))
+    except (OSError, ValueError):
+        return None
+
+
 def optiscaler_log_line(settings):
     """The run log's first line when bin\\winmm.dll is there ('' otherwise)."""
     if not WINDOWS:
@@ -765,9 +787,10 @@ def optiscaler_log_line(settings):
         return ''
     if state['foreign']:
         return 'OptiScaler: not installed, but bin\\winmm.dll is there (another program, loaded by the game)\n'
-    line = ('OptiScaler {} installed {}: bin\\winmm.dll, VulkanUpscaler={}, menu key {} (OptiScaler.ini)'
+    sharpness = sync_optiscaler_sharpening()
+    line = ('OptiScaler {} installed {}: bin\\winmm.dll, VulkanUpscaler={}, menu key {}, Sharpness {} (OptiScaler.ini)'
             .format(state['version'] or '(version unknown)', 'by hand' if state['by_hand'] else 'by the launcher',
-                    state['upscaler'] or '?', state['menu_key'] or '?'))
+                    state['upscaler'] or '?', state['menu_key'] or '?', sharpness or '?'))
     aa = settings.get('anti_aliasing', 'game')
     if aa != 'xess':
         line += f"; the port's anti-aliasing is {aa}, not XeSS: OptiScaler gets no input"
@@ -2410,6 +2433,12 @@ class Launcher:
         self.check(f, 'chromatic_aberration', 'ini', _('Chromatic aberration'),
                    _('The red and blue fringes toward the edges of the screen. Turning it off helps players '
                      'who feel sick with it; it also changes at once in the game (Insert > Image).'))
+        # issn 11-05: sharpening 0-100 % (gpu issn_sharpen.h), also a slider in the game.
+        spin = self.ttk.Spinbox(f, from_=0, to=100, increment=5, width=8, textvariable=self.var('sharpening', 'ini'))
+        self.row(f, _('Sharpening (%)'), spin,
+                 _('Makes the picture crisper; 0 is off, 30-50 is a good start. Applied once: by FSR 4 or '
+                   'OptiScaler when they are in use, otherwise by the port before the HUD. Also a slider in '
+                   'the game (Insert > Image).'))
         self.section(f, _('Overlay'))
         self.check(f, 'show_fps', 'ini', _('Show performance overlay'),
                    _('Items, size and corner: in-game menu (Insert / R3+L2) > Overlay. F11 hides it in the game.'))

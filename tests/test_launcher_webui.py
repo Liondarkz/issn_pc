@@ -68,6 +68,17 @@ class WebUiTest(unittest.TestCase):
         self.assertIn('menu_anti_aliasing=off', ini)  # the game's menu shows it next time
         self.assertEqual(self.api.state()['theme'], 'neon')
 
+    def test_sharpening_row(self):
+        # issn 11-05: off by default, steps of 5 %, a value set by the game's slider is listed too.
+        def row():
+            rows = [r for sec in self.api.page('picture')['sections'] for r in sec['rows']]
+            return next(r for r in rows if r['key'] == 'sharpening')
+        self.assertEqual((row()['value'], row()['store']), ('0', 'ini'))
+        self.api.set_value('sharpening', 'ini', '37')
+        self.assertIn('sharpening=37', (self.tmp / 'issn.ini').read_text(encoding='utf-8').splitlines())
+        self.assertEqual(row()['value'], '37')
+        self.assertIn('37', [v for v, _text in row()['options']])
+
     def test_a_goal_writes_its_settings(self):
         self.api._detect()
         result = self.api.apply_goal('handheld')

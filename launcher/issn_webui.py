@@ -264,6 +264,17 @@ class Api:
         def folder(key, label, hint=''):
             return {'type': 'folder', 'key': key, 'store': 'app', 'label': label, 'hint': hint, 'value': s.get(key) or ''}
 
+        def sharpening_row():
+            # issn 11-05: 0-100 % in steps of 5; a value set in the game's slider is listed too.
+            row = choice('sharpening', 'ini', _('Sharpening'), L.SHARPENING,
+                         _('Crisper picture; applied once (FSR 4, OptiScaler or the port). Slider in the game: '
+                           'Insert > Image.'))
+            row['value'] = str(L.sharpening_percent(row['value']))
+            if row['value'] not in [v for v, _text in row['options']]:
+                row['options'].append([row['value'], row['value'] + '%'])
+                row['options'].sort(key=lambda o: int(o[0]))
+            return row
+
         title = self._title(name)
         if name == 'picture':
             return {'title': title, 'subtitle': _('How the game looks and how fast it runs.'), 'sections': [
@@ -288,7 +299,8 @@ class Api:
                     choice('perf_mode', 'app', _('Performance mode'), L.PERF_MODES, restart=True)]},
                 {'title': _('Effects'), 'rows': [
                     check('motion_blur', 'ini', _('Motion blur')),
-                    check('chromatic_aberration', 'ini', _('Chromatic aberration'))]},
+                    check('chromatic_aberration', 'ini', _('Chromatic aberration')),
+                    sharpening_row()]},
                 {'title': _('Overlay'), 'rows': [
                     check('show_fps', 'ini', _('Show performance overlay'),
                           _('Items, size and corner: in-game menu (Insert / R3+L2) > Overlay. F11 hides it in the game.'))]}]}

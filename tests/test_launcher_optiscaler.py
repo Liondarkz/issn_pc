@@ -304,6 +304,40 @@ class IniTest(unittest.TestCase):
         self.assertEqual(dl.ini_get(dl.ini_set('[A]\nx=1\n\n[B]\n', 'A', 'y', '2'), 'A', 'y'), '2')
 
 
+class SharpeningTest(unittest.TestCase):
+    """issn 11-05: the port's sharpening goes to OptiScaler when it takes the XeSS input."""
+    INI = ('[Upscalers]\nVulkanUpscaler=fsr31\n\n[Sharpness]\nShader=auto\nOverrideSharpness=auto\n'
+           'Sharpness=auto\n\n[CAS]\nEnabled=auto\nMotionSharpnessEnabled=auto\n')
+
+    def test_off_by_default_and_once(self):
+        text = dl.configure_sharpening(self.INI, 0, 'fsr31')
+        self.assertEqual(dl.ini_get(text, 'Sharpness', 'OverrideSharpness'), 'true')
+        self.assertEqual(dl.ini_get(text, 'Sharpness', 'Sharpness'), '0.00')
+        self.assertEqual(dl.ini_get(text, 'CAS', 'Enabled'), 'false')
+        self.assertEqual(dl.ini_get(text, 'Sharpness', 'Shader'), 'auto')  # the rest kept
+        # FSR outputs sharpen themselves; XeSS / DLSS outputs need OptiScaler's RCAS.
+        text = dl.configure_sharpening(self.INI, 40, 'fsr31_12')
+        self.assertEqual(dl.ini_get(text, 'Sharpness', 'Sharpness'), '0.40')
+        self.assertEqual(dl.ini_get(text, 'CAS', 'Enabled'), 'false')
+        for output in ('xess', 'dlss'):
+            text = dl.configure_sharpening(self.INI, 250, output)
+            self.assertEqual(dl.ini_get(text, 'Sharpness', 'Sharpness'), '1.00')
+            self.assertEqual(dl.ini_get(text, 'CAS', 'Enabled'), 'true')
+
+    def test_written_only_where_optiscaler_is(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bin_dir = Path(tmp)
+            self.assertIsNone(dl.set_sharpening(bin_dir, 30))
+            (bin_dir / 'OptiScaler.ini').write_text(self.INI.replace('fsr31', 'xess'), encoding='utf-8')
+            self.assertIsNone(dl.set_sharpening(bin_dir, 30))  # no winmm.dll
+            (bin_dir / 'winmm.dll').write_bytes(b'MZ OptiScaler v0.9.4')
+            self.assertEqual(dl.set_sharpening(bin_dir, 30), '0.30')
+            text = (bin_dir / 'OptiScaler.ini').read_text(encoding='utf-8')
+            self.assertEqual(dl.ini_get(text, 'CAS', 'Enabled'), 'true')
+            (bin_dir / 'winmm.dll').write_bytes(b'MZ another program')  # not OptiScaler: untouched
+            self.assertIsNone(dl.set_sharpening(bin_dir, 80))
+
+
 class InstallTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -476,12 +510,16 @@ class LauncherTest(unittest.TestCase):
             archive = Path(tmp) / 'r.7z'
             archive.write_bytes(release_7z()[0])
             with mock.patch.object(launcher, 'WINDOWS', True), \
-                    mock.patch.object(launcher, 'optiscaler_bin', return_value=bin_dir):
+                    mock.patch.object(launcher, 'optiscaler_bin', return_value=bin_dir), \
+                    mock.patch.object(launcher, 'load_ini', return_value=(dict(launcher.INI_DEFAULTS), [])):
                 self.assertEqual(launcher.optiscaler_log_line({'anti_aliasing': 'xess'}), '')
                 dl.install(archive, bin_dir, 'fsr4', 'v0.9.4')
                 line = launcher.optiscaler_log_line({'anti_aliasing': 'xess'})
                 self.assertEqual(line, 'OptiScaler v0.9.4 installed by the launcher: bin\\winmm.dll, '
-                                       'VulkanUpscaler=fsr31_12, menu key 0x77 (OptiScaler.ini)\n')
+                                       'VulkanUpscaler=fsr31_12, menu key 0x77, Sharpness 0.00 (OptiScaler.ini)\n')
+                # issn 11-05: the start also wrote the port's sharpening (off) into OptiScaler.ini.
+                text = (bin_dir / 'OptiScaler.ini').read_text(encoding='utf-8')
+                self.assertEqual(dl.ini_get(text, 'Sharpness', 'OverrideSharpness'), 'true')
                 self.assertIn('not XeSS: OptiScaler gets no input', launcher.optiscaler_log_line({'anti_aliasing': 'fsr4'}))
                 dl.remove(bin_dir)
                 (bin_dir / 'winmm.dll').write_bytes(b'MZ other')

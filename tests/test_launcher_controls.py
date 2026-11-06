@@ -27,6 +27,16 @@ BASE_SFO = sfo_bytes(TITLE_ID='CUSA01623', APP_VER='01.00')
 
 
 class ControlMapTest(unittest.TestCase):
+    def test_sharpening_off_by_default(self):
+        # issn 11-05: 0-100 % in issn.ini (gpu issn_sharpen.h), not a flag.
+        self.assertEqual(launcher.INI_DEFAULTS['sharpening'], '0')
+        self.assertNotIn('sharpening', launcher.INI_FLAGS)
+        self.assertEqual(launcher.sharpening_percent('35'), 35)
+        self.assertEqual(launcher.sharpening_percent('140'), 100)
+        self.assertEqual(launcher.sharpening_percent('x'), 0)
+        self.assertEqual(launcher.SHARPENING[0][0], '0')
+        self.assertEqual([v for v, _t in launcher.SHARPENING][-1], '100')
+
     def test_effects_default_on_and_are_flags(self):
         # issn 11-04: motion blur and chromatic aberration (issn.ini, gpu issn_postfx.h).
         for key in ('motion_blur', 'chromatic_aberration'):

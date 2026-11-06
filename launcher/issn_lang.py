@@ -1365,6 +1365,14 @@ EXTRA = {
             'O borrão quando a câmera ou o Delsin se movem rápido. Desligado deixa a imagem nítida em movimento; também muda na hora no jogo (Insert > Image).',
         'The red and blue fringes toward the edges of the screen. Turning it off helps players who feel sick with it; it also changes at once in the game (Insert > Image).':
             'As franjas vermelhas e azuis perto das bordas da tela. Desligar ajuda quem passa mal com elas; também muda na hora no jogo (Insert > Image).',
+        'Sharpening (%)':
+            'Nitidez (%)',
+        'Sharpening':
+            'Nitidez',
+        'Makes the picture crisper; 0 is off, 30-50 is a good start. Applied once: by FSR 4 or OptiScaler when they are in use, otherwise by the port before the HUD. Also a slider in the game (Insert > Image).':
+            'Deixa a imagem mais definida; 0 é desligado, 30-50 é um bom começo. Aplicada uma vez só: pelo FSR 4 ou pelo OptiScaler quando estão em uso, senão pelo port antes do HUD. Também tem um controle no jogo (Insert > Image).',
+        'Crisper picture; applied once (FSR 4, OptiScaler or the port). Slider in the game: Insert > Image.':
+            'Imagem mais definida; aplicada uma vez só (FSR 4, OptiScaler ou o port). Controle no jogo: Insert > Image.',
     },
     'es': {
         # issn 11-05: the launcher's new pages
@@ -1736,6 +1744,14 @@ EXTRA = {
             'El desenfoque cuando la cámara o Delsin se mueven rápido. Desactivado da una imagen nítida en movimiento; también cambia al momento en el juego (Insert > Image).',
         'The red and blue fringes toward the edges of the screen. Turning it off helps players who feel sick with it; it also changes at once in the game (Insert > Image).':
             'Los bordes rojos y azules cerca de los lados de la pantalla. Desactivarla ayuda a quien se marea con ella; también cambia al momento en el juego (Insert > Image).',
+        'Sharpening (%)':
+            'Nitidez (%)',
+        'Sharpening':
+            'Nitidez',
+        'Makes the picture crisper; 0 is off, 30-50 is a good start. Applied once: by FSR 4 or OptiScaler when they are in use, otherwise by the port before the HUD. Also a slider in the game (Insert > Image).':
+            'Hace la imagen más definida; 0 es desactivado, 30-50 es un buen comienzo. Se aplica una sola vez: por FSR 4 u OptiScaler cuando están en uso, si no por el port antes del HUD. También hay un control en el juego (Insert > Image).',
+        'Crisper picture; applied once (FSR 4, OptiScaler or the port). Slider in the game: Insert > Image.':
+            'Imagen más definida; se aplica una sola vez (FSR 4, OptiScaler o el port). Control en el juego: Insert > Image.',
     },
 }
 

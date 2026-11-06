@@ -825,6 +825,37 @@ def vulkan_upscaler_value(text, output):
     return names[0]
 
 
+# issn 11-05: outputs whose own pass does not sharpen (XeSS, DLSS 2.5.1 on): OptiScaler's RCAS
+# ([CAS]) does it; FSR 2 / 3.1 / 4 sharpen by [Sharpness] Sharpness themselves.
+NO_OWN_SHARPENING = ('xess', 'dlss')
+
+
+def configure_sharpening(text, percent, upscaler):
+    """The port's sharpening (0-100 %, issn.ini sharpening) in an OptiScaler.ini: OptiScaler takes
+    the XeSS input and upscales, so it is the one place that sharpens (the port's own pass stays
+    off then). Sharpness fixed to percent / 100 (0 = off, the port's default); RCAS only for an
+    output without sharpening of its own, so nothing is sharpened twice."""
+    p = max(0, min(100, int(percent)))
+    text = ini_set(text, 'Sharpness', 'OverrideSharpness', 'true')
+    text = ini_set(text, 'Sharpness', 'Sharpness', f'{p / 100:.2f}')
+    rcas = p > 0 and (upscaler or '').strip().lower() in NO_OWN_SHARPENING
+    return ini_set(text, 'CAS', 'Enabled', 'true' if rcas else 'false')
+
+
+def set_sharpening(bin_dir, percent):
+    """configure_sharpening on the OptiScaler.ini in bin\\ (the game is not running). None when
+    OptiScaler is not there; else the Sharpness written."""
+    state = optiscaler_state(bin_dir)
+    ini = Path(bin_dir) / 'OptiScaler.ini'
+    if not state or state['foreign'] or not ini.is_file():
+        return None
+    text = _read_text(ini)
+    changed = configure_sharpening(text, percent, ini_get(text, 'Upscalers', 'VulkanUpscaler'))
+    if changed != text:
+        _write_text(ini, changed)
+    return ini_get(changed, 'Sharpness', 'Sharpness')
+
+
 def configure(text, output):
     """The port's settings in an OptiScaler.ini: the upscaler for Vulkan and the menu on F8."""
     text = ini_set(text, 'Upscalers', 'VulkanUpscaler', vulkan_upscaler_value(text, output))
