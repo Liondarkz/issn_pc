@@ -3227,7 +3227,7 @@ class Launcher:
         # issn 11-04: the same sensitivities as the in-game menu (Insert > Controls), in issn.ini.
         for key, title, low, high, hint in (
                 ('pad_sensitivity', _('Controller sensitivity'), 0.25, 3.0,
-                 _('The right stick (camera). Below 1: slower. Above 1: small stick moves turn the camera more. '
+                 _('The right stick (camera). Below 1: slower. Above 1: faster, even past the top speed of the game. '
                    'Also in the game: Insert > Controls.')),
                 ('mouse_sensitivity', _('Mouse sensitivity'), 0.1, 5.0,
                  _('How far the camera turns per mouse movement. Also in the game: Insert > Controls, or - / =.'))):

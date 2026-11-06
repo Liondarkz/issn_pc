@@ -602,11 +602,10 @@ static void mouse_aim_tick(uint64_t now) {
         if (want!=written) { *aim_no_follow=want; written=want; }
     }
 }
-static void mouse_aim_motion(float dx, float dy, uint64_t now) {
-    if (dx==0.0f && dy==0.0f) return;
-    aim_last_motion=now;
-    const float k=aim_sens*issngpu_mouse_sensitivity()*(3.14159265f/180.0f)/100.0f;
-    float yaw=dx*k*aim_sign_x, pitch=dy*k*aim_sign_y;
+/* Radians (mouse sense: + = right / down) into the hook's mailbox, with the axis signs and the
+ * game's invert options. */
+static void aim_add(float right, float down) {
+    float yaw=right*aim_sign_x, pitch=down*aim_sign_y;
     if (aim_invert_x && *aim_invert_x) yaw=-yaw;
     if (aim_invert_y && *aim_invert_y) pitch=-pitch;
     uint64_t old=__atomic_load_n(&aim_box.delta,__ATOMIC_RELAXED), next;
@@ -617,6 +616,40 @@ static void mouse_aim_motion(float dx, float dy, uint64_t now) {
         f[1]=fmaxf(-0.75f,fminf(0.75f,f[1]+pitch));
         memcpy(&next,f,sizeof(next));
     } while (!__atomic_compare_exchange_n(&aim_box.delta,&old,next,true,__ATOMIC_RELAXED,__ATOMIC_RELAXED));
+}
+static void mouse_aim_motion(float dx, float dy, uint64_t now) {
+    if (dx==0.0f && dy==0.0f) return;
+    aim_last_motion=now;
+    const float k=aim_sens*issngpu_mouse_sensitivity()*(3.14159265f/180.0f)/100.0f;
+    aim_add(dx*k,dy*k);
+}
+
+/* issn 11-06: the controller sensitivity above 1 (João, 11-04: "no difference"): the game's camera
+ * has a top speed, so a curve on the stick alone cannot turn faster. With the camera hook running,
+ * the right stick also turns the camera through it: (s - 1) x ISSN_PAD_AIM_RATE degrees a second
+ * (default 120) at a full push, squared below it (fine moves stay fine). Off while the spray can
+ * takes the stick. ISSN_PAD_AIM_RATE=0 turns it off. */
+static void pad_aim_boost(const PadData *d) {
+    static uint64_t last;
+    static float rate=-1.0f;
+    const uint64_t now=d->timestamp;
+    const float dt=last && now>last ? (float)(now-last)/1e6f : 0.0f;
+    last=now;
+    if (rate<0.0f) {
+        const char *e=getenv("ISSN_PAD_AIM_RATE");
+        rate=e ? fmaxf(0.0f,fminf(720.0f,(float)atof(e))) : 120.0f;
+        printf("Controller aim: %.0f degrees a second per +1.0 sensitivity above 1 (ISSN_PAD_AIM_RATE)\n",rate);
+        fflush(stdout);
+    }
+    const float s=issngpu_pad_sensitivity();
+    if (!aim_attached || !aim_live || pad_tilted || rate<=0.0f || !(s>1.01f) || dt<=0.0f || dt>0.1f) return;
+    float x=((float)d->right_x-127.5f)/127.5f, y=((float)d->right_y-127.5f)/127.5f;
+    if (fabsf(x)<0.01f) x=0.0f; /* 128 is the center: no creep on the other axis */
+    if (fabsf(y)<0.01f) y=0.0f;
+    const float m=sqrtf(x*x+y*y);
+    if (m<0.05f) return;
+    const float k=(s-1.0f)*rate*(3.14159265f/180.0f)*dt*fminf(m,1.0f); /* |v| x |v|: squared */
+    aim_add(x*k,y*k);
 }
 
 /* issn: the mouse, as in axylpup's build: while it holds the camera (relative mode: a click in
@@ -1034,6 +1067,7 @@ static void sample(PadData *d) {
     if (!key_touch_held && finger.active) { finger.active=0; finger.travel=0.0f; } /* R let go, mouse still */
     if ((pad_emulation() || key_touch_held) && !finger.active) play_swipe(d); /* the keyboard has no touch surface either */
     play_click(d);
+    pad_aim_boost(d);
     apply_pad_sensitivity(d);
     if (hold_after_capture) {
         if (d->buttons) d->buttons=0;

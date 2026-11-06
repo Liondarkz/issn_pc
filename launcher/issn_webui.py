@@ -502,7 +502,7 @@ class Api:
                          '(they follow your key changes above) and the mouse buttons; Automatic picks the keyboard '
                          'when no controller is connected at start, Xbox letters for Xbox and other pads.'), True),
                 number('pad_sensitivity', _('Controller sensitivity'), 0.25, 3.0,
-                       _('The right stick (camera). Below 1: slower. Above 1: small stick moves turn the camera more. '
+                       _('The right stick (camera). Below 1: slower. Above 1: faster, even past the top speed of the game. '
                          'Also in the game: Insert > Controls.')),
                 number('mouse_sensitivity', _('Mouse sensitivity'), 0.1, 5.0,
                        _('How far the camera turns per mouse movement. Also in the game: Insert > Controls, or - / =.')),

@@ -343,7 +343,25 @@ int main(void) {
     inject(path,"rx=255");
     data=read_pad();
     assert(data.right_x==255);
+    /* issn 11-06: above 1, with the camera hook running, a full push also turns the camera through
+     * the mailbox: (2 - 1) x 120 degrees a second, so about 2.1 radians in a second of reads. */
+    aim_attached=1; aim_live=1; pad_tilted=0;
+    __atomic_store_n(&aim_box.delta,0,__ATOMIC_RELAXED);
+    PadData boost={.right_x=255,.right_y=128,.timestamp=1000000};
+    float sum=0.0f;
+    for (int i=0;i<100;++i) {
+        pad_aim_boost(&boost);
+        boost.timestamp+=10000;
+        uint64_t raw=__atomic_exchange_n(&aim_box.delta,0,__ATOMIC_RELAXED);
+        float f[2]; memcpy(f,&raw,sizeof(f));
+        sum+=f[0]*aim_sign_x; /* back to the mouse sense: + = right */
+        assert(f[1]==0.0f);
+    }
+    assert(sum>1.9f && sum<2.2f);
     test_pad_sens=1.0f;
+    pad_aim_boost(&boost);
+    assert(__atomic_load_n(&aim_box.delta,__ATOMIC_RELAXED)==0);
+    aim_attached=0; aim_live=0;
     inject(path,"");
     for (int i=0;i<30;++i) { data=read_pad(); usleep(15000); }
     assert(near(data.acceleration[1],1.0f,0.05f));
@@ -399,5 +417,5 @@ int main(void) {
     SDL_Quit();
     unlink(path);
     puts("PASS: pad ABI, staged left/right clicks, L1 chord, SDL touch coordinates, overlay capture, "
-         "motion sensors, orientation, shake, spray pose, swipe, two fingers, light bar");
+         "motion sensors, orientation, shake, spray pose, swipe, two fingers, light bar, controller aim boost");
 }
