@@ -874,7 +874,7 @@ class Api:
         _ = L._
         import xml.etree.ElementTree as ET
         from mods import conflicts, discover
-        from patches import ALWAYS_ON, EXCLUSIVE_PREFIX, external_patches
+        from patches import ALWAYS_ON, EXCLUSIVE_PREFIX, PRO_ONLY_PREFIX, external_patches, one_per_group
         meta = L.meta_folder(s.get('game_dir'), s.get('update_dir'))
         title_id, profile = L.game_profile_of(meta)
         game_rows = []
@@ -886,11 +886,14 @@ class Api:
             chosen = s.get('game_patches', {}).get(title_id)
             on = set(chosen) if chosen is not None else {m.get('Name') for m in metas
                                                          if m.get('isEnabled', 'false').lower() == 'true'}
+            on = set(one_per_group([m.get('Name') for m in metas if m.get('Name') in on])[0])
             game_rows.append(note(_('{} · version {} · {}. Resolution and frame rate patches follow Performance.').format(
                 title_id, version, xml.name)))
             for item in metas:
                 name = item.get('Name')
                 if name.startswith(EXCLUSIVE_PREFIX) or name.startswith('Frame Rate Patch') or name in ALWAYS_ON:
+                    continue
+                if name.startswith(PRO_ONLY_PREFIX):  # issn 11-06: needs the PS4 Pro mode (patches.py)
                     continue
                 author = item.get('Author')
                 game_rows.append({'type': 'check', 'key': name, 'store': 'game_patch', 'value': name in on,
@@ -1492,7 +1495,7 @@ class Api:
                            json.dumps({'enabled': sorted(enabled), 'disabled': sorted(disabled)}, indent=2))
         elif store == 'game_patch':
             import xml.etree.ElementTree as ET
-            from patches import ALWAYS_ON, EXCLUSIVE_PREFIX
+            from patches import ALWAYS_ON, EXCLUSIVE_PREFIX, ONE_OF, PRO_ONLY_PREFIX
             s = self._settings()
             title_id, profile = L.game_profile_of(L.meta_folder(s.get('game_dir'), s.get('update_dir')))
             if not profile:
@@ -1503,10 +1506,17 @@ class Api:
             current = set(chosen) if chosen is not None else {m.get('Name') for m in metas
                                                               if m.get('isEnabled', 'false').lower() == 'true'}
             current.add(key) if on else current.discard(key)
+            # issn 11-06: one resolution / field of view patch at a time; ticking one unticks the others.
+            group = next((match for _g, match in ONE_OF if match(key)), None) if on else None
+            if group:
+                current = {n for n in current if n == key or not group(n)}
             shown = [m.get('Name') for m in metas if not (m.get('Name').startswith(EXCLUSIVE_PREFIX) or
+                                                          m.get('Name').startswith(PRO_ONLY_PREFIX) or
                                                           m.get('Name').startswith('Frame Rate Patch') or
                                                           m.get('Name') in ALWAYS_ON)]
             self._write_app({'game_patches': {**s.get('game_patches', {}), title_id: [n for n in shown if n in current]}})
+            if group:
+                return {'reload': True}
         return {}
 
     def status(self):

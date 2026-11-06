@@ -217,7 +217,7 @@ function renderRow(row) {
   const label = el('div', { class: 'label' }, row.label, row.restart ? el('span', { class: 'restart', text: t('restart') }) : null);
   let control;
   const change = async (value) => {
-    if (row.store === 'patch' || row.store === 'game_patch') { await api.set_choice(row.store, row.key, value); return; }
+    if (row.store === 'patch' || row.store === 'game_patch') { await handle((await api.set_choice(row.store, row.key, value)) || {}); return; }
     const result = await api.set_value(row.key, row.store, value);
     if (row.key === 'launcher_fx') document.body.dataset.fx = value;
     await refresh(false);
