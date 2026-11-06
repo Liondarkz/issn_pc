@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <immintrin.h>
 #include <atomic>
+#include <chrono>
 #include <array>
 #include <cstdlib>
 #include <string>
@@ -100,16 +101,30 @@ static u32 asc_next_offs_dw[Liverpool::NumComputeRings];
 static VAddr tessellation_factors_ring_addr = -1;
 static constexpr u32 tessellation_offchip_buffer_size = 0x800000u;
 
-/// SHADPS4_SUBMIT_LOCK_FIX=1: sceGnmSubmitDone checks the GPU and sets submission_lock under m_submission. Without
-/// it the GpuIdle reset can land between the check and the set; the lock then stays set with the GPU idle, no later
-/// reset comes, and every WaitGpuIdle (DingDong, submits) blocks forever (notes/freeze-2026-09-27.md).
+/// sceGnmSubmitDone checks the GPU and sets submission_lock under m_submission. Without that the GpuIdle reset can
+/// land between the check and the set; the lock then stays set with the GPU idle, no later reset comes, and every
+/// WaitGpuIdle (DingDong, submits) blocks forever (notes/freeze-2026-09-27.md). issn 11-05: on by default; Marcio's
+/// RX 6600 hit the race on every start (log "SubmitLockRace ... lock now 1, gpu idle true") and the game stopped
+/// right after the GameState thread, black screen. SHADPS4_SUBMIT_LOCK_FIX=0 goes back to the old unlocked set.
 static bool SubmitLockFix() {
     static const bool enabled = [] {
         const char* env = std::getenv("SHADPS4_SUBMIT_LOCK_FIX");
-        return env != nullptr && env[0] == '1';
+        return env == nullptr || env[0] != '0';
     }();
     return enabled;
 }
+
+/// issn 11-05: a safety net under the fix above. If a wait finds the lock set while the GPU has been idle for two
+/// checks in a row (100 ms apart), the reset was lost: clear the lock and go on (the GPU is idle, which is what the
+/// wait is for). Logged the first times. ISSN_SUBMIT_LOCK_HEAL=0 turns it off.
+static bool SubmitLockHeal() {
+    static const bool enabled = [] {
+        const char* env = std::getenv("ISSN_SUBMIT_LOCK_HEAL");
+        return env == nullptr || env[0] != '0';
+    }();
+    return enabled;
+}
+static std::atomic<u32> submission_heals{0};
 static std::atomic<u64> submission_resets{0};
 
 static void ResetSubmissionLock(Platform::InterruptId irq) {
@@ -123,6 +138,40 @@ static void ResetSubmissionLock(Platform::InterruptId irq) {
     cv_lock.notify_all();
 }
 
+// Waits for submission_lock == 0 (lock held). With the heal on, every 100 ms it looks at the GPU: idle twice in a
+// row with the lock still set means the GpuIdle reset was lost, so the lock is cleared here.
+static void WaitSubmissionUnlocked(std::unique_lock<std::mutex>& lock) {
+    if (!SubmitLockHeal()) {
+        cv_lock.wait(lock, [] { return submission_lock == 0; });
+        return;
+    }
+    int idle_checks = 0;
+    while (submission_lock != 0) {
+        if (cv_lock.wait_for(lock, std::chrono::milliseconds(100), [] { return submission_lock == 0; })) {
+            return;
+        }
+        if (liverpool && liverpool->IsGpuIdle()) {
+            if (++idle_checks < 2) {
+                continue;
+            }
+            submission_lock = 0;
+            const u32 heals = submission_heals.fetch_add(1, std::memory_order_relaxed) + 1;
+            if (heals <= 5 || (heals & (heals - 1)) == 0) {
+                LOG_WARNING(Lib_GnmDriver,
+                            "SubmitLockHeal: the GPU was idle with the submit lock still set (lost GpuIdle "
+                            "reset); lock cleared, heal #{}",
+                            heals);
+            }
+            if (Common::FenceWatch::Enabled()) {
+                Common::FenceWatch::Get().gnm_lock.store(0, std::memory_order_relaxed);
+            }
+            cv_lock.notify_all();
+            return;
+        }
+        idle_checks = 0;
+    }
+}
+
 static void WaitGpuIdle() {
     HLE_TRACE;
     IssnFreeze::WaitScope wait{"GPU idle (submit done)"}; // port: freeze report
@@ -130,11 +179,11 @@ static void WaitGpuIdle() {
     if (Common::FenceWatch::Enabled() && submission_lock != 0) [[unlikely]] {
         auto& fw = Common::FenceWatch::Get();
         fw.gnm_waiters.fetch_add(1, std::memory_order_relaxed);
-        cv_lock.wait(lock, [] { return submission_lock == 0; });
+        WaitSubmissionUnlocked(lock);
         fw.gnm_waiters.fetch_sub(1, std::memory_order_relaxed);
         return;
     }
-    cv_lock.wait(lock, [] { return submission_lock == 0; });
+    WaitSubmissionUnlocked(lock);
 }
 
 // Write a special ending NOP packet with N DWs data block
