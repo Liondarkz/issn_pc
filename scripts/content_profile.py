@@ -6,6 +6,8 @@ taken from the param.sfo of the player's own add-on dump. Nothing is invented: n
 add-on. The game's own UNLOCKAPPLICATIO label is never answered."""
 import argparse
 import json
+import os
+import re
 import struct
 from pathlib import Path
 from prepare import load_sfo, sfo
@@ -49,11 +51,22 @@ def _candidates(folder):
     return found
 
 
+def windows_path(text, nt=None):
+    """MSYS2 leaves some arguments as /d/Games/... (e.g. with brackets or @ in the name) when it
+    starts a Windows Python; turn that spelling into D:/Games/... on Windows."""
+    text = str(text)
+    if (os.name == 'nt' if nt is None else nt):
+        match = re.match(r'^/([A-Za-z])(/.*)?$', text)
+        if match:
+            return f'{match.group(1).upper()}:{match.group(2) or "/"}'
+    return text
+
+
 def scan_addons(folder, title_id, off=()):
     """Add-ons in `folder` for the game `title_id`: (found, skipped). Each found entry is a dict
     with label, name, title, content_id, folder and on; each skipped entry is (folder, reason).
     Only folders that hold a param.sfo are reported."""
-    folder, off = Path(folder), set(off)
+    folder, off = Path(windows_path(folder)), set(off)
     found, skipped, seen = [], [], set()
     if not folder.is_dir():
         return found, [(str(folder), 'folder not found')]

@@ -75,6 +75,12 @@ class AddonTests(unittest.TestCase):
             self.assertIn('not an add-on', reasons['game'])
             self.assertIn('already found', reasons['twice'])
 
+    def test_msys_drive_paths_become_windows_paths(self):
+        cases = [('/d/Games/[x]-(@y)', 'D:/Games/[x]-(@y)'), ('/c', 'C:/'), ('D:\\Games', 'D:\\Games'), ('/tmp/x', '/tmp/x')]
+        for given, wanted in cases:
+            self.assertEqual(content_profile.windows_path(given, nt=True), wanted)
+        self.assertEqual(content_profile.windows_path('/d/Games', nt=False), '/d/Games')
+
     def test_single_addon_folder_and_missing_folder(self):
         with tempfile.TemporaryDirectory() as tmp:
             one = make_addon(Path(tmp), 'jacket', 'UP9000-CUSA00223_00-UNLOCKCOLEJACKET')
