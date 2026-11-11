@@ -948,6 +948,11 @@ void OverlayTab() {
                  "The trophy's icon and name in a top corner for a few seconds when the game unlocks one.");
         ImGui::EndTable();
     }
+    // issn 11-11 (Joao: "the trophies stopped showing in the game"): a popup on demand, with the
+    // platinum's icon, to see the path work without earning a trophy; it shows when the menu closes.
+    if (ImGui::Button("Test the trophy popup")) {
+        TestTrophyNote();
+    }
     ImGui::BeginDisabled(!s.show_fps);
     ImGui::SeparatorText("What to show");
     if (ImGui::BeginTable("##overlay_items", 2, ImGuiTableFlags_SizingStretchProp)) {
@@ -1550,6 +1555,45 @@ std::int64_t trophy_until = 0;         ///< steady_clock milliseconds; 0 = none 
 std::int64_t trophy_length = 0;
 constexpr std::int64_t TrophyNoteMs = 5000, TrophyQuickMs = 2000, TrophyPlatinumMs = 8000;
 
+// The icon of trophy `id` in the game's trophy file (ISSN_TROPHY_FILE, read now; same layout as
+// src/runtime_trophy.c): big-endian header of 0x60 bytes, entries of `size` bytes.
+IssnPng::Image TrophyIcon(int id) {
+    IssnPng::Image icon;
+    const char* path = std::getenv("ISSN_TROPHY_FILE");
+    std::FILE* file = path && *path ? std::fopen(path, "rb") : nullptr;
+    if (!file) {
+        return icon;
+    }
+    const auto be32 = [](const unsigned char* p) {
+        return std::uint32_t(p[0]) << 24 | std::uint32_t(p[1]) << 16 | std::uint32_t(p[2]) << 8 | p[3];
+    };
+    unsigned char head[0x60], entry[1024];
+    char want[16];
+    std::snprintf(want, sizeof(want), "TROP%03d.PNG", id);
+    if (std::fread(head, 1, sizeof(head), file) == sizeof(head) && be32(head) == 0xDCA24D00u) {
+        const std::uint32_t count = be32(head + 16), size = be32(head + 20);
+        for (std::uint32_t i = 0; count <= 4096 && size >= 52 && size <= sizeof(entry) && i < count; ++i) {
+            if (std::fseek(file, long(0x60 + std::uint64_t(i) * size), SEEK_SET) ||
+                std::fread(entry, 1, size, file) != size) {
+                break;
+            }
+            if (std::strncmp(reinterpret_cast<const char*>(entry), want, 32) != 0) {
+                continue;
+            }
+            const std::uint64_t at = std::uint64_t(be32(entry + 32)) << 32 | be32(entry + 36);
+            const std::uint64_t length = std::uint64_t(be32(entry + 40)) << 32 | be32(entry + 44);
+            std::vector<unsigned char> png(length < (16u << 20) ? length : 0);
+            if (!png.empty() && !std::fseek(file, long(at), SEEK_SET) &&
+                std::fread(png.data(), 1, png.size(), file) == png.size()) {
+                IssnPng::DecodeRgba(png.data(), png.size(), icon);
+            }
+            break;
+        }
+    }
+    std::fclose(file);
+    return icon;
+}
+
 // imgui_mutex held, before NewFrame: ends the popup shown and takes the next one.
 void UpdateTrophyNote() {
     const std::int64_t now = NowMs();
@@ -1589,6 +1633,10 @@ void UpdateTrophyNote() {
     }
     trophy_length = trophy_shown.grade == "P" ? TrophyPlatinumMs : left >= 2 ? TrophyQuickMs : TrophyNoteMs;
     trophy_until = now + trophy_length;
+    // issn 11-11: when the popup really goes on screen (the unlock line comes from NoteTrophy).
+    std::printf("Trophy popup: %d on screen for %lld ms%s\n", trophy_shown.id,
+                static_cast<long long>(trophy_length), trophy_texture ? "" : " (no icon)");
+    std::fflush(stdout);
 }
 
 ImVec4 TrophyColor(const std::string& grade) {
@@ -2066,11 +2114,24 @@ void NoteTrophy(int id, const std::string& name, const std::string& grade, IssnP
     std::printf("Trophy %d unlocked%s%s\n", id, name.empty() ? "" : ": ", name.c_str());
     std::fflush(stdout);
     if (!IssnSettings::Get().trophy_note) {
+        std::printf("Trophy popup: off (Insert > Overlay > Trophy popup)\n");
+        std::fflush(stdout);
         return;
     }
     {
         std::scoped_lock lock{trophy_mutex};
         trophy_queue.push_back({id, name, grade, std::move(icon)});
+    }
+    ++trophy_pending;
+}
+
+void TestTrophyNote() {
+    std::printf("Trophy popup: test asked in the menu\n");
+    {
+        std::scoped_lock lock{trophy_mutex};
+        trophy_queue.push_back({0, LoadText("Test of the trophy popup", "Teste do aviso de troféu",
+                                            "Prueba del aviso de trofeo"),
+                                "P", TrophyIcon(0)});
     }
     ++trophy_pending;
 }

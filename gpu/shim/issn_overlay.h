@@ -51,6 +51,8 @@ void NoteGameSaved(const std::string& what);
 /// issn 11-04: a trophy was unlocked: its icon and name in a corner for a few seconds, one after
 /// another when several come together (settings: trophy_note). `name` empty: "Trophy N".
 void NoteTrophy(int id, const std::string& name, const std::string& grade, IssnPng::Image icon);
+/// issn 11-11: a test popup (Insert > Overlay), with the platinum's icon from the game's trophy file.
+void TestTrophyNote();
 
 /// The menu is open or a text entry is shown: the game's input is held neutral.
 bool CapturesInput();
