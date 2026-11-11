@@ -969,6 +969,9 @@ def same_folder(a, b):
     return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
 
 
+FIRST_LIGHT_TITLES = ('CUSA00575', 'CUSA00897', 'CUSA01064')  # as game_profiles.INFAMOUS_FIRST_LIGHT
+
+
 def system_files_beside(folder, reference=None, base=None):
     """PKG extractors write the system files (param.sfo, icon0.png, pic1.png, trophy/) to Sc0/
     beside the game files (Image0/), while the port reads them from the folder's sce_sys/: the
@@ -993,7 +996,9 @@ def system_files_beside(folder, reference=None, base=None):
     except (OSError, ValueError):
         return None
     title = values.get('TITLE')
-    if not game_profile(values.get('TITLE_ID'), title if isinstance(title, str) else None):
+    # issn 11-11: inFAMOUS First Light is offered the same copy (scripts/game_profiles.py).
+    if not game_profile(values.get('TITLE_ID'), title if isinstance(title, str) else None) \
+            and values.get('TITLE_ID') not in FIRST_LIGHT_TITLES:
         return None
     if reference is not None and values.get('TITLE_ID') != reference.get('TITLE_ID'):
         return None

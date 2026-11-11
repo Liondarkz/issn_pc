@@ -62,6 +62,12 @@ void Hold(bool on) {
 
 namespace {
 constexpr uintptr_t TodState = 0x7f8e800; // eboot .bss: current, fallback, wanted id
+
+// issn 11-11: these are addresses of inFAMOUS Second Son 01.07's data. Another game (First Light)
+// has other things there, so its base reads as "no game": nothing is read or written.
+uintptr_t SecondSonBase() {
+    return MemoryPatcher::g_game_serial == "CUSA00004" ? MemoryPatcher::g_eboot_address : 0;
+}
 std::atomic<uint64_t> g_last_good{0};
 
 uint64_t Read64(uintptr_t address) {
@@ -130,7 +136,7 @@ void NameOf(uint64_t obj, char* out, size_t size) {
 
 TimeOfDay ReadTimeOfDay() {
     TimeOfDay t;
-    const uintptr_t base = MemoryPatcher::g_eboot_address;
+    const uintptr_t base = SecondSonBase();
     if (base == 0) {
         return t;
     }
@@ -168,7 +174,7 @@ bool ForceLastGoodTimeOfDay() {
 
 TodDetail ReadTodDetail() {
     TodDetail d;
-    const uintptr_t base = MemoryPatcher::g_eboot_address;
+    const uintptr_t base = SecondSonBase();
     if (base == 0) {
         return d;
     }
@@ -248,7 +254,7 @@ TodDetail ReadTodDetail() {
 }
 
 bool ForceNextTimeOfDay() {
-    const uintptr_t base = MemoryPatcher::g_eboot_address;
+    const uintptr_t base = SecondSonBase();
     if (base == 0) {
         return false;
     }
@@ -307,7 +313,7 @@ bool RescueEnabled() {
 }
 
 void RescueTick() {
-    if (!RescueEnabled() || MemoryPatcher::g_eboot_address == 0) {
+    if (!RescueEnabled() || SecondSonBase() == 0) {
         return;
     }
     using Clock = std::chrono::steady_clock;

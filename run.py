@@ -294,14 +294,19 @@ def main():
     if not (game / 'eboot.bin').is_file():
         fail(f'No eboot.bin in {game} (set ISSN_GAME_DIR).')
     update_view = None
-    if env.get('ISSN_PATCH_DIR'):
-        import game_update
+    import game_update
+    # issn 11-11: a dump whose system files are in the Sc0 folder beside Image0 (PKG extractors)
+    # also runs through a view, with or without an update; the dumps are never written.
+    if env.get('ISSN_PATCH_DIR') or game_update.needs_view(game):
         try:
-            update_view = game_update.create_view(game, env['ISSN_PATCH_DIR'], out)
+            update_view = game_update.create_view(game, env.get('ISSN_PATCH_DIR'), out)
         except (ValueError, OSError) as error:
             fail(str(error))
+        if game_update.needs_view(game):
+            print(f'Game system files read from {game.parent / "Sc0"}', flush=True)
         game = update_view
-        print(f'Game and update combined from {env["ISSN_PATCH_DIR"]}', flush=True)
+        if env.get('ISSN_PATCH_DIR'):
+            print(f'Game and update combined from {env["ISSN_PATCH_DIR"]}', flush=True)
     original_game = game.resolve()
     # issn 11-05 (#33): the shader package the game reads first; its size and the folder it really
     # comes from (the update or the base game) tell a mismatched dump at a glance.
@@ -325,6 +330,12 @@ def main():
         fail(f'{title} version {version}: this port needs the game\'s 01.07 update. In the launcher, '
              'set "Update folder" to the 01.07 update (the folder with its eboot.bin and sce_sys), or '
              'lay the update over the game folder, then press PLAY again.')
+    if title in game_profiles.INFAMOUS_FIRST_LIGHT:
+        known = game_patches.eboot_sha256(game) in game_profiles.FIRST_LIGHT_104_EBOOTS
+        print(f'inFAMOUS First Light ({title}, version {version}): experimental. '
+              + ('eboot.bin is the 01.04 update.' if known else
+                 'eboot.bin is not the US 01.04 update the port was checked with.')
+              + ' FOV, mouse aim, cheats and trophies are Second Son only for now.', flush=True)
     game = Path(run_script('mods.py', game, '--out', out,
                            '--mods-dir', env.get('ISSN_MODS_DIR', data / 'mods'),
                            '--config', env.get('ISSN_MODS_CONFIG', data / 'mods.json'),
@@ -471,8 +482,13 @@ def main():
         user_dir.mkdir(parents=True, exist_ok=True)
         env.setdefault('ISSN_GPU_USER_DIR', str(user_dir))
         # issn_pc: the shader seed of this package (packaging/windows/package.sh) is the cache folder.
-        if (seed_name := shader_seed_name(PORT, user_dir)):
-            env.setdefault('SHADPS4_CACHE_NAME', seed_name)
+        seed_name = shader_seed_name(PORT, user_dir)
+        # issn 11-11: First Light keeps its shaders in a folder of its own (no seed yet).
+        own_cache = game_profiles.cache_name(title, seed_name)
+        if own_cache:
+            env.setdefault('SHADPS4_CACHE_NAME', own_cache)
+        if own_cache != seed_name:
+            seed_name = own_cache
         # The cache folder in the log (10-30: a start on an empty CUSA00223 folder compiled every
         # shader while playing, and nothing in the log said why).
         try:

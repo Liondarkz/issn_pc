@@ -13,6 +13,12 @@ INFAMOUS_SECOND_SON = ('CUSA00004', 'CUSA00223')
 # issn: sha256 of the 01.07 eboot.bin (the same for CUSA00004 and CUSA00223), whatever APP_VER
 # the folder's param.sfo says.
 INFAMOUS_107_EBOOTS = frozenset({'2d1ca79630d7bbe6fa29575f59aa7996d43071d74ac8e4f7d40137967d9039ab'})
+# issn 11-11: inFAMOUS First Light (US, EU/AU, Asia), a separate game on the same engine; its
+# last update is 01.04 (sha256 of the US 01.04 eboot.bin below). Experimental: it starts with
+# Second Son's settings, and the features found by Second Son's code (FOV, mouse aim, cheats)
+# stay out because their sites are compared first (claude/first-light-estudo.md).
+INFAMOUS_FIRST_LIGHT = ('CUSA00575', 'CUSA00897', 'CUSA01064')
+FIRST_LIGHT_104_EBOOTS = frozenset({'693dc18504f30ae106bcd33cbb0c1d29a3dbbdb330754ee9dc2194ca6b56e240'})
 
 # issn-axy: the GPU core of axylpup's inFAMOUS Second Son build (github.com/axylpup/shadPS4,
 # second-son 2212a345 = release v1.0.2), with the switches of its release (shadps4-flags.txt).
@@ -227,15 +233,26 @@ PROFILES['CUSA00004']['ISSN_WATCHDOG_PEEK'] = '0x11c0380,0x4ec7310'
 # The US release has the Brazilian Portuguese dub and text (lang_brazilian_*): the tester's
 # choice. ISSN_LANGUAGE=1 gives English.
 PROFILES['CUSA00223']['ISSN_LANGUAGE'] = '17'
+for _title in INFAMOUS_FIRST_LIGHT:
+    PROFILES[_title] = dict(PROFILES['CUSA00223'])
+    del PROFILES[_title]['ISSN_LANGUAGE']
+# The US release has the lang_brazilian_* files, like Second Son's.
+PROFILES['CUSA00575']['ISSN_LANGUAGE'] = '17'
+
+
+def cache_name(title, seed_name):
+    """The shader cache folder of a game: the package's seed for Second Son (and any game without
+    a profile, as before), a folder of its own for First Light (another game's shaders)."""
+    return f'{title}-first-light' if title in INFAMOUS_FIRST_LIGHT else seed_name
 
 
 def title_id(game):
     """TITLE_ID of the game folder's param.sfo, or None."""
     try:
-        from prepare import read_sfo
+        from prepare import read_sfo, sfo_path
     except ImportError:
         return None
-    sfo = read_sfo(Path(game) / 'sce_sys' / 'param.sfo') or {}
+    sfo = read_sfo(sfo_path(game)) or {}
     value = sfo.get('TITLE_ID')
     return str(value) if value else None
 

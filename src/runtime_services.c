@@ -175,6 +175,11 @@ static ABI void np_register_void(void *cb,void *arg) { (void)cb; (void)arg; }
 static ABI int32_t np_request(const void *param) { (void)param; return new_id(); }
 static ABI int32_t np_request_ctx(int32_t ctx,const void *param) { (void)ctx; (void)param; return new_id(); }
 static ABI int32_t np_poll(int32_t request,int32_t *result) { (void)request; if (result) *result=NP_SIGNED_OUT; return 0; }
+/* issn 11-11, inFAMOUS First Light (01.04): libSceJson2 only reads the answers of the PSN web
+ * API, which never arrive offline (sceNpWebApiCreateContextA says "signed out"). Its objects are
+ * left untouched: a parse fails, and a lookup gives an empty value. */
+static ABI const void *json_empty(void) { static const unsigned char empty[64]; return empty; }
+static ABI int32_t json_fail(void) { return -1; }
 static ABI int32_t np_compare(const void *a,const void *b) {
     if (!a || !b) return NP_INVALID_ARGUMENT;
     return memcmp(a,b,16) ? (int32_t)0x80550609 : 0; /* NP_UTIL NOT_MATCH */
@@ -735,6 +740,24 @@ static const RuntimeExport exports[]={
     {"sceNpLookupAbortRequest",ok_void}, {"sceNpLookupPollAsync",np_poll}, {"sceNpLookupNpId",np_signed_out},
     {"sceNpScoreCreateNpTitleCtx",np_request_ctx}, {"sceNpScoreDeleteNpTitleCtx",ok_void},
     {"sceNpScoreCreateRequest",np_request}, {"sceNpScoreDeleteRequest",ok_void}, {"sceNpScoreAbortRequest",ok_void},
+    /* issn 11-11: inFAMOUS First Light's leaderboards, title user storage and web API, offline. */
+    {"sceNpScoreCreateNpTitleCtxA",lib_init_id}, {"sceNpScorePollAsync",np_poll},
+    {"sceNpScoreRecordScoreAsync",np_signed_out}, {"sceNpScoreGetRankingByAccountIdAsync",np_signed_out},
+    {"sceNpScoreGetRankingByRangeAAsync",np_signed_out},
+    {"sceNpTusCreateNpTitleCtxA",lib_init_id}, {"sceNpTusDeleteNpTitleCtx",ok_void},
+    {"sceNpTusCreateRequest",np_request}, {"sceNpTusDeleteRequest",ok_void}, {"sceNpTusPollAsync",np_poll},
+    {"sceNpTusGetMultiSlotVariableAAsync",np_signed_out}, {"sceNpTusGetMultiUserVariableAAsync",np_signed_out},
+    {"sceNpTusSetMultiSlotVariableAAsync",np_signed_out},
+    {"sceNpWebApiCreateContextA",np_signed_out}, {"sceNpWebApiSendRequest2",np_signed_out},
+    {"_ZN3sce4Json11InitializerC1Ev",ok_void}, {"_ZN3sce4Json11InitializerD1Ev",ok_void},
+    {"_ZN3sce4Json11Initializer10initializeEPKNS0_13InitParameterE",ok_void},
+    {"_ZN3sce4Json12MemAllocatorC2Ev",ok_void}, {"_ZN3sce4Json12MemAllocatorD2Ev",ok_void},
+    {"_ZN3sce4Json12MemAllocator11notifyErrorEimPv",ok_void},
+    {"_ZN3sce4Json5ValueC1Ev",ok_void}, {"_ZN3sce4Json5ValueD1Ev",ok_void}, {"_ZN3sce4Json5Value5clearEv",ok_void},
+    {"_ZN3sce4Json6Parser5parseERNS0_5ValueEPKcm",json_fail},
+    {"_ZNK3sce4Json5ValueixEPKc",json_empty}, {"_ZNK3sce4Json5ValueixEm",json_empty},
+    {"_ZNK3sce4Json5Value9getStringEv",json_empty}, {"_ZNK3sce4Json6String5c_strEv",json_empty},
+    {"_ZNK3sce4Json5Value10getIntegerEv",ok_void},
     {"sceNpWebApiInitialize",lib_init_id}, {"sceNpWebApiTerminate",ok_void},
     {"sceNpWebApiCreateContext",np_signed_out},
     {"sceNpWebApiCreateRequest",np_signed_out}, {"sceNpWebApiSendRequest",np_signed_out},

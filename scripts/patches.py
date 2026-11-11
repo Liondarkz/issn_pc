@@ -216,10 +216,10 @@ def game_sfo(game):
     if not game:
         return {}
     try:
-        from prepare import read_sfo
+        from prepare import read_sfo, sfo_path
     except ImportError:
         return {}
-    return read_sfo(Path(game) / 'sce_sys/param.sfo') or {}
+    return read_sfo(sfo_path(game)) or {}
 
 
 def game_title_id(game):

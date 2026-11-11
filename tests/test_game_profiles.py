@@ -29,6 +29,22 @@ class GameProfileTests(unittest.TestCase):
                 # The fence addresses are the EU 01.00 eboot's.
                 self.assertEqual('ISSN_WATCHDOG_PEEK' in env, title == 'CUSA00004')
 
+    def test_first_light_starts_with_second_son_settings_and_its_own_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for title in game_profiles.INFAMOUS_FIRST_LIGHT:
+                found, env = game_profiles.environment(game(tmp, title), {})
+                self.assertEqual((found, env['SHADPS4_CP_SPLIT'], env['ISSN_TSC']), (title, '2', 'host'))
+                self.assertEqual(env.get('ISSN_LANGUAGE'), '17' if title == 'CUSA00575' else None)
+                self.assertEqual(game_profiles.cache_name(title, 'issn-seed-0.3.7'), f'{title}-first-light')
+            self.assertEqual(game_profiles.cache_name('CUSA00223', 'issn-seed-0.3.7'), 'issn-seed-0.3.7')
+            self.assertIsNone(game_profiles.cache_name('CUSA00223', None))
+            # A dump with its param.sfo in the Sc0 folder beside Image0.
+            folder = Path(tmp) / 'dump' / 'Image0'
+            folder.mkdir(parents=True)
+            (folder.parent / 'Sc0').mkdir()
+            (folder.parent / 'Sc0' / 'param.sfo').write_bytes(sfo_fixture({'TITLE_ID': 'CUSA00575', 'APP_VER': '01.04'}))
+            self.assertEqual(game_profiles.title_id(folder), 'CUSA00575')
+
     def test_other_games_get_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(game_profiles.environment(game(tmp, 'CUSA01623'), {}), ('CUSA01623', {}))

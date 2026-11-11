@@ -121,7 +121,8 @@ s64 MsSinceLiveResize() {
 /// The game's own quality ladder level (0 = full ... 20), read live (eboot +0xf39978); -1
 /// before the game is loaded.
 int GameQualityLevel() {
-    if (g_eboot_address == 0) {
+    // issn 11-11: a Second Son 01.07 address; another game (First Light) reads as "not loaded".
+    if (g_eboot_address == 0 || g_game_serial != "CUSA00004") {
         return -1;
     }
     s32 level;
@@ -548,7 +549,11 @@ extern "C" int issngpu_init(const IssnGpuConfig* config) {
     MemoryPatcher::g_eboot_address = static_cast<uintptr_t>(config->eboot_base);
     // The game-specific paths of the new core key on the EU serial; the US eboot's code is the
     // same (axylpup's seed stamp: one code hash for CUSA00004 and CUSA00223).
-    MemoryPatcher::g_game_serial = "CUSA00004";
+    // issn 11-11: inFAMOUS First Light is another game: under its own serial every path made
+    // for Second Son's code and data addresses stays off.
+    const std::string serial = config->serial ? config->serial : "";
+    const bool first_light = serial == "CUSA00575" || serial == "CUSA00897" || serial == "CUSA01064";
+    MemoryPatcher::g_game_serial = first_light ? serial : "CUSA00004";
     const std::string title = config->title ? config->title : "inFAMOUS Second Son";
     const s32 width = config->width, height = config->height;
     g_window_thread = std::thread([title, width, height] {

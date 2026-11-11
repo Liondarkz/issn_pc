@@ -583,6 +583,14 @@ class GameFilesTest(unittest.TestCase):
                     self.assertFalse((game / 'sce_sys/param.sfo').exists())
                     self.assertIn('sce_sys/param.sfo', app.messagebox.showerror.call_args.args[1])
                     self.assertFalse(started)
+        with self.subTest('First Light'), tempfile.TemporaryDirectory() as root:
+            # Another game the port starts: its extraction gets the same offer.
+            root = Path(root)
+            game = extraction(root, 'game', '01.00')
+            (root / 'game' / 'Sc0/param.sfo').write_bytes(sfo_bytes(TITLE_ID='CUSA00575', APP_VER='01.04'))
+            self.assertEqual(launcher.system_files_beside(game), root / 'game' / 'Sc0')
+            (root / 'game' / 'Sc0/param.sfo').write_bytes(sfo_bytes(TITLE_ID='CUSA09999', APP_VER='01.00'))
+            self.assertIsNone(launcher.system_files_beside(game))
         with self.subTest('update folder'), tempfile.TemporaryDirectory() as root:
             # A separately dumped update has the same layout and gets the same offer.
             root = Path(root)

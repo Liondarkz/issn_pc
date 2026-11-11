@@ -138,6 +138,15 @@ def read_sfo(path):
         return None
 
 
+def sfo_path(game):
+    """The param.sfo of a game folder: sce_sys/param.sfo, or (issn 11-11) the Sc0 folder beside it
+    where PKG extractors leave the system files (<dump>/Image0 + <dump>/Sc0)."""
+    game = Path(game)
+    inside = game / 'sce_sys' / 'param.sfo'
+    beside = game.parent / 'Sc0' / 'param.sfo'
+    return beside if not inside.is_file() and beside.is_file() else inside
+
+
 def write_report(path, report):
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 

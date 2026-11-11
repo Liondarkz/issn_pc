@@ -142,6 +142,7 @@
 -fA+7ZlGDQs	libkernel
 -g0pBZ2JdAc	libSceShellCoreUtil
 -gwkQpOCl68	libSceRemoteplay
+-hJRce8wn1U	libSceJson2
 -hrMXdpZuDU	libSceShellCoreUtil
 -jRGLt2Dbe4	libSceUserService
 -keIqW70YlY	libSceFont
@@ -1215,6 +1216,7 @@ CtWUbFgmq+I	libSceVrTracker
 CvwCMJtzp1I	libSceUserService
 CwBFvAlOv7k	libSceAudioIn
 CwCzG0nnLg8	libSceCommonDialog
+Cxwy7wHq4J0	libSceJson2
 CyIK-i4XdgQ	libSceRtc
 Cya+jvTtPqg	libSceWebBrowserDialog
 CydP+QtA0KI	libSceUserServiceForShellCore
@@ -1237,6 +1239,7 @@ DFlBYT+Lm2I	libSceNpTus
 DGMG3JshrZU	libkernel
 DHmwsa6S8Tc	libSceNpCommerce
 DILuzcvXjGQ	libSceSystemServiceVideoToken
+DIxvoy7Ngvk	libSceJson2
 DJURdcnVUqo	libSceFont
 DJsHcEb94n0	libSceRazorCpu
 DK+GoXCNT04	libSceHttp
@@ -1403,6 +1406,7 @@ FEdkOG1VbQo	libSceNetCtl
 FFVZcCu3zWU	libSceGnmDriver
 FI+VqGdttvI	libSceSystemService
 FIV95WE1EuE	libSceNet
+FIjXN2TkuTs	libSceJson2
 FIs3-UQT9sg	libScePosix
 FIs3-UQT9sg	libkernel
 FJZW2oHUHFk	libSceNpTrophy
@@ -1614,6 +1618,7 @@ HsjvaxD7veE	libSceUserService
 Ht6MNTl-je4	libSceNpTrophy
 HuToUt1GQ8w	libSceSaveData
 Hvd3S--n25w	libSceUsbd
+HwDt5lD9Bfo	libSceJson2
 HwFpasG4+kM	libSceUserService
 HwP3aM+c85c	libSceNpWebApi2
 HxNRiCWfVFw	libSceUserService
@@ -1895,6 +1900,7 @@ L-Q3LEjIbgA	libkernel
 L-owl1dSKKg	libSceGnmDriver
 L0EHgZZNVas	libSceUsbd
 L0v2Go5jOuM	libkernel
+L1KAkYWml-M	libSceJson2
 L2gM3qptqHs	libSceHttp
 L5WZgOTw41Y	libSceHmd
 L5mESo+Iq+k	libSceShellCoreUtil
@@ -2171,6 +2177,7 @@ OaWw+IVEdbI	libSceCompanionHttpd
 Oad3rvY-NJQ	libSceNpManager
 ObIste7hqdk	libSceCamera
 ObkDGDBsVtw	libSceFont
+OcAgPxcq5Vk	libSceJson2
 OcQybQejHEY	libSceVideoOut
 OcZJcxANLfw	libSceSsl
 OcllHFFcQkI	libSceNpTrophy
@@ -2448,6 +2455,7 @@ RtLRV-pBTTY	libkernel
 Ru36fiTtJzA	libkernel
 RuSca8rS6yA	libSceIme
 RuVwHEW6dM4	libSceNet
+RujUxbr3haM	libSceJson2
 RvXyHMUiLhE	libSceFont
 RwXD8grHZHM	libSceSsl
 Ry4u8KxkVY4	libSceLncUtil
@@ -2460,6 +2468,7 @@ S2mw3sYplAI	libSceFontFt
 S3xZj35v8Z8	libSceNpScore
 S48+njg9p-o	libSceFont
 S49B+I96kpk	libSceSaveData
+S5JxQnoGF3E	libSceJson2
 S5eMvWnbbXg	libSceAppContent
 S7QTn72PrDw	libSceNpManager
 S9D8JSYIrjE	libSceNpMatching2
@@ -2775,6 +2784,7 @@ WPIB7zBWxVE	libScePad
 WQ-l-i2gJko	libSceUserService
 WR7XsLdjcqQ	libSceHmd
 WRvDk2syatE	libSceNetCtl
+WTtYf+cNnXI	libSceJson2
 WU5s+cPzO8Y	libSceUserService
 WV1GwM32NgY	libSceNpWebApi2
 WVox2rwGuSc	libSceCamera
@@ -2874,6 +2884,7 @@ XhWHn6P5R7U	libScePosix
 XhWHn6P5R7U	libkernel
 XiyzNZ9J4nQ	libSceGnmDriver
 Xjoosiw+XPI	libkernel
+XlWbvieLj2M	libSceJson2
 XlcBqhyaJyI	libSceShellCoreUtil
 Xma8yHmV+TQ	libSceNet
 Xn-eH9-Fu60	libSceSystemService
@@ -3220,6 +3231,7 @@ cGvpAO63abg	libSceUserService
 cJ--1xAbj-I	libScePngDec
 cJ--1xAbj-I	libScePngDec_jvm
 cJLufzou6bc	libSceVoice
+cK6bYHf-Q5E	libSceJson2
 cKYtVmeSTcw	libSceFont
 cKyUWdEKBME	libSceKeyboard
 cLV4aiT9JpA	libSceNgs2
@@ -3430,6 +3442,7 @@ elcxZTEfHZM	libSceVoice
 emklx7RK-LY	libSceRazorCpu
 en7gNVnh878	libSceSaveDataDialog
 eoht7mQOCmo	libkernel
+epJ6x2LV0kU	libSceJson2
 eszLdtIMfQE	libSceNet
 etaQhgPHDRY	libScePad
 euKRgm0Vn2M	libScePosix
@@ -3728,6 +3741,7 @@ hyVLT2VlOYk	libSceNgs2
 hyW5w855fk4	libSceUserService
 i+1kluDITlQ	libSceLncUtil
 i+quCZCL+D8	libSceHttp
+i-XwZjw0OOY	libSceJson2
 i-esdF3Kz-g	libSceLncUtil
 i0VnXM-C9fc	libSceNgs2
 i0dr6grIZyc	libSceNpWebApi
@@ -4434,6 +4448,7 @@ q7U6tEAQf7c	libSceNpTrophy
 q8j9OSdnN1Y	libSceNet
 qAUXQ9GdWp8	libSceNpAuth
 qBDmpCyGssE	libkernel
+qBMjqyBn3OM	libSceJson2
 qBjnR0HtMYI	libSceVrTracker
 qCSfqDILlns	libkernel
 qDagOjvJdNk	libSceIme

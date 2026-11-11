@@ -65,5 +65,30 @@ class GameUpdateTests(unittest.TestCase):
         self.assertEqual(list(self.out.iterdir()) if self.out.exists() else [], [])
 
 
+    def test_system_files_beside_image0_join_the_view(self):
+        # PKG extractors: <dump>/Image0 is the game and <dump>/Sc0 holds param.sfo and friends.
+        game, patch = self.root / 'game' / 'Image0', self.root / 'patch' / 'Image0'
+        write(game / 'eboot.bin', 'base eboot')
+        write(game / 'sce_sys/keystone', 'key')
+        write(game.parent / 'Sc0/param.sfo', 'base sfo')
+        write(game.parent / 'Sc0/pic1.png', 'art')
+        write(patch / 'eboot.bin', 'update eboot')
+        write(patch.parent / 'Sc0/param.sfo', 'update sfo')
+        self.assertTrue(game_update.needs_view(game))
+        self.assertFalse(game_update.needs_view(self.base / '..' / 'update'))
+        alone = game_update.create_view(game, None, self.out)
+        self.assertEqual((alone / 'sce_sys/param.sfo').read_text(), 'base sfo')
+        self.assertEqual((alone / 'sce_sys/keystone').read_text(), 'key')
+        game_update.remove_view(alone)
+        with mock.patch('patches.game_title_id', side_effect=['CUSA00575', 'CUSA00575']):
+            view = game_update.create_view(game, patch, self.out)
+        self.assertEqual((view / 'eboot.bin').read_text(), 'update eboot')
+        self.assertEqual((view / 'sce_sys/param.sfo').read_text(), 'update sfo')
+        self.assertEqual((view / 'sce_sys/pic1.png').read_text(), 'art')
+        game_update.remove_view(view)
+        self.assertEqual((game.parent / 'Sc0/param.sfo').read_text(), 'base sfo')
+        self.assertEqual((game / 'sce_sys/keystone').read_text(), 'key')
+
+
 if __name__ == '__main__':
     unittest.main()
