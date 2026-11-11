@@ -110,11 +110,23 @@ def icon(path, entries, trophy_id):
 
 
 # ---- what this PC unlocked ---------------------------------------------------------------------
-def load_unlocked(user_dir):
-    """{id: 'YYYY-MM-DD HH:MM:SS'} from user/trophies.txt ({} when there is none)."""
+def unlocked_file(*folders):
+    """The file in user/ with the trophies unlocked for the game in the folders: trophies.txt
+    (Second Son, and any game as before), a file of its own for inFAMOUS First Light (issn 11-11:
+    its trophy ids 0-24 are other trophies; a run of it marked Second Son's trophy 1)."""
+    import trophy_list
+    try:
+        title = game_ids(*folders)[0]
+    except (OSError, ValueError):
+        title = None
+    return 'trophies-first-light.txt' if title in trophy_list.FIRST_LIGHT_TITLE_IDS else UNLOCKED_FILE
+
+
+def load_unlocked(user_dir, name=UNLOCKED_FILE):
+    """{id: 'YYYY-MM-DD HH:MM:SS'} from user/<name> ({} when there is none)."""
     unlocked = {}
     try:
-        lines = (Path(user_dir) / UNLOCKED_FILE).read_text(encoding='utf-8', errors='replace').splitlines()
+        lines = (Path(user_dir) / name).read_text(encoding='utf-8', errors='replace').splitlines()
     except OSError:
         return unlocked
     for line in lines:
@@ -380,7 +392,9 @@ def prepare(env, user_dir):
     folders = [env.get('ISSN_PATCH_DIR'), env.get('ISSN_GAME_DIR')]
     trp = trophy_file(*folders)
     names = Path(user_dir) / NAMES_FILE
-    unlocked = len(load_unlocked(user_dir))
+    book = unlocked_file(*folders)
+    env['ISSN_TROPHY_BOOK'] = book  # src/runtime_services.c: the file this game's unlocks go to
+    unlocked = len(load_unlocked(user_dir, book))
     if trp is None:
         env.pop('ISSN_TROPHY_FILE', None)
         names.unlink(missing_ok=True)
@@ -417,4 +431,4 @@ def summary(user_dir, *folders):
             ids = trophy_ids(read_entries(trp))
         except (OSError, ValueError):
             trp = None
-    return trp, ids, load_unlocked(user_dir)
+    return trp, ids, load_unlocked(user_dir, unlocked_file(*folders))

@@ -449,6 +449,13 @@ static ABI int32_t ime_term(void) { memset(&ime,0,sizeof(ime)); return 0; }
 static pthread_mutex_t trophy_lock=PTHREAD_MUTEX_INITIALIZER;
 static TrophyBook trophies;
 static int trophies_ready;
+/* issn 11-11: the file of this game's unlocks (ISSN_TROPHY_BOOK from scripts/trophies.py: First
+ * Light has one of its own); user/trophies.txt without it, or when it is not a plain file name. */
+static const char *trophy_book_name(void) {
+    const char *name=getenv("ISSN_TROPHY_BOOK");
+    if (!name || !*name || strlen(name)>64 || strpbrk(name,"/\\:") || strstr(name,"..")) return "trophies.txt";
+    return name;
+}
 static void trophy_path(char *out,size_t size,const char *name) {
     snprintf(out,size,"%s/%s",runtime_file_user_dir(),name);
 }
@@ -470,7 +477,7 @@ static void trophy_show(int id) {
     free(png);
 }
 static void trophy_save(void) {
-    char path[1024]; trophy_path(path,sizeof(path),"trophies.txt");
+    char path[1024]; trophy_path(path,sizeof(path),trophy_book_name());
     if (trophy_book_save(&trophies,path)) printf("Runtime: trophies: could not write %s\n",path);
 }
 /* trophy_lock held: the book, read once (the platinum a save already earned is given now). */
@@ -483,7 +490,7 @@ static void trophies_open(void) {
     char path[1024];
     trophy_path(path,sizeof(path),"trophy-names.txt");
     int names=trophy_book_names(&trophies,path);
-    trophy_path(path,sizeof(path),"trophies.txt");
+    trophy_path(path,sizeof(path),trophy_book_name());
     trophy_book_load(&trophies,path);
     if (total>0) printf("Runtime: trophies: %d in the game's file, %d unlocked on this PC, %s\n",
                         total,trophy_book_count(&trophies),names ? "with names" : "no names (no trophy key)");

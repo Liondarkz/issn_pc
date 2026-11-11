@@ -317,12 +317,13 @@ class Api:
 
     def _trophy_check(self, s):
         _ = self._L._
+        # issn 11-11: the chosen game's own file and count (First Light: 25, in a file of its own).
         try:
-            lines = [line for line in (self._user_dir(s) / 'trophies.txt').read_text(encoding='utf-8').splitlines()
-                     if line.strip() and not line.startswith('#')]
-        except OSError:
-            lines = []
-        return {'state': 'ok', 'name': _('Achievements'), 'text': _('{} of 48').format(len(lines)), 'page': 'trophies'}
+            trp, ids, unlocked = self._L.trophies.summary(self._user_dir(s), *self._trophy_folders(s))
+        except (OSError, ValueError):
+            ids, unlocked = [], {}
+        return {'state': 'ok', 'name': _('Achievements'),
+                'text': _('{} of {}').format(len(unlocked), len(ids) or 48), 'page': 'trophies'}
 
     def _last_save(self, s):
         try:

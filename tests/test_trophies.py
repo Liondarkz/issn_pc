@@ -221,6 +221,16 @@ class BuiltinListTest(unittest.TestCase):
             self.assertEqual((len(fl_texts), fl_texts[0]['grade'], fl_texts[1]['name']), (25, 'P', 'Perdida'))
             self.assertEqual(trophies.builtin_texts(fl_trp, 1, fl)[24]['name'], 'Fish in a Barrel')
             self.assertIsNone(trophies.builtin_texts(trp, 17, fl))  # 48 trophies with First Light's id
+            # First Light's unlocks go to a file of their own (its ids are other trophies).
+            self.assertEqual(trophies.unlocked_file(fl), 'trophies-first-light.txt')
+            self.assertEqual(trophies.unlocked_file(game), 'trophies.txt')
+            (root / 'trophies.txt').write_text('6 2026-11-05 00:47:49\n')
+            (root / 'trophies-first-light.txt').write_text('1 2026-11-11 15:50:43\n')
+            self.assertEqual(list(trophies.summary(root, fl)[2]), [1])
+            self.assertEqual(list(trophies.summary(root, game)[2]), [6])
+            env = {'ISSN_GAME_DIR': str(fl)}
+            self.assertIn('1 unlocked', trophies.prepare(env, root))
+            self.assertEqual(env['ISSN_TROPHY_BOOK'], 'trophies-first-light.txt')
             # A different number of trophies is another game, whatever the ids say.
             make_trp(trp, [(f'TROP{i:03d}.PNG', png(i), 0) for i in range(10)])
             self.assertIsNone(trophies.builtin_texts(trp, 17, game))
