@@ -47,6 +47,19 @@ def make_trp(path, entries):
     path.write_bytes(head + table + blobs)
 
 
+def sfo_bytes(**values):
+    """A minimal param.sfo (PSF 1.1) holding string values."""
+    entries, keys, data = b'', b'', b''
+    for key, value in values.items():
+        text = value.encode() + b'\0'
+        entries += struct.pack('<HHIII', len(keys), 0x204, len(text), len(text), len(data))
+        keys += key.encode() + b'\0'
+        data += text
+    keys_offset = 20 + len(entries)
+    return (struct.pack('<4sIIII', b'\0PSF', 0x101, keys_offset, keys_offset + len(keys), len(values))
+            + entries + keys + data)
+
+
 def png(n):
     return b'\x89PNG\r\n\x1a\n' + bytes([n]) * 8
 
@@ -163,6 +176,14 @@ class BuiltinListTest(unittest.TestCase):
             self.assertEqual(len(row), 7)
             self.assertTrue(all(text.strip() == text and text for text in row[1:]), row)
 
+    def test_first_light_shape(self):
+        grades = [t[0] for t in trophy_list.FIRST_LIGHT]
+        self.assertEqual(len(grades), 25)
+        self.assertEqual((grades.count('P'), grades.count('G'), grades.count('S'), grades.count('B')), (1, 7, 11, 6))
+        for row in trophy_list.FIRST_LIGHT:
+            self.assertEqual(len(row), 7)
+            self.assertTrue(all(text.strip() == text and text for text in row[1:]), row)
+
     def test_languages(self):
         self.assertEqual(trophy_list.texts(17)[6]['name'], 'Coragem')
         self.assertEqual(trophy_list.texts('1')[14]['name'], 'Everybody Out')
@@ -190,6 +211,16 @@ class BuiltinListTest(unittest.TestCase):
             lines = (user / trophies.NAMES_FILE).read_text(encoding='utf-8').splitlines()
             self.assertEqual(lines[1], '0\tP\t0\tAproveite seus poderes')
             self.assertEqual(lines[7], '6\tB\t1\tCoragem')
+            # First Light (its own title ID, 25 trophies): its list; Second Son's ids do not apply.
+            fl = root / 'fl/Image0'
+            (fl / 'sce_sys').mkdir(parents=True)
+            fl_trp = root / 'fl/Sc0/trophy/trophy00.trp'
+            make_trp(fl_trp, [(f'TROP{i:03d}.PNG', png(i), 0) for i in range(25)])
+            (root / 'fl/Sc0/param.sfo').write_bytes(sfo_bytes(TITLE_ID='CUSA00575'))
+            fl_texts = trophies.builtin_texts(fl_trp, 17, fl)
+            self.assertEqual((len(fl_texts), fl_texts[0]['grade'], fl_texts[1]['name']), (25, 'P', 'Perdida'))
+            self.assertEqual(trophies.builtin_texts(fl_trp, 1, fl)[24]['name'], 'Fish in a Barrel')
+            self.assertIsNone(trophies.builtin_texts(trp, 17, fl))  # 48 trophies with First Light's id
             # A different number of trophies is another game, whatever the ids say.
             make_trp(trp, [(f'TROP{i:03d}.PNG', png(i), 0) for i in range(10)])
             self.assertIsNone(trophies.builtin_texts(trp, 17, game))

@@ -8,8 +8,8 @@
   game, src/runtime_trophy.c).
 - The texts (names, descriptions, grades) are encrypted (TROP*.ESFM). They open only with the
   player's own trophy key, which the launcher keeps in user/trophy-key.txt on their PC; the port
-  never ships one. Without it, inFAMOUS Second Son's names come from trophy_list.py (written by
-  hand from public lists). Either way run.py writes user/trophy-names.txt for the in-game popup.
+  never ships one. Without it, the names of inFAMOUS Second Son and First Light come from
+  trophy_list.py (written by hand from public lists). Either way run.py writes user/trophy-names.txt for the in-game popup.
 
 ESFM: AES-128-CBC. The file key is the NP communication id (npbind.dat, "NPWRnnnnn_nn" padded to
 16 bytes with zeros) encrypted with the trophy key (CBC, zero IV); each ESFM is a 16-byte IV and
@@ -338,18 +338,19 @@ def game_ids(*folders):
 
 
 def builtin_texts(trp, language, *folders):
-    """The port's own list (trophy_list.py) when the trophy file is inFAMOUS Second Son's: the
-    same number of trophies, and its title ID or NP communication id; else None."""
+    """The port's own list (trophy_list.py) for the game of this trophy file: Second Son's or
+    First Light's, found by the number of trophies and the title ID (or Second Son's NP
+    communication id); else None."""
     import trophy_list
     try:
-        if len(trophy_ids(read_entries(trp))) != len(trophy_list.TROPHIES):
-            return None
+        count = len(trophy_ids(read_entries(trp)))
     except (OSError, ValueError):
         return None
     title, comm = game_ids(*folders)
-    if title not in trophy_list.TITLE_IDS and comm != trophy_list.COMM_ID:
-        return None
-    return trophy_list.texts(language)
+    for title_ids, comm_id, trophies in trophy_list.LISTS:
+        if count == len(trophies) and (title in title_ids or (comm_id and comm == comm_id)):
+            return trophy_list.texts(language, trophies)
+    return None
 
 
 def game_texts(trp, language, *folders, key=None):

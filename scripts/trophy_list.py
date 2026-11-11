@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""inFAMOUS Second Son's trophy names, for players without a trophy key (scripts/trophies.py).
+"""Trophy names of inFAMOUS Second Son (and First Light, below), for players without a trophy
+key (scripts/trophies.py).
 
 Written by hand from public trophy lists, not taken from the game's files:
 - English names, descriptions, grades and order: PlayStation's own list as shown by PlatPursuit
@@ -169,6 +170,98 @@ TROPHIES = [
 ]
 
 
+# ---- inFAMOUS First Light (11-11) -----------------------------------------------------------------
+# A separate game with its own trophy file (25 trophies). English names, descriptions and grades:
+# PlayStation LifeStyle's trophy guide (2014); the order checked against the icons of João's
+# trophy file (1-4 the "F" in bronze, silver, gold and pink, 5 a Lumen, 7 race flags, 8 spray can,
+# 10-13 cups, 14-18 Alpha/Beta/Gamma arenas, 24 fish). Portuguese and Spanish are our own
+# translations (the official ones were not reachable), so they may differ from the game's.
+FIRST_LIGHT_TITLE_IDS = ('CUSA00575', 'CUSA00897', 'CUSA01064')
+FIRST_LIGHT = [
+    ('P', 'Noble Achievement', 'Collect all Trophies.',
+     'Feito nobre', 'Colete todos os troféus.',
+     'Logro noble', 'Obtén todos los trofeos.'),
+    ('B', 'Lost', 'Suffer a Loss.',
+     'Perdida', 'Sofra uma perda.',
+     'Perdida', 'Sufre una pérdida.'),
+    ('S', 'Cracked', 'Endure a Deception.',
+     'Abalada', 'Aguente uma traição.',
+     'Quebrada', 'Soporta un engaño.'),
+    ('G', 'Betrayed', 'Experience a Double-cross.',
+     'Traída', 'Seja passada para trás.',
+     'Traicionada', 'Sufre una doble traición.'),
+    ('G', "She's Ready", 'Complete the story of inFAMOUS First Light.',
+     'Ela está pronta', 'Conclua a história de inFAMOUS First Light.',
+     'Está lista', 'Completa la historia de inFAMOUS First Light.'),
+    ('S', 'Illuminated', 'Collect all Neon Lumens.',
+     'Iluminada', 'Colete todos os Lúmens de neon.',
+     'Iluminada', 'Reúne todos los Lúmenes de neón.'),
+    ('B', 'Blackout', 'Destroy all Police Drones.',
+     'Apagão', 'Destrua todos os drones da polícia.',
+     'Apagón', 'Destruye todos los drones de la policía.'),
+    ('S', 'Lickety Pronto', 'Complete all Lumen Races.',
+     'Num piscar de olhos', 'Conclua todas as corridas de Lúmens.',
+     'En un santiamén', 'Completa todas las carreras de Lúmenes.'),
+    ('B', "That's So Fetch", 'Complete all Neon Graffiti.',
+     'Isso é tão Fetch', 'Conclua todos os grafites de neon.',
+     'Muy Fetch', 'Completa todos los grafitis de neón.'),
+    ('G', 'Unleashed', 'Purchase every Upgrade.',
+     'Sem limites', 'Compre todas as melhorias.',
+     'Desatada', 'Compra todas las mejoras.'),
+    ('B', 'Novice', 'Complete 25% of all Challenges.',
+     'Novata', 'Conclua 25% de todos os desafios.',
+     'Novata', 'Completa el 25% de todos los desafíos.'),
+    ('S', 'Professional', 'Complete 50% of all Challenges.',
+     'Profissional', 'Conclua 50% de todos os desafios.',
+     'Profesional', 'Completa el 50% de todos los desafíos.'),
+    ('G', 'Expert', 'Complete 75% of all Challenges.',
+     'Especialista', 'Conclua 75% de todos os desafios.',
+     'Experta', 'Completa el 75% de todos los desafíos.'),
+    ('G', 'Perfectionist', 'Complete all of the Challenges in the Game.',
+     'Perfeccionista', 'Conclua todos os desafios do jogo.',
+     'Perfeccionista', 'Completa todos los desafíos del juego.'),
+    ('S', 'Alpha Rescue Diamond', 'Achieve a score of 500,000 points.',
+     'Diamante do Resgate Alfa', 'Faça 500.000 pontos.',
+     'Diamante de Rescate Alfa', 'Consigue 500.000 puntos.'),
+    ('S', 'Alpha Survival Diamond', 'Achieve a score of 500,000 points.',
+     'Diamante da Sobrevivência Alfa', 'Faça 500.000 pontos.',
+     'Diamante de Supervivencia Alfa', 'Consigue 500.000 puntos.'),
+    ('S', 'Beta Rescue Diamond', 'Achieve a score of 500,000 points.',
+     'Diamante do Resgate Beta', 'Faça 500.000 pontos.',
+     'Diamante de Rescate Beta', 'Consigue 500.000 puntos.'),
+    ('S', 'Beta Survival Diamond', 'Achieve a score of 500,000 points.',
+     'Diamante da Sobrevivência Beta', 'Faça 500.000 pontos.',
+     'Diamante de Supervivencia Beta', 'Consigue 500.000 puntos.'),
+    ('S', 'Gamma Survival Diamond', 'Achieve a score of 500,000 points.',
+     'Diamante da Sobrevivência Gama', 'Faça 500.000 pontos.',
+     'Diamante de Supervivencia Gamma', 'Consigue 500.000 puntos.'),
+    ('S', 'Turret Syndrome', 'Overload 25 Turrets.',
+     'Síndrome da torreta', 'Sobrecarregue 25 torretas.',
+     'Síndrome de la torreta', 'Sobrecarga 25 torretas.'),
+    ('G', 'Great Responsibility', '50 Hostage Saves.',
+     'Grande responsabilidade', 'Salve 50 reféns.',
+     'Gran responsabilidad', 'Salva a 50 rehenes.'),
+    ('G', 'Top of the Class', 'Earn a total of 10,000,000 points.',
+     'Melhor da turma', 'Faça 10.000.000 de pontos no total.',
+     'La mejor de la clase', 'Consigue 10.000.000 de puntos en total.'),
+    ('B', 'Event Horizon', 'Defeat 100 Enemies with a Neon Singularity.',
+     'Horizonte de eventos', 'Derrote 100 inimigos com a Singularidade de neon.',
+     'Horizonte de sucesos', 'Derrota a 100 enemigos con la Singularidad de neón.'),
+    ('S', '…Bada Boom!', 'Defeat 20 Enemies in a row with Homing Missiles.',
+     '…e bum!', 'Derrote 20 inimigos seguidos com mísseis teleguiados.',
+     '…¡y bum!', 'Derrota a 20 enemigos seguidos con misiles teledirigidos.'),
+    ('B', 'Fish in a Barrel', '25 Stasis + Weakpoint Kills.',
+     'Peixe no barril', '25 abates com estase + ponto fraco.',
+     'Pez en el barril', '25 bajas con estasis + punto débil.'),
+]
+
+# Every list the port knows: (title IDs, NP communication id or None, trophies).
+LISTS = (
+    (TITLE_IDS, COMM_ID, TROPHIES),
+    (FIRST_LIGHT_TITLE_IDS, None, FIRST_LIGHT),
+)
+
+
 def language_column(language):
     """0 English, 1 Portuguese, 2 Spanish from a PS4 language id (ISSN_LANGUAGE)."""
     try:
@@ -178,11 +271,12 @@ def language_column(language):
     return 1 if value in (7, 17) else 2 if value in (3, 20) else 0
 
 
-def texts(language=1):
-    """{id: {'grade', 'base', 'hidden', 'name', 'detail'}} like trophies.read_texts."""
+def texts(language=1, trophies=None):
+    """{id: {'grade', 'base', 'hidden', 'name', 'detail'}} like trophies.read_texts (Second Son's
+    list unless another one of LISTS is given)."""
     column = language_column(language)
     result = {}
-    for trophy_id, (grade, *names) in enumerate(TROPHIES):
+    for trophy_id, (grade, *names) in enumerate(TROPHIES if trophies is None else trophies):
         result[trophy_id] = {'grade': grade, 'base': grade != 'P', 'hidden': False,
                              'name': names[2 * column], 'detail': names[2 * column + 1]}
     return result
