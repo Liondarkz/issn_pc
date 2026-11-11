@@ -2917,7 +2917,7 @@ class Launcher:
     # ---- issn 11-04: achievements (the game's trophies, scripts/trophies.py) -----------------------
     def build_trophies(self):
         """The game's trophies: icons from the player's own trophy file, which ones this PC unlocked
-        (user/trophies.txt, written by the game) and when; names with the player's own key."""
+        (user/trophies-<title ID>.txt, written by the game) and when; names with the player's own key."""
         tk, ttk = self.tk, self.ttk
         f = self.scrolled_page('trophies', _('Achievements'),
                                _("The game's trophies: the ones unlocked in this port are in color, with the date."))
@@ -3011,6 +3011,9 @@ class Launcher:
         line = _('{} of {} unlocked ({}%)').format(done, len(ids), percent)
         if platinum is not None and platinum in unlocked:
             line += '  ·  ' + _('Platinum! Every trophy unlocked')
+        # issn 11-11: each game has its own trophies (user/trophies-<title ID>.txt); say which one.
+        if name := trophies.game_name(*self.trophy_folders()):
+            line = f'{name}  ·  {line}'
         self.trophy_summary.configure(text=line)
         self.trophy_progress.configure(value=percent)
         grades = {'P': (_('Platinum'), '#c8e6ff'), 'G': (_('Gold'), '#ffcc4d'), 'S': (_('Silver'), '#d2d6e0'),
@@ -3066,7 +3069,7 @@ class Launcher:
     def remove_trophy_key(self):
         try:
             trophies.save_key(self.user_dir(), None)
-            (self.user_dir() / trophies.NAMES_FILE).unlink(missing_ok=True)
+            trophies.remove_names(self.user_dir())
         except OSError as error:
             self.messagebox.showerror(APP_NAME, _('Could not remove the key: {}').format(error))
             return

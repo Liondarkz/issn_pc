@@ -146,6 +146,28 @@ class WebUiTest(unittest.TestCase):
         self.assertEqual([i['name'] for i in items], ['Two', 'Trophy 0', 'Trophy 1'])
         self.assertEqual(next(row for row in rows if row['type'] == 'progress')['value'], 33)
 
+    def test_trophies_are_the_chosen_games_own(self):
+        """issn 11-11: Second Son and First Light each read their own user/trophies-<title ID>.txt."""
+        from test_trophies import make_trp, png, sfo_bytes
+        user = self.tmp / 'user'
+        user.mkdir()
+        (user / 'trophies-CUSA00223.txt').write_text('6 2026-11-05 00:47:49\n14 2026-11-05 00:38:09\n',
+                                                      encoding='utf-8')
+        (user / 'trophies-CUSA00575.txt').write_text('1 2026-11-11 15:50:43\n', encoding='utf-8')
+        self.api.set_value('user_dir', 'app', str(user))
+        for name, title, count, done in [('ss', 'CUSA00223', 48, 2), ('fl', 'CUSA00575', 25, 1)]:
+            game = self.tmp / name / 'Image0'
+            (game / 'sce_sys').mkdir(parents=True)
+            make_trp(self.tmp / name / 'Sc0/trophy/trophy00.trp', [(f'TROP{i:03d}.PNG', png(i), 0) for i in range(count)])
+            (self.tmp / name / 'Sc0/param.sfo').write_bytes(sfo_bytes(TITLE_ID=title))
+            self.api.set_value('game_dir', 'app', str(game))
+            rows = [row for section in self.api.page('trophies')['sections'] for row in section['rows']]
+            line = next(row for row in rows if row['type'] == 'progress')['text']
+            game_name = 'inFAMOUS Second Son' if name == 'ss' else 'inFAMOUS First Light'
+            self.assertTrue(line.startswith(f'{game_name}  ·  {done} of {count} unlocked'), line)
+            check = next(c for c in self.api.state()['home']['checks'] if c['name'] == 'Achievements')
+            self.assertEqual(check['text'], f'{done} of {count}')
+
     def test_an_incomplete_game_folder_says_what_is_missing(self):
         game = self.tmp / 'game'
         game.mkdir()

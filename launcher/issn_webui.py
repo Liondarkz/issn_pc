@@ -316,14 +316,15 @@ class Api:
                 'text': _('found') if found else _('none yet: the game makes them'), 'page': 'game'}
 
     def _trophy_check(self, s):
+        """issn 11-11: the chosen game's own file (user/trophies-<title ID>.txt) and its own total."""
         _ = self._L._
-        # issn 11-11: the chosen game's own file and count (First Light: 25, in a file of its own).
         try:
             trp, ids, unlocked = self._L.trophies.summary(self._user_dir(s), *self._trophy_folders(s))
-        except (OSError, ValueError):
-            ids, unlocked = [], {}
-        return {'state': 'ok', 'name': _('Achievements'),
-                'text': _('{} of {}').format(len(unlocked), len(ids) or 48), 'page': 'trophies'}
+        except OSError:
+            trp, ids, unlocked = None, [], {}
+        done = sum(1 for i in ids if i in unlocked) if ids else len(unlocked)
+        total = len(ids) if ids else '?'
+        return {'state': 'ok', 'name': _('Achievements'), 'text': _('{} of {}').format(done, total), 'page': 'trophies'}
 
     def _last_save(self, s):
         try:
@@ -634,6 +635,9 @@ class Api:
             line = _('{} of {} unlocked ({}%)').format(done, len(ids), percent)
             if platinum is not None and platinum in unlocked:
                 line += '  ·  ' + _('Platinum! Every trophy unlocked')
+            # issn 11-11: each game has its own trophies (user/trophies-<title ID>.txt); say which one.
+            if name := T.game_name(*folders):
+                line = f'{name}  ·  {line}'
             rows.append({'type': 'progress', 'value': percent, 'text': line})
             grades = {'P': (_('Platinum'), '#c8e6ff'), 'G': (_('Gold'), '#ffcc4d'), 'S': (_('Silver'), '#d2d6e0'),
                       'B': (_('Bronze'), '#db8f5c')}
@@ -1172,6 +1176,7 @@ class Api:
         path = self._user_dir() / 'trophy-key.txt'
         if path.exists():
             path.unlink()
+        self._L.trophies.remove_names(self._user_dir())  # names never outlive the key
         return {'reload': True}
 
     def _do_reset_controls(self):
