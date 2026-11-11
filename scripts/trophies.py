@@ -4,12 +4,16 @@
 - The trophy file: sce_sys/trophy/trophy00.trp of the player's dump (or Sc0/trophy/ beside it,
   where PKG extractors put it). Its icons (TROPnnn.PNG) are plain PNG files and their count is
   the number of trophies. Read from the player's folder at run time; never copied into the port.
-- user/trophies.txt: the trophies unlocked on this PC, one "id date" line each (written by the
-  game, src/runtime_trophy.c).
+- user/trophies-<title ID>.txt: the trophies unlocked on this PC, one "id date" line each (written
+  by the game, src/runtime_services.c). One file per game: Second Son and First Light both number
+  their trophies from 0. run.py gives the game its title ID (ISSN_TROPHY_TITLE).
+- user/trophies.txt: the one file of 0.3.7 and before (Second Son was the only game); it becomes
+  Second Son's file the first time Second Son is chosen (migrate_legacy). First Light never reads it.
 - The texts (names, descriptions, grades) are encrypted (TROP*.ESFM). They open only with the
   player's own trophy key, which the launcher keeps in user/trophy-key.txt on their PC; the port
   never ships one. Without it, the names of inFAMOUS Second Son and First Light come from
-  trophy_list.py (written by hand from public lists). Either way run.py writes user/trophy-names.txt for the in-game popup.
+  trophy_list.py (written by hand from public lists). Either way run.py writes
+  user/trophy-names-<title ID>.txt for the in-game popup.
 
 ESFM: AES-128-CBC. The file key is the NP communication id (npbind.dat, "NPWRnnnnn_nn" padded to
 16 bytes with zeros) encrypted with the trophy key (CBC, zero IV); each ESFM is a 16-byte IV and
@@ -23,8 +27,9 @@ import xml.etree.ElementTree as ElementTree
 
 TRP_MAGIC = 0xDCA24D00
 TROPHY_FILE = 'trophy/trophy00.trp'
-UNLOCKED_FILE = 'trophies.txt'
-NAMES_FILE = 'trophy-names.txt'
+UNLOCKED_FILE = 'trophies.txt'  # the shared file of 0.3.7 and before (migrate_legacy)
+NAMES_FILE = 'trophy-names.txt'  # likewise; the game reads trophy-names-<title ID>.txt now
+FIRST_LIGHT_FILE = 'trophies-first-light.txt'  # First Light's own file in 887b2d1 (migrate_legacy)
 KEY_FILE = 'trophy-key.txt'
 GRADES = {'P': 'platinum', 'G': 'gold', 'S': 'silver', 'B': 'bronze'}
 
@@ -110,23 +115,27 @@ def icon(path, entries, trophy_id):
 
 
 # ---- what this PC unlocked ---------------------------------------------------------------------
-def unlocked_file(*folders):
-    """The file in user/ with the trophies unlocked for the game in the folders: trophies.txt
-    (Second Son, and any game as before), a file of its own for inFAMOUS First Light (issn 11-11:
-    its trophy ids 0-24 are other trophies; a run of it marked Second Son's trophy 1)."""
-    import trophy_list
-    try:
-        title = game_ids(*folders)[0]
-    except (OSError, ValueError):
-        title = None
-    return 'trophies-first-light.txt' if title in trophy_list.FIRST_LIGHT_TITLE_IDS else UNLOCKED_FILE
+def clean_title(title):
+    """A title ID usable in a file name ('CUSA00223'), else None."""
+    title = str(title or '').strip().upper()
+    return title if re.fullmatch(r'[A-Z]{4}\d{5}', title) else None
 
 
-def load_unlocked(user_dir, name=UNLOCKED_FILE):
-    """{id: 'YYYY-MM-DD HH:MM:SS'} from user/<name> ({} when there is none)."""
+def unlocked_path(user_dir, title):
+    """user/trophies-<title ID>.txt; the old shared user/trophies.txt when the game is unknown."""
+    title = clean_title(title)
+    return Path(user_dir) / (f'trophies-{title}.txt' if title else UNLOCKED_FILE)
+
+
+def names_path(user_dir, title):
+    title = clean_title(title)
+    return Path(user_dir) / (f'trophy-names-{title}.txt' if title else NAMES_FILE)
+
+
+def _read_unlocked(path):
     unlocked = {}
     try:
-        lines = (Path(user_dir) / name).read_text(encoding='utf-8', errors='replace').splitlines()
+        lines = Path(path).read_text(encoding='utf-8', errors='replace').splitlines()
     except OSError:
         return unlocked
     for line in lines:
@@ -134,6 +143,47 @@ def load_unlocked(user_dir, name=UNLOCKED_FILE):
         if match and int(match.group(1)) < 128:
             unlocked.setdefault(int(match.group(1)), match.group(2).strip())
     return unlocked
+
+
+def load_unlocked(user_dir, title=None):
+    """{id: 'YYYY-MM-DD HH:MM:SS'} of the game's file ({} when there is none)."""
+    return _read_unlocked(unlocked_path(user_dir, title))
+
+
+def migrate_legacy(user_dir, title):
+    """issn 11-11: user/trophies.txt (0.3.7 and before, when Second Son was the only game) becomes
+    Second Son's file, lines and dates unchanged; the shared names file goes (run.py writes it at
+    every start). Only for Second Son: First Light never takes the old file. When Second Son's
+    file already exists, the old file only adds the trophies it lacks. Returns the number of
+    trophies moved, or None when there was nothing to move. First Light's trophies-first-light.txt
+    (the work branch's first fix, 887b2d1) becomes First Light's file the same way."""
+    import trophy_list
+    user_dir = Path(user_dir)
+    (user_dir / NAMES_FILE).unlink(missing_ok=True)
+    title = clean_title(title)
+    if title in trophy_list.TITLE_IDS:
+        legacy = user_dir / UNLOCKED_FILE
+    elif title in trophy_list.FIRST_LIGHT_TITLE_IDS:
+        legacy = user_dir / FIRST_LIGHT_FILE  # the work branch's file for a few hours (887b2d1)
+    else:
+        return None
+    if not legacy.is_file():
+        return None
+    target = unlocked_path(user_dir, title)
+    moved = _read_unlocked(legacy)
+    if not target.exists():
+        os.replace(legacy, target)
+        return len(moved)
+    have = _read_unlocked(target)
+    extra = [f'{i} {when}'.rstrip() for i, when in sorted(moved.items()) if i not in have]
+    if extra:
+        text = target.read_text(encoding='utf-8', errors='replace')
+        part = target.with_name(target.name + '.part')
+        part.write_text(text + ('' if not text or text.endswith('\n') else '\n') + '\n'.join(extra) + '\n',
+                        encoding='utf-8')
+        os.replace(part, target)
+    legacy.unlink()
+    return len(extra)
 
 
 # ---- AES-128 (the texts; standard library only: the launcher is a PyInstaller build) ----------
@@ -374,31 +424,44 @@ def game_texts(trp, language, *folders, key=None):
     return (texts, 'list') if texts else ({}, None)
 
 
-def write_names(user_dir, texts):
-    """user/trophy-names.txt for the game (src/runtime_trophy.c): id, grade, base, name."""
+def write_names(user_dir, texts, title=None):
+    """user/trophy-names-<title ID>.txt for the game (src/runtime_trophy.c): id, grade, base, name."""
     lines = ['# Trophy names from the player\'s own key (not shipped). id\tgrade\tbase\tname']
     for trophy_id, text in sorted(texts.items()):
         name = text['name'].replace('\t', ' ')
         lines.append(f"{trophy_id}\t{text['grade'] or '-'}\t{int(bool(text['base']))}\t{name}")
-    path = Path(user_dir) / NAMES_FILE
+    path = names_path(user_dir, title)
     part = path.with_name(path.name + '.part')
     part.write_text('\n'.join(lines) + '\n', encoding='utf-8')
     os.replace(part, path)
 
 
-def prepare(env, user_dir):
-    """run.py, before a start: ISSN_TROPHY_FILE for the game, user/trophy-names.txt from the key
-    (removed without one, so names never outlive the key). Returns the line for the log."""
+def game_title(*folders):
+    """The title ID of the game in the folders (param.sfo, update first), or None."""
+    return clean_title(game_ids(*folders)[0])
+
+
+def prepare(env, user_dir, title=None):
+    """run.py, before a start: ISSN_TROPHY_FILE and ISSN_TROPHY_TITLE for the game (its own
+    trophies-<title ID>.txt), user/trophy-names-<title ID>.txt from the key or the port's list
+    (removed without them, so names never outlive the key). Returns the line for the log."""
     folders = [env.get('ISSN_PATCH_DIR'), env.get('ISSN_GAME_DIR')]
+    title = clean_title(title) or game_title(*folders)
+    if title:
+        env['ISSN_TROPHY_TITLE'] = title
+    else:
+        env.pop('ISSN_TROPHY_TITLE', None)
+    moved = migrate_legacy(user_dir, title)
     trp = trophy_file(*folders)
-    names = Path(user_dir) / NAMES_FILE
-    book = unlocked_file(*folders)
-    env['ISSN_TROPHY_BOOK'] = book  # src/runtime_services.c: the file this game's unlocks go to
-    unlocked = len(load_unlocked(user_dir, book))
+    names = names_path(user_dir, title)
+    unlocked = len(load_unlocked(user_dir, title))
+    where = f'{unlocked} unlocked on this PC ({unlocked_path(user_dir, title).name})'
+    if moved is not None:
+        where += f'; {moved} moved from the old {UNLOCKED_FILE}'
     if trp is None:
         env.pop('ISSN_TROPHY_FILE', None)
         names.unlink(missing_ok=True)
-        return f'Trophies: no trophy file (sce_sys/{TROPHY_FILE}) in the game folder; {unlocked} unlocked on this PC'
+        return f'Trophies: no trophy file (sce_sys/{TROPHY_FILE}) in the game folder; {where}'
     env['ISSN_TROPHY_FILE'] = str(trp)
     try:
         count = len(trophy_ids(read_entries(trp)))
@@ -414,16 +477,37 @@ def prepare(env, user_dir):
     else:
         note = 'no names (no trophy key)'
     if texts:
-        write_names(user_dir, texts)
+        write_names(user_dir, texts, title)
         origin = 'the trophy key' if source == 'key' else "the port's list"
         note = f'names: {sum(1 for t in texts.values() if t["name"])} ({origin})'
     else:
         names.unlink(missing_ok=True)
-    return f'Trophies: {count} in {trp}, {unlocked} unlocked on this PC, {note}'
+    return f'Trophies: {count} in {trp}, {where}, {note}'
+
+
+def game_name(*folders):
+    """'inFAMOUS Second Son' / 'inFAMOUS First Light' for the game in the folders, else its title
+    ID, else '' (the launcher's Achievements page says which game it shows)."""
+    import trophy_list
+    title = game_title(*folders)
+    if title in trophy_list.TITLE_IDS:
+        return 'inFAMOUS Second Son'
+    if title in trophy_list.FIRST_LIGHT_TITLE_IDS:
+        return 'inFAMOUS First Light'
+    return title or ''
+
+
+def remove_names(user_dir):
+    """Every names file (the key was removed): run.py writes them again at the next start."""
+    for path in [Path(user_dir) / NAMES_FILE, *Path(user_dir).glob('trophy-names-*.txt')]:
+        path.unlink(missing_ok=True)
 
 
 def summary(user_dir, *folders):
-    """For the launcher: (trophy file or None, [ids], {id: date unlocked})."""
+    """For the launcher: (trophy file or None, [ids], {id: date unlocked}) of the game chosen in
+    the folders, from its own trophies-<title ID>.txt (the old shared file moved first)."""
+    title = game_title(*folders)
+    migrate_legacy(user_dir, title)
     trp = trophy_file(*folders)
     ids = []
     if trp is not None:
@@ -431,4 +515,4 @@ def summary(user_dir, *folders):
             ids = trophy_ids(read_entries(trp))
         except (OSError, ValueError):
             trp = None
-    return trp, ids, load_unlocked(user_dir, unlocked_file(*folders))
+    return trp, ids, load_unlocked(user_dir, title)

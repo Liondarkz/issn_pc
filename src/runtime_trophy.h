@@ -1,10 +1,10 @@
 /* issn: the game's trophies, kept on this PC (runtime_trophy.c).
- *   - user/trophies.txt: the trophies unlocked here, one "id date" line each (the launcher's
- *     Achievements page reads it too);
+ *   - user/trophies-<title ID>.txt: the trophies unlocked here, one "id date" line each, one
+ *     file per game (ISSN_TROPHY_TITLE from run.py; the launcher's Achievements page reads it too);
  *   - the game's sce_sys/trophy/trophy00.trp (ISSN_TROPHY_FILE, found by run.py): its icons are
  *     plain PNG files and their count is the number of trophies; its texts are encrypted;
- *   - user/trophy-names.txt: names and grades, written by run.py only when the player gave the
- *     launcher their own trophy key (never shipped). Without it a trophy is "Trophy N". */
+ *   - user/trophy-names-<title ID>.txt: names and grades, written by run.py from the player's own
+ *     trophy key (never shipped) or the port's list. Without it a trophy is "Trophy N". */
 #ifndef ISSN_RUNTIME_TROPHY_H
 #define ISSN_RUNTIME_TROPHY_H
 #include <stddef.h>

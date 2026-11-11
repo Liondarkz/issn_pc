@@ -164,6 +164,94 @@ class TrophyFileTest(unittest.TestCase):
         self.assertNotIn('ISSN_TROPHY_FILE', env)
 
 
+class PerGameFilesTest(unittest.TestCase):
+    """issn 11-11: Second Son and First Light both number their trophies from 0. One shared
+    user/trophies.txt gave First Light the four Second Son unlocks, and First Light's trophy 1
+    became Second Son's "Unstoppable". Now each title ID has its own file, and the old file moves
+    to Second Son's with its dates."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.user = self.root / 'user'
+        self.user.mkdir()
+        self.ss = self.game('ss', 'CUSA00223', 48)
+        self.fl = self.game('fl', 'CUSA00575', 25)
+
+    def game(self, name, title, count):
+        image = self.root / name / 'Image0'
+        (image / 'sce_sys').mkdir(parents=True)
+        make_trp(self.root / name / 'Sc0/trophy/trophy00.trp', [(f'TROP{i:03d}.PNG', png(i), 0) for i in range(count)])
+        (self.root / name / 'Sc0/param.sfo').write_bytes(sfo_bytes(TITLE_ID=title))
+        return image
+
+    def test_each_game_has_its_own_files(self):
+        self.assertEqual(trophies.unlocked_path(self.user, 'CUSA00223').name, 'trophies-CUSA00223.txt')
+        self.assertEqual(trophies.names_path(self.user, 'cusa00575').name, 'trophy-names-CUSA00575.txt')
+        self.assertEqual(trophies.unlocked_path(self.user, '../x').name, 'trophies.txt')  # not a title ID
+        (self.user / 'trophies-CUSA00223.txt').write_text('6 2026-11-05 00:47:49\n', encoding='utf-8')
+        (self.user / 'trophies-CUSA00575.txt').write_text('1 2026-11-11 15:50:43\n', encoding='utf-8')
+        trp, ids, unlocked = trophies.summary(self.user, None, self.ss)
+        self.assertEqual((len(ids), unlocked), (48, {6: '2026-11-05 00:47:49'}))
+        trp, ids, unlocked = trophies.summary(self.user, None, self.fl)
+        self.assertEqual((len(ids), unlocked), (25, {1: '2026-11-11 15:50:43'}))
+
+    def test_start_of_each_game(self):
+        env = {'ISSN_GAME_DIR': str(self.ss), 'ISSN_LANGUAGE': '17'}
+        line = trophies.prepare(env, self.user, 'CUSA00223')
+        self.assertEqual(env['ISSN_TROPHY_TITLE'], 'CUSA00223')
+        self.assertIn('0 unlocked on this PC (trophies-CUSA00223.txt)', line)
+        self.assertIn("names: 48 (the port's list)", line)
+        ss_names = (self.user / 'trophy-names-CUSA00223.txt').read_text(encoding='utf-8').splitlines()
+        self.assertEqual(ss_names[2], '1\tS\t1\tImbatível')
+        env = {'ISSN_GAME_DIR': str(self.fl), 'ISSN_LANGUAGE': '17'}
+        line = trophies.prepare(env, self.user)  # the title from param.sfo when run.py gives none
+        self.assertEqual(env['ISSN_TROPHY_TITLE'], 'CUSA00575')
+        self.assertIn('25 in', line)
+        self.assertIn('(trophies-CUSA00575.txt)', line)
+        fl_names = (self.user / 'trophy-names-CUSA00575.txt').read_text(encoding='utf-8').splitlines()
+        self.assertEqual(fl_names[2], '1\tB\t1\tPerdida')
+        self.assertEqual(ss_names, (self.user / 'trophy-names-CUSA00223.txt').read_text(encoding='utf-8').splitlines())
+        self.assertFalse((self.user / trophies.NAMES_FILE).exists())
+
+    def test_old_file_becomes_second_sons_with_its_dates(self):
+        old = ('# Trophies unlocked in this port: id and local date. Removing a line locks it again.\n'
+               '6 2026-11-05 00:47:49\n14 2026-11-05 00:38:09\n21 2026-11-05 09:37:32\n23 2026-11-07 10:27:04\n')
+        (self.user / trophies.UNLOCKED_FILE).write_text(old, encoding='utf-8')
+        (self.user / trophies.NAMES_FILE).write_text('stale\n', encoding='utf-8')
+        # First Light first: it does not take the old file, and the old file stays for Second Son.
+        env = {'ISSN_GAME_DIR': str(self.fl)}
+        self.assertIn('0 unlocked on this PC (trophies-CUSA00575.txt)', trophies.prepare(env, self.user, 'CUSA00575'))
+        self.assertTrue((self.user / trophies.UNLOCKED_FILE).is_file())
+        self.assertFalse((self.user / trophies.NAMES_FILE).exists())
+        # Second Son: moved, byte for byte.
+        env = {'ISSN_GAME_DIR': str(self.ss)}
+        line = trophies.prepare(env, self.user, 'CUSA00223')
+        self.assertIn('4 unlocked on this PC (trophies-CUSA00223.txt); 4 moved from the old trophies.txt', line)
+        self.assertFalse((self.user / trophies.UNLOCKED_FILE).exists())
+        self.assertEqual((self.user / 'trophies-CUSA00223.txt').read_text(encoding='utf-8'), old)
+        self.assertEqual(trophies.load_unlocked(self.user, 'CUSA00223')[21], '2026-11-05 09:37:32')
+        self.assertNotIn('moved', trophies.prepare(env, self.user, 'CUSA00223'))  # once
+
+    def test_first_lights_file_of_887b2d1_moves_to_its_title(self):
+        (self.user / trophies.FIRST_LIGHT_FILE).write_text('1 2026-11-11 15:50:43\n', encoding='utf-8')
+        (self.user / trophies.UNLOCKED_FILE).write_text('6 2026-11-05 00:47:49\n', encoding='utf-8')
+        self.assertEqual(trophies.summary(self.user, None, self.fl)[2], {1: '2026-11-11 15:50:43'})
+        self.assertFalse((self.user / trophies.FIRST_LIGHT_FILE).exists())
+        self.assertTrue((self.user / trophies.UNLOCKED_FILE).exists())  # Second Son's, untouched
+        self.assertEqual(trophies.summary(self.user, None, self.ss)[2], {6: '2026-11-05 00:47:49'})
+
+    def test_old_file_only_adds_what_second_son_lacks(self):
+        (self.user / 'trophies-CUSA00223.txt').write_text('6 2026-11-05 00:47:49\n', encoding='utf-8')
+        (self.user / trophies.UNLOCKED_FILE).write_text('6 2020-01-01 00:00:00\n14 2026-11-05 00:38:09\n',
+                                                        encoding='utf-8')
+        trp, ids, unlocked = trophies.summary(self.user, None, self.ss)  # the launcher moves it too
+        self.assertEqual(unlocked, {6: '2026-11-05 00:47:49', 14: '2026-11-05 00:38:09'})
+        self.assertFalse((self.user / trophies.UNLOCKED_FILE).exists())
+        trophies.remove_names(self.user)
+
+
 class BuiltinListTest(unittest.TestCase):
     """The port's own names for inFAMOUS Second Son (no key): 48 trophies, the platinum first."""
 
@@ -221,16 +309,6 @@ class BuiltinListTest(unittest.TestCase):
             self.assertEqual((len(fl_texts), fl_texts[0]['grade'], fl_texts[1]['name']), (25, 'P', 'Perdida'))
             self.assertEqual(trophies.builtin_texts(fl_trp, 1, fl)[24]['name'], 'Fish in a Barrel')
             self.assertIsNone(trophies.builtin_texts(trp, 17, fl))  # 48 trophies with First Light's id
-            # First Light's unlocks go to a file of their own (its ids are other trophies).
-            self.assertEqual(trophies.unlocked_file(fl), 'trophies-first-light.txt')
-            self.assertEqual(trophies.unlocked_file(game), 'trophies.txt')
-            (root / 'trophies.txt').write_text('6 2026-11-05 00:47:49\n')
-            (root / 'trophies-first-light.txt').write_text('1 2026-11-11 15:50:43\n')
-            self.assertEqual(list(trophies.summary(root, fl)[2]), [1])
-            self.assertEqual(list(trophies.summary(root, game)[2]), [6])
-            env = {'ISSN_GAME_DIR': str(fl)}
-            self.assertIn('1 unlocked', trophies.prepare(env, root))
-            self.assertEqual(env['ISSN_TROPHY_BOOK'], 'trophies-first-light.txt')
             # A different number of trophies is another game, whatever the ids say.
             make_trp(trp, [(f'TROP{i:03d}.PNG', png(i), 0) for i in range(10)])
             self.assertIsNone(trophies.builtin_texts(trp, 17, game))

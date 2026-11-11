@@ -84,12 +84,20 @@ int main(void) {
     assert(playgo_todo(handle,&chunk,1)==0 && playgo_todo(handle,NULL,1)==PLAYGO_BAD_POINTER);
     assert(playgo_close(handle)==0 && playgo_close(handle)==PLAYGO_BAD_HANDLE && playgo_terminate()==0);
 
-    /* Trophies: none on a new PC; an unlock is kept in user/trophies.txt, shown once, and a
-     * second unlock of it is refused like on the console. No trophy file: count unknown (0). */
+    /* Trophies: none on a new PC; an unlock is kept in the game's own user/trophies-<title>.txt,
+     * shown once, and a second unlock of it is refused like on the console. No trophy file: count
+     * unknown (0). issn 11-11: the old shared user/trophies.txt (Second Son's unlocks) is not read
+     * by another game, here First Light. */
     snprintf(user_dir,sizeof(user_dir),"out/services-test-user");
     mkdir(user_dir,0755);
-    char book[300]; snprintf(book,sizeof(book),"%s/trophies.txt",user_dir); remove(book);
+    char book[300]; snprintf(book,sizeof(book),"%s/trophies-CUSA00575.txt",user_dir); remove(book);
+    char legacy[300]; snprintf(legacy,sizeof(legacy),"%s/trophies.txt",user_dir);
+    FILE *old=fopen(legacy,"w"); assert(old); fputs("6 2026-11-05 00:47:49\n14 2026-11-05 00:38:09\n",old); fclose(old);
     static char no_file[]="ISSN_TROPHY_FILE="; putenv(no_file);
+    static char title[]="ISSN_TROPHY_TITLE=CUSA00575"; putenv(title);
+    char path[300]; trophy_path(path,sizeof(path),"trophies"); assert(!strcmp(path,book));
+    trophy_path(path,sizeof(path),"trophy-names");
+    assert(!strcmp(path,"out/services-test-user/trophy-names-CUSA00575.txt"));
     uint32_t flags[4]={~0u,~0u,~0u,~0u}, count=7;
     assert(trophy_unlock_state(1,1,flags,&count)==0 && !flags[0] && !flags[3] && count==0);
     assert(trophy_unlock_state(1,1,NULL,&count)==TROPHY_INVALID && trophy_release(0)==TROPHY_INVALID);
@@ -102,6 +110,10 @@ int main(void) {
     assert(kept);
     while (fgets(line,sizeof(line),kept)) if (line[0]!='#') ++lines;
     fclose(kept); assert(lines==2);
+    /* The old file was left as it was (run.py moves it to Second Son's). */
+    old=fopen(legacy,"r"); lines=0; assert(old);
+    while (fgets(line,sizeof(line),old)) ++lines;
+    fclose(old); assert(lines==2); remove(legacy);
 
     float ratio=0; assert(safe_area(&ratio)==0 && ratio==1.0f && safe_area(NULL)==SYSTEM_PARAMETER);
     puts("services test: ok");

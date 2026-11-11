@@ -335,7 +335,7 @@ def main():
         print(f'inFAMOUS First Light ({title}, version {version}): experimental. '
               + ('eboot.bin is the 01.04 update.' if known else
                  'eboot.bin is not the US 01.04 update the port was checked with.')
-              + ' FOV, mouse aim, cheats and trophies are Second Son only for now.', flush=True)
+              + ' FOV, mouse aim and cheats are Second Son only for now.', flush=True)
     game = Path(run_script('mods.py', game, '--out', out,
                            '--mods-dir', env.get('ISSN_MODS_DIR', data / 'mods'),
                            '--config', env.get('ISSN_MODS_CONFIG', data / 'mods.json'),
@@ -504,7 +504,7 @@ def main():
         # with the player's own trophy key, the names (scripts/trophies.py).
         import trophies
         try:
-            print(trophies.prepare(env, user_dir), flush=True)
+            print(trophies.prepare(env, user_dir, title), flush=True)
         except OSError as error:
             print(f'Trophies: {error}', flush=True)
         from save_backup import backup

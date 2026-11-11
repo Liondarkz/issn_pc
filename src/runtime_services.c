@@ -449,15 +449,17 @@ static ABI int32_t ime_term(void) { memset(&ime,0,sizeof(ime)); return 0; }
 static pthread_mutex_t trophy_lock=PTHREAD_MUTEX_INITIALIZER;
 static TrophyBook trophies;
 static int trophies_ready;
-/* issn 11-11: the file of this game's unlocks (ISSN_TROPHY_BOOK from scripts/trophies.py: First
- * Light has one of its own); user/trophies.txt without it, or when it is not a plain file name. */
-static const char *trophy_book_name(void) {
-    const char *name=getenv("ISSN_TROPHY_BOOK");
-    if (!name || !*name || strlen(name)>64 || strpbrk(name,"/\\:") || strstr(name,"..")) return "trophies.txt";
-    return name;
-}
+/* issn 11-11: one file per game. Second Son and First Light both number their trophies from 0,
+ * and a shared user/trophies.txt gave First Light the Second Son unlocks (and Second Son First
+ * Light's trophy 1). run.py gives the title ID (ISSN_TROPHY_TITLE): user/trophies-CUSA00223.txt
+ * and user/trophy-names-CUSA00223.txt; without one, the old names (tests, a start without run.py). */
 static void trophy_path(char *out,size_t size,const char *name) {
-    snprintf(out,size,"%s/%s",runtime_file_user_dir(),name);
+    const char *title=getenv("ISSN_TROPHY_TITLE");
+    int ok=title && *title && strlen(title)<=16;
+    for (const char *c=title; ok && *c; ++c)
+        ok=(*c>='A' && *c<='Z') || (*c>='0' && *c<='9');
+    if (ok) snprintf(out,size,"%s/%s-%s.txt",runtime_file_user_dir(),name,title);
+    else snprintf(out,size,"%s/%s.txt",runtime_file_user_dir(),name);
 }
 static void trophy_now(char *out,size_t size) {
     time_t now=time(NULL); struct tm local;
@@ -477,7 +479,7 @@ static void trophy_show(int id) {
     free(png);
 }
 static void trophy_save(void) {
-    char path[1024]; trophy_path(path,sizeof(path),trophy_book_name());
+    char path[1024]; trophy_path(path,sizeof(path),"trophies");
     if (trophy_book_save(&trophies,path)) printf("Runtime: trophies: could not write %s\n",path);
 }
 /* trophy_lock held: the book, read once (the platinum a save already earned is given now). */
@@ -488,14 +490,15 @@ static void trophies_open(void) {
     int total=trophy_trp_count(file);
     trophy_book_init(&trophies,total);
     char path[1024];
-    trophy_path(path,sizeof(path),"trophy-names.txt");
+    trophy_path(path,sizeof(path),"trophy-names");
     int names=trophy_book_names(&trophies,path);
-    trophy_path(path,sizeof(path),trophy_book_name());
+    trophy_path(path,sizeof(path),"trophies");
     trophy_book_load(&trophies,path);
-    if (total>0) printf("Runtime: trophies: %d in the game's file, %d unlocked on this PC, %s\n",
-                        total,trophy_book_count(&trophies),names ? "with names" : "no names (no trophy key)");
-    else printf("Runtime: trophies: no trophy file (%s), %d unlocked on this PC\n",
-                file && *file ? file : "not found",trophy_book_count(&trophies));
+    const char *book=strrchr(path,'/')+1;
+    if (total>0) printf("Runtime: trophies: %d in the game's file, %d unlocked on this PC (%s), %s\n",
+                        total,trophy_book_count(&trophies),book,names ? "with names" : "no names");
+    else printf("Runtime: trophies: no trophy file (%s), %d unlocked on this PC (%s)\n",
+                file && *file ? file : "not found",trophy_book_count(&trophies),book);
     int platinum=trophy_book_platinum_due(&trophies);
     if (platinum>=0) {
         char when[20]; trophy_now(when,sizeof(when));
@@ -550,7 +553,7 @@ static ABI int32_t trophy_game_info(int32_t ctx,int32_t handle,void *details,voi
 static ABI int32_t trophy_info(int32_t ctx,int32_t handle,int32_t id,void *details,void *data) {
     (void)id; return trophy_game_info(ctx,handle,details,data);
 }
-/* The trophies unlocked on this PC (user/trophies.txt); count: the trophies of the game. */
+/* The trophies unlocked on this PC (user/trophies-<title ID>.txt); count: the trophies of the game. */
 static ABI int32_t trophy_unlock_state(int32_t ctx,int32_t handle,uint32_t *flags,uint32_t *count) {
     if (!flags || !count) return TROPHY_INVALID;
     if (ctx<=0 || handle<=0) return TROPHY_INVALID;
