@@ -1606,6 +1606,42 @@ class PlayButton:
                       font=heading_font(26, UI_FONT, every_language=True))
 
 
+def clear_shader_cache(user_dir, port_dir=None):
+    """Empties user_dir/cache but keeps the package's shader seed (shader-seed.txt) when it is the
+    folder the package shipped (the default user folder inside the port): deleting it there lost it
+    for good, and every shader then compiled while playing (11-07, an RTX 5090 player's log:
+    "shader-seed.txt names issn-seed-0.3.7, which is missing", hitches in every fight). Returns the
+    name of the folder kept, or ''."""
+    import shutil
+    port_dir = Path(port_dir or PORT_DIR)
+    cache = Path(user_dir) / 'cache'
+    try:
+        seed = (port_dir / 'shader-seed.txt').read_text().strip()
+    except OSError:
+        seed = ''
+    keep = ''
+    if seed and not seed.startswith('.') and all(c.isalnum() or c in '-_.' for c in seed):
+        shipped = port_dir / 'user' / 'cache' / seed
+        try:
+            if (cache / seed).resolve() == shipped.resolve() and (shipped / 'seed-stamp.bin').is_file():
+                keep = seed
+        except OSError:
+            keep = ''
+    if not cache.is_dir():
+        return keep
+    for entry in cache.iterdir():
+        if keep and entry.name == keep:
+            continue
+        if entry.is_dir():
+            shutil.rmtree(entry, ignore_errors=True)
+        else:
+            try:
+                entry.unlink()
+            except OSError:
+                pass
+    return keep
+
+
 class Launcher:
     def __init__(self, root, tk, ttk, filedialog, messagebox):
         self.tk, self.ttk, self.filedialog, self.messagebox = tk, ttk, filedialog, messagebox
@@ -4152,12 +4188,10 @@ class Launcher:
         threading.Thread(target=work, daemon=True).start()
 
     def clear_cache(self):
-        """Shader and pipeline caches; they are rebuilt while playing."""
+        """Shader and pipeline caches; they are rebuilt while playing (the package's seed stays)."""
         if self.process:
             return
-        import shutil
-        cache = Path(self.app['user_dir'] or DATA_DIR / 'user') / 'cache'
-        shutil.rmtree(cache, ignore_errors=True)
+        clear_shader_cache(Path(self.app['user_dir'] or DATA_DIR / 'user'))
         self.messagebox.showinfo(APP_NAME, _('Shader cache cleared. The next start stutters for a few minutes while '
                                                  'it is rebuilt.', 'Кэш шейдеров очищен. Следующий запуск несколько '
                                                  'минут будет подтормаживать, пока кэш собирается заново.'))

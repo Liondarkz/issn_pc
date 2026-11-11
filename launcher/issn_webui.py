@@ -1097,7 +1097,7 @@ class Api:
         L = self._L
         if self._process is not None:
             return {'alert': L._('Close the game first.')}
-        shutil.rmtree(self._user_dir() / 'cache', ignore_errors=True)
+        L.clear_shader_cache(self._user_dir())
         return {'toast': L._('Shader cache cleared. The next start stutters for a few minutes while it is rebuilt.'),
                 'reload': True}
 
