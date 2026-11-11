@@ -333,6 +333,19 @@ class GameFilesTest(unittest.TestCase):
             with mock.patch.object(Path, 'open', side_effect=PermissionError('Access is denied')):
                 self.assertEqual(launcher.file_state(path), 'unreadable')
 
+    def test_each_game_keeps_its_own_folders(self):
+        first = {'game_dir': 'D:/ss/Image0', 'update_dir': 'D:/ss-upd/Image0', 'fps_limit': '60'}
+        self.assertEqual(launcher.current_game({'game_dir': '', 'current_game': 'first_light'}), 'first_light')
+        fl = launcher.switch_game(first, 'first_light')
+        self.assertEqual((fl['game_dir'], fl['update_dir'], fl['current_game'], fl['fps_limit']), ('', '', 'first_light', '60'))
+        fl['game_dir'], fl['update_dir'] = 'D:/fl/Image0', 'D:/fl-upd/Image0'
+        ss = launcher.switch_game(fl, 'second_son')
+        self.assertEqual((ss['game_dir'], ss['update_dir']), ('D:/ss/Image0', 'D:/ss-upd/Image0'))
+        back = launcher.switch_game(ss, 'first_light')
+        self.assertEqual((back['game_dir'], back['update_dir']), ('D:/fl/Image0', 'D:/fl-upd/Image0'))
+        with self.assertRaises(ValueError):
+            launcher.switch_game(first, 'gow3')
+
     def test_missing_game_files(self):
         import tempfile
         from pathlib import Path

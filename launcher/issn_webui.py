@@ -285,7 +285,10 @@ class Api:
             fps = L.issn_hardware.expected_fps(pc, s.get('render_height') or '')
             if fps:
                 note_text = _('About {} FPS expected in the open city at this resolution.').format(fps)
+        game = L.current_game(s)
         return {'art': self._art(folder), 'chip': chip, 'sub': self._last_save(s), 'checks': checks,
+                'game': game, 'games': [{'id': gid, 'label': name} for gid, name in L.GAMES],
+                'title': 'INFAMOUS FIRST LIGHT' if game == 'first_light' else 'INFAMOUS SECOND SON',
                 'goals': [{'id': 'recommended', 'label': _('Recommended'), 'sub': _('best on most PCs')},
                           {'id': 'handheld', 'label': _('Steam Deck / weak PC'), 'sub': '40-45 FPS'},
                           {'id': 'smooth', 'label': _('Smooth'), 'sub': _('up to 120 FPS')},
@@ -1055,6 +1058,19 @@ class Api:
     def _do_open_url(self, url=''):
         if url:
             self._L.open_url(url)
+
+    def _do_choose_game(self, game=''):
+        """The game picker of the Play page (issn_launcher_win.switch_game): each game keeps its
+        own folders; the Game page opens when the chosen one has none yet."""
+        L = self._L
+        current = {**L.APP_DEFAULTS, **L.migrate_settings(L.load_json(L.CONFIG_FILE, {}))}
+        if game == L.current_game(current):
+            return {}
+        if self._process is not None:
+            return {'alert': L._('Close the game before choosing another one.')}
+        changed = L.switch_game(current, game)
+        self._write_app({key: changed[key] for key in (*L.GAME_SLOT_KEYS, 'games', 'current_game')})
+        return {'page': 'game'} if not changed.get('game_dir') else {'reload': True}
 
     def _do_reload(self):
         return {'reload': True}

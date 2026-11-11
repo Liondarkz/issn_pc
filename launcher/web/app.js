@@ -144,6 +144,12 @@ function renderHome() {
   const home = state.home;
   $('hero-art').style.backgroundImage = home.art ? `url("${home.art}")` : '';
   $('hero-chip').textContent = home.chip || '';
+  if (home.title) $('hero-title').textContent = home.title;
+  const pick = $('hero-game');
+  pick.replaceChildren(...(home.games || []).map((g) => el('option', { value: g.id, text: g.label })));
+  pick.value = home.game || 'second_son';
+  pick.disabled = !!state.running;
+  pick.onchange = async () => handle(await api.action('choose_game', [pick.value]));
   $('hero-sub').textContent = home.sub || '';
   $('tagline').textContent = t('THEME') + ' ' + (state.themes.find((th) => th.id === state.theme) || {}).name?.toUpperCase();
   $('checks').replaceChildren(...home.checks.map((c) =>
@@ -395,6 +401,7 @@ const SAMPLE = {
     .concat([['graphics', 'Gráficos avançados'], ['files', 'Patches e mods'], ['pc', 'Seu PC'], ['advanced', 'Avançado']].map(([id, title]) => ({ id, title, expert: true }))),
   themes: SAMPLE_THEMES,
   home: {
+    game: 'second_son', games: [{ id: 'second_son', label: 'inFAMOUS Second Son' }, { id: 'first_light', label: 'inFAMOUS First Light' }],
     art: '', chip: 'CUSA00223 · versão 01.07', sub: '[o save mais recente]', goal: 'recommended', goal_note: 'Esperado no seu PC: cerca de 95 FPS na cidade a 1080p.',
     news: { title: 'Novo na 0.3.7:', text: 'a cidade preta acende sozinha' },
     checks: [

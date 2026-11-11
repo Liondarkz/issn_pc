@@ -39,6 +39,19 @@ class WebUiTest(unittest.TestCase):
         self.api = issn_webui.Api(launcher)
         self.addCleanup(launcher.use_theme, 'smoke')
 
+    def test_game_picker_switches_the_folders(self):
+        launcher.atomic_write(launcher.CONFIG_FILE, json.dumps({'game_dir': str(self.tmp / 'ss')})) \
+            if launcher.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True) is None else None
+        home = self.api.state()['home']
+        self.assertEqual((home['game'], [g['id'] for g in home['games']]), ('second_son', ['second_son', 'first_light']))
+        self.assertEqual(self.api.action('choose_game', ['first_light']), {'page': 'game'})
+        saved = json.loads(launcher.CONFIG_FILE.read_text())
+        self.assertEqual((saved['current_game'], saved['game_dir'], saved['games']['second_son']['game_dir']),
+                         ('first_light', '', str(self.tmp / 'ss')))
+        self.assertEqual(self.api.state()['home']['title'], 'INFAMOUS FIRST LIGHT')
+        self.api.action('choose_game', ['second_son'])
+        self.assertEqual(json.loads(launcher.CONFIG_FILE.read_text())['game_dir'], str(self.tmp / 'ss'))
+
     def test_state_lists_the_pages_themes_and_play_page(self):
         state = self.api.state()
         self.assertEqual([p['id'] for p in state['pages']], list(launcher.PAGES))

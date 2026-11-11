@@ -971,6 +971,44 @@ def same_folder(a, b):
 
 FIRST_LIGHT_TITLES = ('CUSA00575', 'CUSA00897', 'CUSA01064')  # as game_profiles.INFAMOUS_FIRST_LIGHT
 
+# issn 11-11: the games this launcher starts. Each keeps its own game and update folders
+# (settings.json 'games'); picture, controls and the rest are shared. 'game_dir'/'update_dir' stay
+# the chosen game's, so everything that reads them follows the choice.
+GAMES = (('second_son', 'inFAMOUS Second Son'), ('first_light', 'inFAMOUS First Light'))
+GAME_SLOT_KEYS = ('game_dir', 'update_dir')
+
+
+def game_of_folder(folder, update=''):
+    """'first_light' for a First Light dump in the folders, else 'second_son'."""
+    try:
+        title = game_sfo(Path(meta_folder(folder, update) or '.')).get('TITLE_ID')
+    except (OSError, ValueError):
+        title = None
+    return 'first_light' if title in FIRST_LIGHT_TITLES else 'second_son'
+
+
+def current_game(settings):
+    """The chosen game: settings['current_game'], else the one in the game folder."""
+    chosen = settings.get('current_game')
+    if chosen in dict(GAMES):
+        return chosen
+    return game_of_folder(settings.get('game_dir') or '', settings.get('update_dir') or '')
+
+
+def switch_game(settings, game):
+    """The settings with `game` chosen: the folders of the game left are kept under 'games', the
+    chosen game's come back (empty the first time)."""
+    if game not in dict(GAMES):
+        raise ValueError(game)
+    settings = dict(settings)
+    games = {name: dict(slot) for name, slot in (settings.get('games') or {}).items() if isinstance(slot, dict)}
+    games[current_game(settings)] = {key: settings.get(key) or '' for key in GAME_SLOT_KEYS}
+    slot = games.get(game, {})
+    for key in GAME_SLOT_KEYS:
+        settings[key] = slot.get(key) or ''
+    settings['games'], settings['current_game'] = games, game
+    return settings
+
 
 def system_files_beside(folder, reference=None, base=None):
     """PKG extractors write the system files (param.sfo, icon0.png, pic1.png, trophy/) to Sc0/
@@ -2196,6 +2234,34 @@ class Launcher:
         self.banner.bind('<Configure>', lambda _e: self.draw_banner())
         self.banner_button = ttk.Button(self.banner, text=_('Choose the game folder'),
                                         command=lambda: self.show('game'))
+        # issn 11-11: which game Play starts; each keeps its own folders (switch_game).
+        self.game_pick = ttk.Combobox(self.banner, values=[name for _id, name in GAMES], state='readonly', width=24)
+        self.game_pick.bind('<<ComboboxSelected>>', lambda _e: self.choose_game(GAMES[self.game_pick.current()][0]))
+
+    def choose_game(self, game):
+        """The game picker of the Play page: the current settings are saved, the chosen game's own
+        folders come back, and the page shows that game."""
+        if game == current_game(self.app):
+            return
+        if self.process is not None:
+            self.messagebox.showinfo(APP_NAME, _('Close the game before choosing another one.'))
+            self.banner_key = None
+            self.draw_banner()
+            return
+        if not self.collect():
+            return
+        self.app = switch_game(self.app, game)
+        try:
+            atomic_write(CONFIG_FILE, json.dumps(self.app, indent=2, ensure_ascii=False))
+        except OSError:
+            self.messagebox.showerror(APP_NAME, _('Could not save all settings. Check write permissions and free disk space, then try again.'))
+        for key in GAME_SLOT_KEYS:  # the Game page's folder fields
+            self.var(key, 'app').set(self.app[key])
+        self.banner_key = None
+        self.draw_banner()
+        self.refresh_status()
+        if not self.app.get('game_dir'):
+            self.show('game')
 
     def draw_banner(self):
         """The home page: the dump's own art (sce_sys/pic1.png) behind the game's name."""
@@ -2212,7 +2278,10 @@ class Launcher:
             c.create_image(0, 0, image=self.banner_photo, anchor='nw', tags=('art',))
         x, base = self.px(40), h - self.px(34)
         title_face = heading_font(min(96, max(54, h // 4)), UI_FONT, every_language=True)
-        c.create_text(x, base, text='SECOND SON', anchor='sw', fill=ACCENT_HI,
+        game = current_game(self.app)
+        self.game_pick.current([gid for gid, _name in GAMES].index(game))
+        c.create_window(w - self.px(24), self.px(24), window=self.game_pick, anchor='ne')
+        c.create_text(x, base, text='FIRST LIGHT' if game == 'first_light' else 'SECOND SON', anchor='sw', fill=ACCENT_HI,
                       font=heading_font(min(46, max(28, h // 8)), UI_FONT, every_language=True))
         c.create_text(x - 2, base - self.px(min(44, max(28, h // 8)) * 0.95), text='INFAMOUS', anchor='sw',
                       fill=TEXT, font=title_face)
