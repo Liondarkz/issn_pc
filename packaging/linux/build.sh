@@ -61,6 +61,8 @@ cp -r third_party/fsr4 "$share/fsr4_shaders"
 install -m755 packaging/linux/AppRun "$appdir/AppRun"
 install -m644 packaging/linux/issn.desktop "$appdir/issn.desktop"
 install -m644 "$icon" "$appdir/issn.png"
+# RecompLauncher reads this file from the root of the AppImage.
+install -m644 recomplauncher.json "$appdir/recomplauncher.json"
 
 # Host-provided libraries: bundling any of these breaks drivers or the display connection.
 excluded='^(ld-linux.*|libc|libm|libdl|librt|libpthread|libresolv|libutil|libnsl|libanl|libvulkan|libGL|libGLX|libGLdispatch|libEGL|libOpenGL|libgbm|libdrm.*|libX11|libX11-xcb|libxcb.*|libXau|libXdmcp|libXext|libXfixes|libXrender|libXi|libXcursor|libXrandr|libwayland-.*|libasound|libudev|libpulse.*|libfontconfig|libfreetype|libOpenCL|libva.*|libvdpau|libvpl|libnvidia-.*|libcuda|libz|libstdc\+\+|libgcc_s)\.so'

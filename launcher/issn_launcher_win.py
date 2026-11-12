@@ -4872,12 +4872,29 @@ def install_update(target, wait_pid):
     return 0
 
 
+def game_argument(args):
+    """The game folder named on the command line (--game <folder> or --game=<folder>), for front
+    ends such as RecompLauncher that keep the player's copy themselves; None without it."""
+    for index, arg in enumerate(args):
+        if arg.startswith('--game='):
+            return arg[len('--game='):] or None
+        if arg == '--game':
+            return args[index + 1] if index + 1 < len(args) else None
+    return None
+
+
 def main():
     global LANG, FONT_LOADED
     args = sys.argv[1:]
     if args and args[0] in ('--run', '--script'):
         sys.exit(run_role(args))
     settings = {**APP_DEFAULTS, **migrate_settings(load_json(CONFIG_FILE, {}))}
+    # Only for --play, and only for this start: the saved game folder is left as it is.
+    # issn 11-12: and only when the folder is ready to play; otherwise the launcher opens with the
+    # saved folder, so the window never saves a front end's folder as the player's own.
+    game = game_argument(args)
+    if game and '--play' in args and ready_to_play(game, settings.get('update_dir') or ''):
+        settings['game_dir'] = game
     LANG = settings.get('ui_language') or windows_language()
     if not WINDOWS:
         integrate_desktop(settings.get('desktop_integration', True), os.environ.get('APPIMAGE'),
