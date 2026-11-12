@@ -333,14 +333,35 @@ class GameFilesTest(unittest.TestCase):
             with mock.patch.object(Path, 'open', side_effect=PermissionError('Access is denied')):
                 self.assertEqual(launcher.file_state(path), 'unreadable')
 
+    def test_play_page_art_comes_from_the_update_the_game_or_sc0(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            game, update = root / 'game' / 'Image0', root / 'upd' / 'Image0'
+            update.mkdir(parents=True)
+            (update / 'eboot.bin').write_bytes(b'x')
+            (root / 'game' / 'Sc0').mkdir(parents=True)
+            game.mkdir()
+            self.assertIsNone(launcher.game_art(str(game), str(update)))
+            (root / 'game' / 'Sc0' / 'pic1.png').write_bytes(b'png')
+            self.assertEqual(launcher.game_art(str(game), str(update)), root / 'game' / 'Sc0' / 'pic1.png')
+            (update / 'sce_sys').mkdir()
+            (update / 'sce_sys' / 'pic1.png').write_bytes(b'png')
+            self.assertEqual(launcher.game_art(str(game), str(update)), update / 'sce_sys' / 'pic1.png')
+
     def test_each_game_keeps_its_own_folders(self):
         first = {'game_dir': 'D:/ss/Image0', 'update_dir': 'D:/ss-upd/Image0', 'fps_limit': '60'}
         self.assertEqual(launcher.current_game({'game_dir': '', 'current_game': 'first_light'}), 'first_light')
         fl = launcher.switch_game(first, 'first_light')
         self.assertEqual((fl['game_dir'], fl['update_dir'], fl['current_game'], fl['fps_limit']), ('', '', 'first_light', '60'))
         fl['game_dir'], fl['update_dir'] = 'D:/fl/Image0', 'D:/fl-upd/Image0'
+        self.assertEqual(fl['launcher_theme'], 'neon')  # Fetch's theme the first time
         ss = launcher.switch_game(fl, 'second_son')
         self.assertEqual((ss['game_dir'], ss['update_dir']), ('D:/ss/Image0', 'D:/ss-upd/Image0'))
+        self.assertEqual(ss['launcher_theme'], 'smoke')
+        ss['launcher_theme'] = 'video'
+        self.assertEqual(launcher.switch_game(launcher.switch_game(ss, 'first_light'), 'second_son')['launcher_theme'], 'video')
         back = launcher.switch_game(ss, 'first_light')
         self.assertEqual((back['game_dir'], back['update_dir']), ('D:/fl/Image0', 'D:/fl-upd/Image0'))
         with self.assertRaises(ValueError):

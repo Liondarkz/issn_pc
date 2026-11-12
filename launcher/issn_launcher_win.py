@@ -975,7 +975,9 @@ FIRST_LIGHT_TITLES = ('CUSA00575', 'CUSA00897', 'CUSA01064')  # as game_profiles
 # (settings.json 'games'); picture, controls and the rest are shared. 'game_dir'/'update_dir' stay
 # the chosen game's, so everything that reads them follows the choice.
 GAMES = (('second_son', 'inFAMOUS Second Son'), ('first_light', 'inFAMOUS First Light'))
-GAME_SLOT_KEYS = ('game_dir', 'update_dir')
+GAME_SLOT_KEYS = ('game_dir', 'update_dir', 'launcher_theme')
+# The launcher theme a game starts with (it then keeps the player's choice): Fetch's neon.
+GAME_THEMES = {'first_light': 'neon'}
 
 
 def game_of_folder(folder, update=''):
@@ -995,6 +997,18 @@ def current_game(settings):
     return game_of_folder(settings.get('game_dir') or '', settings.get('update_dir') or '')
 
 
+def game_art(game_dir, update_dir=''):
+    """The game's pic1.png for the Play page: the update's, else the game's, in sce_sys or in the
+    Sc0 folder of a PKG extraction (a First Light update has none of its own); None without one."""
+    for folder in (meta_folder(game_dir, update_dir), game_dir):
+        if not folder:
+            continue
+        for path in (Path(folder) / 'sce_sys' / 'pic1.png', Path(folder).parent / 'Sc0' / 'pic1.png'):
+            if path.is_file():
+                return path
+    return None
+
+
 def switch_game(settings, game):
     """The settings with `game` chosen: the folders of the game left are kept under 'games', the
     chosen game's come back (empty the first time)."""
@@ -1002,10 +1016,14 @@ def switch_game(settings, game):
         raise ValueError(game)
     settings = dict(settings)
     games = {name: dict(slot) for name, slot in (settings.get('games') or {}).items() if isinstance(slot, dict)}
-    games[current_game(settings)] = {key: settings.get(key) or '' for key in GAME_SLOT_KEYS}
+    games[current_game(settings)] = {key: settings.get(key) or (issn_themes.DEFAULT if key == 'launcher_theme' else '')
+                                     for key in GAME_SLOT_KEYS}
     slot = games.get(game, {})
     for key in GAME_SLOT_KEYS:
-        settings[key] = slot.get(key) or ''
+        if key == 'launcher_theme':
+            settings[key] = slot.get(key) or GAME_THEMES.get(game) or settings.get(key) or issn_themes.DEFAULT
+        else:
+            settings[key] = slot.get(key) or ''
     settings['games'], settings['current_game'] = games, game
     return settings
 
@@ -2255,11 +2273,14 @@ class Launcher:
             atomic_write(CONFIG_FILE, json.dumps(self.app, indent=2, ensure_ascii=False))
         except OSError:
             self.messagebox.showerror(APP_NAME, _('Could not save all settings. Check write permissions and free disk space, then try again.'))
-        for key in GAME_SLOT_KEYS:  # the Game page's folder fields
+        for key in GAME_SLOT_KEYS:  # the Game page's folder fields and the theme
             self.var(key, 'app').set(self.app[key])
-        self.banner_key = None
-        self.draw_banner()
-        self.refresh_status()
+        if issn_themes.known(self.app.get('launcher_theme')) != THEME_NAME:
+            self.theme_picked()  # the window again in the game's theme (the settings stay)
+        else:
+            self.banner_key = None
+            self.draw_banner()
+            self.refresh_status()
         if not self.app.get('game_dir'):
             self.show('game')
 
@@ -2270,10 +2291,10 @@ class Launcher:
         w, h = max(c.winfo_width(), 400), max(c.winfo_height(), 200)
         folder = self.meta_dir()
         info = game_info(folder)
-        art = Path(folder or '.') / 'sce_sys' / 'pic1.png'
-        key = (str(art), art.is_file(), w, h, THEME_NAME)
+        art = game_art(self.var('game_dir', 'app').get(), self.var('update_dir', 'app').get())
+        key = (str(art), w, h, THEME_NAME)
         if self.banner_key != key:
-            self.banner_key, self.banner_photo = key, hero_image(art if art.is_file() else None, w, h)
+            self.banner_key, self.banner_photo = key, hero_image(art, w, h)
         if self.banner_photo:
             c.create_image(0, 0, image=self.banner_photo, anchor='nw', tags=('art',))
         x, base = self.px(40), h - self.px(34)

@@ -232,8 +232,9 @@ class Api:
 
     _art_cache = (None, '')
 
-    def _art(self, folder):
-        path = Path(folder or '.') / 'sce_sys' / 'pic1.png'
+    def _art(self, path):
+        """The Play page's art from the game's pic1.png (issn_launcher_win.game_art), or ''."""
+        path = Path(path) if path else Path('.') / 'no-art'
         key = (str(path), path.stat().st_mtime if path.is_file() else 0)
         if Api._art_cache[0] == key:
             return Api._art_cache[1]
@@ -286,7 +287,7 @@ class Api:
             if fps:
                 note_text = _('About {} FPS expected in the open city at this resolution.').format(fps)
         game = L.current_game(s)
-        return {'art': self._art(folder), 'chip': chip, 'sub': self._last_save(s), 'checks': checks,
+        return {'art': self._art(L.game_art(s.get('game_dir'), s.get('update_dir'))), 'chip': chip, 'sub': self._last_save(s), 'checks': checks,
                 'game': game, 'games': [{'id': gid, 'label': name} for gid, name in L.GAMES],
                 'title': 'INFAMOUS FIRST LIGHT' if game == 'first_light' else 'INFAMOUS SECOND SON',
                 'goals': [{'id': 'recommended', 'label': _('Recommended'), 'sub': _('best on most PCs')},
@@ -1070,6 +1071,7 @@ class Api:
             return {'alert': L._('Close the game before choosing another one.')}
         changed = L.switch_game(current, game)
         self._write_app({key: changed[key] for key in (*L.GAME_SLOT_KEYS, 'games', 'current_game')})
+        L.use_theme(changed.get('launcher_theme'))
         return {'page': 'game'} if not changed.get('game_dir') else {'reload': True}
 
     def _do_reload(self):
