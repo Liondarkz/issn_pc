@@ -1,5 +1,6 @@
 import os
 import queue
+import re
 import struct
 import sys
 import unittest
@@ -767,6 +768,59 @@ class ClassicWindowNamesTest(unittest.TestCase):
                     if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load) and n.id in names
                     and n.id not in bound]
         self.assertEqual(bad, [])
+
+
+class RollbackAndReportTest(unittest.TestCase):
+    def test_an_update_keeps_the_version_it_replaces(self):
+        import tempfile
+        from pathlib import Path
+        root = Path(tempfile.mkdtemp())
+        (root / 'bin').mkdir()
+        (root / 'bin' / 'issn-probe.exe').write_bytes(b'old')
+        (root / 'inFAMOUS Second Son.exe').write_bytes(b'launcher')
+        (root / 'README-Windows.txt').write_text('inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.7.3\n===\n')
+        (root / 'user' / 'savedata').mkdir(parents=True)
+        (root / 'issn.ini').write_text('[x]\n')
+        self.assertEqual(launcher.keep_previous_version(root), '0.3.7.3')
+        kept = root / launcher.PREVIOUS_DIR
+        self.assertEqual((kept / 'bin' / 'issn-probe.exe').read_bytes(), b'old')
+        self.assertFalse((kept / 'user').exists())
+        self.assertFalse((kept / 'issn.ini').exists())
+        (root / 'bin' / 'issn-probe.exe').write_bytes(b'newer')
+        launcher.keep_previous_version(root)  # the next update replaces it, never nests it
+        self.assertEqual((kept / 'bin' / 'issn-probe.exe').read_bytes(), b'newer')
+        self.assertFalse((kept / launcher.PREVIOUS_DIR).exists())
+        self.assertEqual(launcher.keep_previous_version(root / 'bin'), '')  # not an installation
+
+    def test_rollback_script_keeps_the_same_user_files(self):
+        script = (ROOT / 'packaging' / 'windows' / 'rollback.ps1').read_text()
+        listed = set(re.findall(r"'([^']+)'", ' '.join(l for l in script.splitlines() if l.startswith('$keep'))))
+        self.assertEqual(listed, set(launcher.USER_FILES) | {launcher.PREVIOUS_DIR, launcher.PREVIOUS_DIR + '.part'})
+        self.assertTrue(script.isascii())
+        package = (ROOT / 'packaging' / 'windows' / 'package.sh').read_text()
+        self.assertIn('rollback.ps1 "packaging/windows/Voltar para a versao anterior.bat"', package)
+        self.assertIn('rollback.ps1', (ROOT / 'packaging' / 'windows' / 'Voltar para a versao anterior.bat').read_text())
+
+    def test_reports_take_the_windows_user_name_out(self):
+        text = 'C:\\Users\\Joao\\Downloads and d:/users/Joao/x and Joao alone, Joaozinho stays'
+        self.assertEqual(launcher.redact_paths(text, home='C:/Users/Joao'),
+                         'C:\\Users\\<user>\\Downloads and d:/users/<user>/x and <user> alone, Joaozinho stays')
+
+    def test_report_summary_keeps_the_useful_lines(self):
+        log = ('Game data: x\nGPU [Render] <Warning> noise\nGPU: Test GPU (driver 1)\nPatches: CUSA00223 01.07, eboot\n'
+               'Cheats: health unavailable (code not found in this eboot.bin)\n'
+               'GPU [Render.Vulkan] <Error> image.cpp:201 bad format\nverify annotate_failed=0\n' +
+               ''.join(f'line {n}\n' for n in range(40)) + 'STOP: the game stopped\n')
+        summary = launcher.report_summary(log)
+        self.assertIn('GPU: Test GPU (driver 1)', summary)
+        self.assertIn('Patches: CUSA00223 01.07', summary)
+        self.assertIn('<Error> image.cpp:201 bad format', summary)
+        self.assertNotIn('Cheats: health', summary)
+        self.assertNotIn('annotate_failed', summary)
+        self.assertTrue(summary.rstrip().endswith('STOP: the game stopped'))
+        url = launcher.report_issue_url('x' * 20000)
+        self.assertLessEqual(len(url), 7800)
+        self.assertTrue(url.startswith(launcher.ISSUES_NEW))
 
 
 class ReleaseVersionTest(unittest.TestCase):

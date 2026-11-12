@@ -8,6 +8,7 @@
 #include <stdlib.h>
 
 int issn_paper_trail_mark(unsigned char *object);
+int issn_paper_trail_status_of(const unsigned char *object);
 
 int main(void) {
     unsigned char object[0x960];
@@ -23,6 +24,10 @@ int main(void) {
     assert(object[ISSN_PAPER_TRAIL_ANSWERED] == 1);
     assert(object[ISSN_PAPER_TRAIL_STEP_AT - 1] == 0xff && object[ISSN_PAPER_TRAIL_STEP_AT + 4 * 48] == 0xff);
     assert(issn_paper_trail_mark(object) == 0); /* nothing changes the second time: no reward call */
+    /* The status follows the kept answer: 5 after "update", 1 once the script's reset cleared it. */
+    assert(issn_paper_trail_status_of(object) == 5);
+    object[ISSN_PAPER_TRAIL_ANSWERED] = 0;
+    assert(issn_paper_trail_status_of(object) == 1);
 
     const uint64_t size = ISSN_PAPER_TRAIL_URL + 0x100;
     unsigned char *image = calloc(1, size);

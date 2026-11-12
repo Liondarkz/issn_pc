@@ -984,7 +984,10 @@ static void install_exposure_meter(Segment *segments, uint64_t count) {
  * the stubs read the menu's floats directly, so changes apply on the next hit or pickup. */
 #include "paper_trail_hook.h"
 extern void issn_paper_trail_attach(unsigned char *guest_image);
-extern ABI int issn_paper_trail_answer(unsigned char *object);
+extern ABI int issn_paper_trail_update(unsigned char *object);
+extern ABI int issn_paper_trail_status(unsigned char *object);
+extern ABI void issn_paper_trail_reset(void);
+extern ABI void *issn_paper_trail_online_id(void *unused, void *context);
 /* issn 11-05: Paper Trail without its website (src/paper_trail_hook.h), with ISSN_PAPER_TRAIL=1
  * (launcher: Game > Paper Trail). Silent for other builds. */
 static void install_paper_trail(Segment *segments, uint64_t count, uint64_t size) {
@@ -998,9 +1001,21 @@ static void install_paper_trail(Segment *segments, uint64_t count, uint64_t size
         return;
     }
     issn_paper_trail_attach(image);
-    issn_paper_trail_jump(image + ISSN_PAPER_TRAIL_UPDATE, (const void *)issn_paper_trail_answer);
-    issn_paper_trail_jump(image + ISSN_PAPER_TRAIL_STATUS, (const void *)issn_paper_trail_answer);
-    printf("Paper Trail: on (the missions open without the website)\n");
+    issn_paper_trail_jump(image + ISSN_PAPER_TRAIL_UPDATE, (const void *)issn_paper_trail_update);
+    issn_paper_trail_jump(image + ISSN_PAPER_TRAIL_STATUS, (const void *)issn_paper_trail_status);
+    /* issn 11-12 (diagnostic): the reset and online id calls are logged, then run as before. */
+    int wrapped = 0;
+    if (mapped(segments, count, ISSN_PAPER_TRAIL_WRAP_ID, 12) &&
+        issn_paper_trail_wrapper(image, ISSN_PAPER_TRAIL_WRAP_RESET, ISSN_PAPER_TRAIL_RESET) &&
+        issn_paper_trail_wrapper(image, ISSN_PAPER_TRAIL_WRAP_ID, ISSN_PAPER_TRAIL_ID)) {
+        issn_paper_trail_jump(image + ISSN_PAPER_TRAIL_WRAP_RESET, (const void *)issn_paper_trail_reset);
+        issn_paper_trail_jump(image + ISSN_PAPER_TRAIL_WRAP_ID, (const void *)issn_paper_trail_online_id);
+        wrapped = 1;
+    }
+    const char *status = getenv("ISSN_PAPER_TRAIL_STATUS");
+    printf("Paper Trail: on (the missions open without the website)%s%s%s\n",
+           wrapped ? "; script calls logged" : "; script calls not logged (wrappers differ)",
+           status ? ", status answered as " : "", status ? status : "");
 }
 
 static void install_stat_multipliers(Segment *segments, uint64_t count, uint64_t size) {

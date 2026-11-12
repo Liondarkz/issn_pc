@@ -236,6 +236,11 @@ PROFILES['CUSA00223']['ISSN_LANGUAGE'] = '17'
 for _title in INFAMOUS_FIRST_LIGHT:
     PROFILES[_title] = dict(PROFILES['CUSA00223'])
     del PROFILES[_title]['ISSN_LANGUAGE']
+    # issn 11-12: the native colour path was tuned on Second Son only; on First Light its colour
+    # variants turn every shadowed side black, the ambient light lost (axylpup/shadPS4 PR #68 by
+    # Arutemu2099, found by halving the release flags) - the black skin and hair of Fetch here.
+    PROFILES[_title]['SHADPS4_NATIVE_COLOUR'] = '0'
+    PROFILES[_title]['SHADPS4_NATIVE_COLOUR_UNTEXTURED'] = '0'
 # The US release has the lang_brazilian_* files, like Second Son's.
 PROFILES['CUSA00575']['ISSN_LANGUAGE'] = '17'
 

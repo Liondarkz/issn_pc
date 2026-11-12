@@ -35,6 +35,8 @@ class GameProfileTests(unittest.TestCase):
                 found, env = game_profiles.environment(game(tmp, title), {})
                 self.assertEqual((found, env['SHADPS4_CP_SPLIT'], env['ISSN_TSC']), (title, '2', 'host'))
                 self.assertEqual(env.get('ISSN_LANGUAGE'), '17' if title == 'CUSA00575' else None)
+                # The native colour path blackens First Light's shadowed sides (axylpup PR #68).
+                self.assertEqual((env['SHADPS4_NATIVE_COLOUR'], env['SHADPS4_NATIVE_COLOUR_UNTEXTURED']), ('0', '0'))
                 self.assertEqual(game_profiles.cache_name(title, 'issn-seed-0.3.7'), f'{title}-first-light')
             self.assertEqual(game_profiles.cache_name('CUSA00223', 'issn-seed-0.3.7'), 'issn-seed-0.3.7')
             self.assertIsNone(game_profiles.cache_name('CUSA00223', None))

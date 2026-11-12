@@ -28,6 +28,14 @@
 #define ISSN_PAPER_TRAIL_SAVE 0x52e0a0u    /* (0x7f77a80) when +0x80 >= 2 */
 #define ISSN_PAPER_TRAIL_SAVE_ARG 0x7f77a80u
 #define ISSN_PAPER_TRAIL_HOOK_LENGTH 12u
+/* issn 11-12 (diagnostic): the script's four Paper Trail calls are 12-byte wrappers
+ * "lea rdi, [rip + object]; jmp <function>" at 0xef610 (update), 0xef620 (status), 0xef630 (reset)
+ * and 0xef640 (online id: the player's PSN id as a script string, empty without PSN). The last two
+ * are wrapped to log the calls and then run the game's own function unchanged. */
+#define ISSN_PAPER_TRAIL_WRAP_RESET 0xef630u
+#define ISSN_PAPER_TRAIL_WRAP_ID 0xef640u
+#define ISSN_PAPER_TRAIL_RESET 0x15ea40u
+#define ISSN_PAPER_TRAIL_ID 0x15ed40u
 
 /* push rbp ... cmp dword [r12+0x954],-1; jne; cmp dword [r12+0xd0],-1; je; lea rdi,[r12+0xc8];
  * call 0x236520; mov dword [r12+0x950],0; mov byte [r12+0x95c],0 */
@@ -45,6 +53,15 @@ static const unsigned char issn_paper_trail_status_code[] = {
     0x00, 0xb8, 0x03, 0x00, 0x00, 0x00, 0x8d, 0x72, 0xfd, 0x83, 0xfe, 0x02, 0x72, 0x57, 0x83, 0xfa,
     0xff, 0x74, 0x19, 0x83, 0xfa, 0x02, 0x75, 0x4e, 0x80, 0xbf, 0x5c, 0x09, 0x00, 0x00, 0x00};
 static const char issn_paper_trail_url[] = "https://api.infamouspapertrail.com/update";
+
+/* The wrapper at `at` is "lea rdi, [rip + object]; jmp target" (rel32s checked). */
+static inline int issn_paper_trail_wrapper(const unsigned char *image, uint32_t at, uint32_t target) {
+    int32_t lea, jmp;
+    if (image[at] != 0x48 || image[at + 1] != 0x8d || image[at + 2] != 0x3d || image[at + 7] != 0xe9) return 0;
+    memcpy(&lea, image + at + 3, 4);
+    memcpy(&jmp, image + at + 8, 4);
+    return at + 7 + lea == ISSN_PAPER_TRAIL_OBJECT && at + 12 + jmp == target;
+}
 
 static inline int issn_paper_trail_match(const unsigned char *image, uint64_t size) {
     if (size < ISSN_PAPER_TRAIL_URL + sizeof(issn_paper_trail_url) ||
