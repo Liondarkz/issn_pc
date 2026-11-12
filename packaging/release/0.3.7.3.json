@@ -1,0 +1,119 @@
+{
+ "version": "0.3.7.3",
+ "en": {
+  "sub": "PC PORT  /  HOTFIX 0.3.7.3",
+  "hero": "CLASSIC LAUNCHER FIXED",
+  "hero_sub": "0.3.7.2's classic launcher closed at once with \"name 'ttk' is not defined\". It opens again.",
+  "hero_pts": [
+   "Same shader seed as 0.3.7.2: no new first start",
+   "Everything from 0.3.7.2 stays"
+  ],
+  "shot": "HOTFIX",
+  "new": "WHAT 0.3.7.2 BROUGHT",
+  "cards": [
+   [
+    "neon",
+    "Motion blur off",
+    "A switch in the launcher and the menu."
+   ],
+   [
+    "pink",
+    "Sharper upscalers",
+    "FSR 4, XeSS and DLSS get the texture mip bias."
+   ],
+   [
+    "gold",
+    "Achievements fixed",
+    "One file per game, popup test button."
+   ],
+   [
+    "green",
+    "Black screen fixed",
+    "Dumps without playgo-chunk.dat now start."
+   ],
+   [
+    "red",
+    "New launcher",
+    "Themes, every page, Steam Deck goal."
+   ],
+   [
+    "neon",
+    "DLC from your dumps",
+    "Cole's Legacy and the vests."
+   ]
+  ],
+  "also": "ALSO",
+  "also_pts": [
+   "Sharpening 0-100 %, mouse side buttons, faster pad camera",
+   "Game patches: no Pro mode, one resolution / FOV patch at a time"
+  ],
+  "next": "COMING NEXT",
+  "next_tag": "planned for the next updates",
+  "next_pts": [
+   "inFAMOUS First Light (in testing)",
+   "Turn off chromatic aberration",
+   "Fix for the NVIDIA crash in the opening village",
+   "More of the game in the shader seed"
+  ],
+  "disc": "JOIN THE DISCORD",
+  "disc_sub": "News, help and test builds"
+ },
+ "pt": {
+  "sub": "PORT PARA PC  /  CORREÇÃO 0.3.7.3",
+  "hero": "LAUNCHER ANTIGO CORRIGIDO",
+  "hero_sub": "Na 0.3.7.2 o launcher antigo fechava na hora com \"name 'ttk' is not defined\". Agora abre de novo.",
+  "hero_pts": [
+   "Mesmo seed de shaders da 0.3.7.2: sem novo primeiro início",
+   "Tudo da 0.3.7.2 continua"
+  ],
+  "shot": "CORREÇÃO",
+  "new": "O QUE A 0.3.7.2 TROUXE",
+  "cards": [
+   [
+    "neon",
+    "Desligar motion blur",
+    "Chave no launcher e no menu do jogo."
+   ],
+   [
+    "pink",
+    "Upscalers mais nítidos",
+    "FSR 4, XeSS e DLSS com viés de mip nas texturas."
+   ],
+   [
+    "gold",
+    "Conquistas corrigidas",
+    "Um arquivo por jogo e botão de teste do popup."
+   ],
+   [
+    "green",
+    "Tela preta corrigida",
+    "Dumps sem playgo-chunk.dat agora abrem."
+   ],
+   [
+    "red",
+    "Launcher novo",
+    "Temas, todas as páginas, objetivo Steam Deck."
+   ],
+   [
+    "neon",
+    "DLCs dos seus dumps",
+    "Legado de Cole e os coletes."
+   ]
+  ],
+  "also": "E MAIS",
+  "also_pts": [
+   "Nitidez 0-100 %, botões laterais do mouse, câmera do controle mais rápida",
+   "Patches do jogo: sem Pro mode, 1 de resolução / FOV por vez"
+  ],
+  "next": "PRÓXIMA ATUALIZAÇÃO",
+  "next_tag": "planejado para as próximas versões",
+  "next_pts": [
+   "inFAMOUS First Light (em testes)",
+   "Desligar a aberração cromática",
+   "Correção do crash da NVIDIA na vila do começo",
+   "Mais partes do jogo no seed de shaders"
+  ],
+  "disc": "ENTRE NO DISCORD",
+  "disc_sub": "Novidades, ajuda e builds de teste"
+ }
+}
