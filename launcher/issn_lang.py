@@ -750,6 +750,10 @@ WINDOWS_LANGUAGES = {0x19: 'ru', 0x01: 'ar', 0x0a: 'es', 0x16: 'pt', 0x0c: 'fr',
 # other languages fall back to English for them until someone who speaks them contributes.
 EXTRA = {
     'pt': {
+        'Report a bug': 'Reportar bug',
+        'Go back to this version': 'Voltar para esta versão',
+        'This saves a zip with your last log and settings on the desktop (your Windows user name is taken out) and opens a new bug report on GitHub with a summary of the log. You read it, say what happened, drag the zip in and send it there (a GitHub account is needed). Go on?': 'Isto salva na área de trabalho um zip com o último log e suas configurações (sem o seu nome de usuário do Windows) e abre um relatório de bug novo no GitHub com um resumo do log. Você confere, conta o que aconteceu, arrasta o zip para lá e envia (precisa de conta no GitHub). Continuar?',
+        'Go back to version {}? The launcher closes, installs it over this one and opens again. Saves and settings are kept; that version prepares its shaders again if its seed is not on this PC. The launcher will offer this version again as an update.': 'Voltar para a versão {}? O launcher fecha, instala por cima desta e abre de novo. Saves e configurações ficam; essa versão prepara os shaders de novo se o seed dela não estiver neste PC. O launcher vai oferecer esta versão de novo como atualização.',
         # issn 11-05: the rest of the classic pages in the new launcher
         'Adding the game to Steam…': 'Adicionando o jogo à Steam…',
         'Anti-aliasing': 'Anti-aliasing',
@@ -1409,6 +1413,10 @@ EXTRA = {
             'Imagem mais definida; aplicada uma vez só (FSR 4, OptiScaler ou o port). Controle no jogo: Insert > Image.',
     },
     'es': {
+        'Report a bug': 'Reportar un error',
+        'Go back to this version': 'Volver a esta versión',
+        'This saves a zip with your last log and settings on the desktop (your Windows user name is taken out) and opens a new bug report on GitHub with a summary of the log. You read it, say what happened, drag the zip in and send it there (a GitHub account is needed). Go on?': 'Esto guarda en el escritorio un zip con el último log y tu configuración (sin tu nombre de usuario de Windows) y abre un informe de error nuevo en GitHub con un resumen del log. Lo revisas, cuentas qué pasó, arrastras el zip y lo envías (necesitas una cuenta de GitHub). ¿Continuar?',
+        'Go back to version {}? The launcher closes, installs it over this one and opens again. Saves and settings are kept; that version prepares its shaders again if its seed is not on this PC. The launcher will offer this version again as an update.': '¿Volver a la versión {}? El launcher se cierra, la instala encima de esta y se abre de nuevo. Las partidas y la configuración se mantienen; esa versión prepara los shaders de nuevo si su seed no está en este PC. El launcher volverá a ofrecer esta versión como actualización.',
         # issn 11-05: the rest of the classic pages in the new launcher
         'Adding the game to Steam…': 'Añadiendo el juego a Steam…',
         'Anti-aliasing': 'Antialiasing',

@@ -56,6 +56,37 @@ class WebUiTest(unittest.TestCase):
         self.api.action('choose_game', ['second_son'])
         self.assertEqual(json.loads(launcher.CONFIG_FILE.read_text())['game_dir'], str(self.tmp / 'ss'))
 
+    def test_news_offers_going_back_to_an_older_release(self):
+        # issn 11-12: older releases get "Go back to this version" (install_update with that zip).
+        def release(version):
+            return {'version': version, 'title': f'Test build {version}', 'date': '2026-11-12', 'text': '',
+                    'zip': f'https://example.invalid/{version}.zip', 'page': 'https://example.invalid'}
+        self.api._news = [release('9.0'), release(launcher.VERSION), release('0.3.6')]
+        with mock.patch.object(launcher, 'WINDOWS', True):
+            cards = self.api.page('news')['sections'][0]['rows']
+        actions = [[(b['action'], b['label'], b['args'][:1]) for b in c['buttons'] if b['action'] != 'open_url']
+                   for c in cards]
+        self.assertEqual(actions, [[('install_update', 'Update', ['9.0'])], [],
+                                   [('install_update', 'Go back to this version', ['0.3.6'])]])
+        self.assertIn('Go back to version 0.3.6?', cards[2]['buttons'][0]['confirm'])
+
+    def test_report_bug_opens_a_filled_in_issue(self):
+        log = self.tmp / 'last_run.log'
+        log.write_text('GPU: Test GPU (driver 1)\nopen C:\\Users\\Alice\\x\nSTOP: something broke\n')
+        with mock.patch.object(launcher, 'run_log_path', return_value=log), \
+                mock.patch.object(launcher, 'show_in_folder') as shown, \
+                mock.patch.object(launcher, 'open_url') as opened, \
+                mock.patch.object(launcher.Path, 'home', return_value=self.tmp):
+            self.api.action('report_bug', [])
+        url = opened.call_args[0][0]
+        self.assertTrue(url.startswith(launcher.ISSUES_NEW + '?title='))
+        self.assertIn('STOP%3A%20something%20broke', url)
+        self.assertNotIn('Alice', url)
+        report = shown.call_args[0][0]
+        import zipfile
+        with zipfile.ZipFile(report) as z:
+            self.assertNotIn('Alice', z.read('last_run.log').decode())
+
     def test_state_lists_the_pages_themes_and_play_page(self):
         state = self.api.state()
         self.assertEqual([p['id'] for p in state['pages']], list(launcher.PAGES))

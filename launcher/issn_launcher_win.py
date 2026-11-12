@@ -87,6 +87,11 @@ CREDITS = ('axylpup (inFAMOUS Second Son shadPS4 build), HayatoG (iss_pc), AYOUB
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'issn-update'
 # Never copied over an installation by an update (the package does not hold them either).
 USER_FILES = ('user', 'out', 'mods', 'issn.ini', 'mods.json', 'mods_presets.json', 'patches.json', 'last_run.log')
+# issn 11-12: an update keeps the version it replaces here (no user files), and "Voltar para a
+# versao anterior.bat" (packaging/windows/rollback.ps1) puts it back even when the launcher is broken.
+PREVIOUS_DIR = 'previous-version'
+# issn 11-12: "Report a bug" opens a new GitHub issue filled in from the last run's log.
+ISSUES_NEW = f'https://github.com/{RELEASES_REPO}/issues/new'
 # The display face for titles: Bebas Neue (launcher/issn_font.ttf, SIL Open Font License, with the
 # accents of the Latin-script languages); main() registers it for this process only.
 FONT_FILE = PORT_DIR / 'launcher' / 'issn_font.ttf'
@@ -2043,7 +2048,7 @@ class Launcher:
         # Notices (an available update) appear here, under the line.
         self.notice = tk.Frame(main, bg=BG)
         self.notice_anchor = line
-        self.update_box = None
+        self.update_box = self.update_button = self.update_label = None
 
         right = tk.Frame(main, bg=PANEL)
         right.pack(side='top', fill='both', expand=True)
@@ -2220,6 +2225,10 @@ class Launcher:
                 ttk.Button(buttons, text=_('Update', 'Обновить'), style='Card.Accent.TButton',
                            command=lambda r=release: self.install_update(r['version'], r['zip'], r['page'])).pack(
                     side='left', padx=(0, 6))
+            elif not newer and not same and release['zip'] and WINDOWS:  # issn 11-12: go back to it
+                ttk.Button(buttons, text=_('Go back to this version'), style='Card.TButton',
+                           command=lambda r=release: self.install_update(r['version'], r['zip'], r['page'],
+                                                                         older=True)).pack(side='left', padx=(0, 6))
             ttk.Button(buttons, text=_('Open on GitHub'), style='Card.TButton',
                        command=lambda u=release['page']: open_url(u)).pack(side='left')
 
@@ -2232,7 +2241,8 @@ class Launcher:
         bar = ttk.Frame(f)
         bar.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(4, 0))
         ttk.Button(bar, text=_('Check again'), command=self.run_help).pack(side='left')
-        ttk.Button(bar, text=_('Save a bug report'), command=self.bug_report).pack(side='left', padx=6)
+        ttk.Button(bar, text=_('Report a bug'), style='Accent.TButton', command=self.report_bug).pack(side='left', padx=6)
+        ttk.Button(bar, text=_('Save a bug report'), command=self.bug_report).pack(side='left', padx=(0, 6))
         ttk.Button(bar, text=_('Open the log'), command=lambda: self.open_path(run_log_path(self.app))).pack(side='left')
         ttk.Button(bar, text=_('Ask on the Discord'), command=lambda: open_url(DISCORD_URL)).pack(side='left', padx=6)
         self.help_body = ttk.Frame(f)
@@ -3695,7 +3705,8 @@ class Launcher:
         holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(6, 0))
         ttk.Button(holder, text=_('Port folder', 'Папка порта'), command=lambda: self.open_path(DATA_DIR)).pack(side='left')
         ttk.Button(holder, text='issn.ini', command=lambda: self.open_path(ini_path())).pack(side='left', padx=6)
-        ttk.Button(holder, text=_('Save a bug report'), command=self.bug_report).pack(side='left')
+        ttk.Button(holder, text=_('Report a bug'), command=self.report_bug).pack(side='left')
+        ttk.Button(holder, text=_('Save a bug report'), command=self.bug_report).pack(side='left', padx=6)
         ttk.Label(holder, text=_('A zip on the desktop with the last log and your settings, to send with a bug.'),
                   style='Muted.TLabel').pack(side='left', padx=10)
         holder = ttk.Frame(f)
@@ -4219,22 +4230,34 @@ class Launcher:
         self.log.configure(state='disabled')
 
     def bug_report(self):
-        """The last run's log, issn.ini and the launcher settings in a zip on the desktop (no game files)."""
-        desktop = Path.home() / 'Desktop'
-        target = (desktop if desktop.is_dir() else DATA_DIR) / time.strftime('issn-bug-report-%Y%m%d-%H%M%S.zip')
+        """The last run's log, issn.ini and the launcher settings in a zip on the desktop (no game files;
+        the Windows user name taken out, issn 11-12)."""
         try:
-            with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as z:
-                for path in (run_log_path(self.app), ini_path(), CONFIG_FILE, DATA_DIR / 'out' / 'patch_status.json'):
-                    if Path(path).is_file():
-                        z.write(path, Path(path).name)
-                import platform
-                z.writestr('version.txt', f'launcher v{VERSION}\n{platform.platform()}\n'
-                                          f'{platform.processor()}\n')
+            target, _summary = save_bug_report(self.app)
+        except OSError as error:
+            self.status.configure(text=_('Could not save the report: {}').format(error))
+            return None
+        self.status.configure(text=_('Bug report saved: {}').format(target))
+        show_in_folder(target)
+        return target
+
+    def report_bug(self):
+        """issn 11-12: the bug report zip, then a new GitHub issue filled in from the log in the
+        browser (the player writes what happened, drags the zip in and sends it; nothing is sent
+        from here)."""
+        if not self.messagebox.askyesno(APP_NAME, _(
+                'This saves a zip with your last log and settings on the desktop (your Windows user name is '
+                'taken out) and opens a new bug report on GitHub with a summary of the log. You read it, say what '
+                'happened, drag the zip in and send it there (a GitHub account is needed). Go on?')):
+            return
+        try:
+            target, summary = save_bug_report(self.app)
         except OSError as error:
             self.status.configure(text=_('Could not save the report: {}').format(error))
             return
+        show_in_folder(target)
+        open_url(report_issue_url(summary))
         self.status.configure(text=_('Bug report saved: {}').format(target))
-        self.open_path(target.parent)
 
     def copy_log(self):
         self.root.clipboard_clear()
@@ -4299,23 +4322,28 @@ class Launcher:
         if not self.process:
             self.status.configure(text=text, fg=TEXT)
 
-    def install_update(self, version, url, page):
+    def install_update(self, version, url, page, older=False):
         if self.process:
             self.messagebox.showinfo(APP_NAME, _('Close the game before updating.', 'Закройте игру перед обновлением.'))
             return
         if not FROZEN or not url:  # a source tree updates with git
             open_url(page)
             return
-        if not self.messagebox.askyesno(APP_NAME, _(
-                'Install version {} now? The launcher closes, installs it and opens again. Saves and settings are kept.',
-                'Установить версию {} сейчас? Лаунчер закроется, установит её и откроется снова. Сохранения и '
-                'настройки останутся.').format(version)):
+        question = (downgrade_question(version) if older else _(
+            'Install version {} now? The launcher closes, installs it and opens again. Saves and settings are kept.',
+            'Установить версию {} сейчас? Лаунчер закроется, установит её и откроется снова. Сохранения и '
+            'настройки останутся.').format(version))
+        if not self.messagebox.askyesno(APP_NAME, question):
             return
-        self.update_button.configure(state='disabled')
+        if self.update_button is not None:
+            self.update_button.configure(state='disabled')
 
         def progress(percent):
-            self.update_label.configure(text=_('Downloading version {}… {}%', 'Загрузка версии {}… {}%').format(
-                version, percent))
+            text = _('Downloading version {}… {}%', 'Загрузка версии {}… {}%').format(version, percent)
+            if self.update_label is not None:
+                self.update_label.configure(text=text)
+            else:
+                self.status.configure(text=text)
 
         def work():
             try:
@@ -4344,8 +4372,10 @@ class Launcher:
                 self.ui_calls.put(self.root.destroy)
             except (OSError, zipfile.BadZipFile) as failure:
                 def failed(error=failure):
-                    self.update_button.configure(state='normal')
-                    self.update_label.configure(text=_('Version {} is available.', 'Доступна версия {}.').format(version))
+                    if self.update_button is not None:
+                        self.update_button.configure(state='normal')
+                    if self.update_label is not None:
+                        self.update_label.configure(text=_('Version {} is available.', 'Доступна версия {}.').format(version))
                     self.messagebox.showerror(APP_NAME, _('Update failed: {}', 'Не удалось обновить: {}').format(error))
                 self.ui_calls.put(failed)
         threading.Thread(target=work, daemon=True).start()
@@ -4641,6 +4671,135 @@ def release_list():
     return out
 
 
+def downgrade_question(version):
+    """issn 11-12: the question before installing an older release over this one."""
+    return _('Go back to version {}? The launcher closes, installs it over this one and opens again. Saves and '
+             'settings are kept; that version prepares its shaders again if its seed is not on this PC. The '
+             'launcher will offer this version again as an update.').format(version)
+
+
+def installed_version(folder):
+    """The version of the port in `folder`, from the first line of its README-Windows.txt
+    ("... TEST BUILD 0.3.7.3"), or '' when there is none."""
+    try:
+        first = (Path(folder) / 'README-Windows.txt').read_text(encoding='utf-8', errors='replace').split('\n', 1)[0]
+    except OSError:
+        return ''
+    match = re.search(r'(\d+(?:\.\d+)+)\s*$', first.strip())
+    return match.group(1) if match else ''
+
+
+def keep_previous_version(target):
+    """issn 11-12: before an update is copied over `target`, the installation there is copied to
+    target/previous-version (never the user files: saves, settings, caches and mods stay where they
+    are), so "Voltar para a versao anterior.bat" can put it back without the launcher or the
+    internet. Returns the version kept, or '' when nothing was kept. Never raises: the update goes on."""
+    target = Path(target)
+    if not (target / 'inFAMOUS Second Son.exe').is_file():
+        return ''
+    previous = target / PREVIOUS_DIR
+    part = previous.with_name(previous.name + '.part')
+    try:
+        shutil.rmtree(part, ignore_errors=True)
+        shutil.copytree(target, part, ignore=shutil.ignore_patterns(*USER_FILES, PREVIOUS_DIR, PREVIOUS_DIR + '.part'))
+        shutil.rmtree(previous, ignore_errors=True)
+        part.rename(previous)
+    except OSError as error:
+        print(f'Previous version: not kept ({error})', flush=True)
+        shutil.rmtree(part, ignore_errors=True)
+        return ''
+    return installed_version(previous) or '?'
+
+
+def redact_paths(text, home=None):
+    """The Windows user name out of a log or settings file: C:\\Users\\<name>\\... becomes
+    C:\\Users\\<user>\\... (any drive, either slash), and the home folder's own name wherever it is."""
+    text = re.sub(r'(?i)([A-Z]:[\\/]+(?:Users|Documents and Settings)[\\/]+)([^\\/\r\n"\']+)', r'\1<user>', text)
+    name = Path(home if home is not None else Path.home()).name
+    if len(name) >= 3 and name.lower() not in ('user', 'users', 'public', 'root'):
+        text = re.sub(r'(?<![A-Za-z0-9])' + re.escape(name) + r'(?![A-Za-z0-9])', '<user>', text, flags=re.IGNORECASE)
+    return text
+
+
+REPORT_LINE = re.compile(r'(?i)(<error>|<critical>|\bSTOP\b|crash|device lost|device fault|exception|fatal|'
+                         r'traceback|\bfailed\b(?!=))')
+
+
+def report_summary(log_text, limit=5200):
+    """The part of a last_run.log a bug report starts with: the launcher version, Windows, the GPU
+    line, the game's version line, the shader cache line, the error-looking lines (once each) and the
+    last lines of the run; user names redacted, at most `limit` characters."""
+    import platform
+    lines = redact_paths(log_text or '').replace('\r', '').split('\n')
+    pick = lambda prefix: next((line for line in lines if line.startswith(prefix)), '')  # noqa: E731
+    head = [f'Port: {VERSION}', f'System: {platform.platform()}',
+            pick('GPU: ') or 'GPU: (not in the log)', pick('Patches: CUSA') or pick('Patches:'),
+            pick('Shader cache:'), pick('Engine frame rate:')]
+    errors, seen = [], set()
+    for line in lines:
+        key = re.sub(r'\d+', '#', line)[:160]
+        if REPORT_LINE.search(line) and key not in seen and not line.startswith('Game profile'):
+            seen.add(key)
+            errors.append(line[:300])
+    tail = [line[:300] for line in lines if line.strip()][-15:]
+    text = '\n'.join(line for line in head if line)
+    if errors:
+        text += '\n\nErrors in the log:\n' + '\n'.join(errors[-25:])
+    text += '\n\nEnd of the log:\n' + '\n'.join(tail)
+    if len(text) > limit:
+        text = text[:limit].rsplit('\n', 1)[0] + '\n…'
+    return text
+
+
+def report_issue_url(summary, title='', max_url=7800):
+    """A link to a new GitHub issue with the report filled in (the player reads and edits it on the
+    page before sending; nothing is sent from here). The body is shortened to keep the link short
+    enough for browsers."""
+    from urllib.parse import quote
+    intro = ('**What happened** (what you were doing, and when it went wrong):\n\n\n'
+             '**Attach** the zip the launcher saved (drag it here).\n\n'
+             '<details><summary>From last_run.log</summary>\n\n```\n')
+    outro = '\n```\n</details>\n'
+    title = title or f'[{VERSION}] '
+    body = summary
+    while True:
+        url = f'{ISSUES_NEW}?title={quote(title)}&body={quote(intro + body + outro)}'
+        if len(url) <= max_url or len(body) < 200:
+            return url
+        body = body[:int(len(body) * 0.8)].rsplit('\n', 1)[0] + '\n…'
+
+
+def save_bug_report(settings, folder=None):
+    """The last run's log, issn.ini and the launcher settings in a zip (Desktop, else the port's
+    folder), with the Windows user name taken out of each; no game files. Returns (zip, summary)."""
+    import platform
+    desktop = Path.home() / 'Desktop'
+    folder = Path(folder) if folder else (desktop if desktop.is_dir() else DATA_DIR)
+    target = folder / time.strftime('issn-bug-report-%Y%m%d-%H%M%S.zip')
+    log_text = ''
+    with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as z:
+        for path in (run_log_path(settings), ini_path(), CONFIG_FILE, DATA_DIR / 'out' / 'patch_status.json'):
+            path = Path(path)
+            if not path.is_file():
+                continue
+            text = path.read_text(encoding='utf-8', errors='replace')
+            if path.name == 'last_run.log':
+                log_text = text
+            z.writestr(path.name, redact_paths(text))
+        z.writestr('version.txt', f'launcher v{VERSION}\n{platform.platform()}\n{platform.processor()}\n')
+    return target, report_summary(log_text)
+
+
+def show_in_folder(path):
+    """Opens the folder holding `path` with the file selected (Windows), or the folder."""
+    path = Path(path)
+    if WINDOWS:
+        subprocess.Popen(['explorer', '/select,', str(path)])
+    else:
+        subprocess.Popen(['xdg-open', str(path.parent)], env=host_environment(), stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def install_shader_seed(source, target):
     """The release's shader seed (user/cache/<shader-seed.txt>) into the installation: the update
     copy skips user/ (saves, the player's caches), so without this an update from the launcher
@@ -4694,6 +4853,7 @@ def install_update(target, wait_pid):
     if handle:
         kernel.WaitForSingleObject(handle, 60000)
         kernel.CloseHandle(handle)
+    keep_previous_version(target)  # issn 11-12: "Voltar para a versao anterior.bat" puts it back
     ignore = shutil.ignore_patterns(*USER_FILES)
     for attempt in range(30):
         try:

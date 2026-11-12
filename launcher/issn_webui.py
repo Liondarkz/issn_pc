@@ -729,6 +729,10 @@ class Api:
                                                                            release['page']], primary=True,
                                           confirm=_('Install version {} now? The launcher closes, installs it and opens '
                                                     'again. Saves and settings are kept.').format(release['version'])))
+                elif not newer and not same and release['zip'] and L.WINDOWS:  # issn 11-12: go back to it
+                    actions.append(button('install_update', _('Go back to this version'),
+                                          [release['version'], release['zip'], release['page']],
+                                          confirm=L.downgrade_question(release['version'])))
                 actions.append(button('open_url', _('Open on GitHub'), url=release['page']))
                 rows.append(card(release['title'], release['text'], tone='accent' if index == 0 else '',
                                  badge=_('New') if newer else _('Installed') if same else '', date=release['date'],
@@ -787,6 +791,10 @@ class Api:
         return {'subtitle': _('Checks your installation and the last game log, and shows how to fix what it finds.'),
                 'sections': [
                     {'title': '', 'rows': [buttons(button('reload', _('Check again')),
+                                                   button('report_bug', _('Report a bug'), primary=True,
+                                                          confirm=_('This saves a zip with your last log and settings on the desktop (your Windows user name is '
+                                    'taken out) and opens a new bug report on GitHub with a summary of the log. You read it, '
+                                    'say what happened, drag the zip in and send it there (a GitHub account is needed). Go on?')),
                                                    button('bug_report', _('Save a bug report')),
                                                    button('open_path', _('Open the log'), ['log']),
                                                    button('open_url', _('Ask on the Discord'), url=L.DISCORD_URL))]
@@ -1002,6 +1010,9 @@ class Api:
         return {'subtitle': _('Files, diagnostics and the log.'), 'sections': [
             {'title': _('Files'), 'rows': [
                 buttons(button('open_path', _('Port folder'), ['data']), button('open_path', 'issn.ini', ['ini']),
+                        button('report_bug', _('Report a bug'), confirm=_('This saves a zip with your last log and settings on the desktop (your Windows user name is '
+                                    'taken out) and opens a new bug report on GitHub with a summary of the log. You read it, '
+                                    'say what happened, drag the zip in and send it there (a GitHub account is needed). Go on?')),
                         button('bug_report', _('Save a bug report')),
                         hint=_('A zip on the desktop with the last log and your settings, to send with a bug.')),
                 buttons(button('clear_cache', _('Clear shader cache'),
@@ -1108,17 +1119,21 @@ class Api:
         return {}
 
     def _do_bug_report(self):
-        """The last run's log, issn.ini and the launcher settings in a zip on the desktop (no game files)."""
+        """The last run's log, issn.ini and the launcher settings in a zip on the desktop (no game files;
+        the Windows user name taken out, issn 11-12)."""
         L = self._L
-        s = self._settings()
-        desktop = Path.home() / 'Desktop'
-        target = (desktop if desktop.is_dir() else L.DATA_DIR) / time.strftime('issn-bug-report-%Y%m%d-%H%M%S.zip')
-        import platform
-        with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as z:
-            for path in (L.run_log_path(s), L.ini_path(), L.CONFIG_FILE, L.DATA_DIR / 'out' / 'patch_status.json'):
-                if Path(path).is_file():
-                    z.write(path, Path(path).name)
-            z.writestr('version.txt', f'launcher v{L.VERSION}\n{platform.platform()}\n{platform.processor()}\n')
+        target, _summary = L.save_bug_report(self._settings())
+        L.show_in_folder(target)
+        self._status = L._('Bug report saved: {}').format(target)
+        return {'toast': self._status}
+
+    def _do_report_bug(self):
+        """issn 11-12: the bug report zip, then a new GitHub issue filled in from the log in the browser
+        (the player writes what happened, drags the zip in and sends it; nothing is sent from here)."""
+        L = self._L
+        target, summary = L.save_bug_report(self._settings())
+        L.show_in_folder(target)
+        L.open_url(L.report_issue_url(summary))
         self._status = L._('Bug report saved: {}').format(target)
         return {'toast': self._status}
 
