@@ -823,14 +823,24 @@ class RollbackAndReportTest(unittest.TestCase):
         self.assertTrue(url.startswith(launcher.ISSUES_NEW))
 
 
+class PaperTrailDefaultTest(unittest.TestCase):
+    def test_paper_trail_is_on_by_default_under_a_new_key(self):
+        # issn 11-12: the launchers saved paper_trail=0 into every issn.ini, so the default-on
+        # setting has a key of its own; run.py treats a missing key as on.
+        self.assertEqual(launcher.INI_DEFAULTS.get('paper_trail_offline'), '1')
+        self.assertNotIn('paper_trail', launcher.INI_DEFAULTS)
+        run = (ROOT / 'run.py').read_text()
+        self.assertIn("'0' if ini.get('paper_trail_offline') == '0' else '1'", run)
+
+
 class ReleaseVersionTest(unittest.TestCase):
     def test_updates_come_from_this_ports_releases(self):
         # issn: own version line and own releases; the God of War III port's are never offered.
-        self.assertEqual(launcher.VERSION, '0.3.7.3')
+        self.assertEqual(launcher.VERSION, '0.3.7.4')
         self.assertIn('/Liondarkz/issn_pc/releases', launcher.RELEASES_API)
         self.assertNotIn('gow3_pc', launcher.RELEASES_API + launcher.RELEASES_PAGE)
         self.assertGreater(launcher.version_tuple('windows-v0.3.8'), launcher.version_tuple(launcher.VERSION))
-        self.assertEqual(launcher.version_tuple('windows-v0.3.7.3'), launcher.version_tuple(launcher.VERSION))
+        self.assertEqual(launcher.version_tuple('windows-v0.3.7.4'), launcher.version_tuple(launcher.VERSION))
         self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.3.7'))
         self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.3.6.3'))
         self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.3.6'))

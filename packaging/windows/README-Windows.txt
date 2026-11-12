@@ -1,4 +1,4 @@
-inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.7.3
+inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.7.4
 ========================================================
 
 A test build: the game plays from the start, at about 90-105 FPS standing in the open city on a
@@ -48,6 +48,23 @@ FSR 3.1, XeSS, DLSS (NVIDIA RTX) or FSR 2.2 (the one tested with the port).
   bin\optiscaler.json) and the port runs as before. Close the game first.
 - last_run.log starts with a line when OptiScaler is installed. Problems with OptiScaler itself
   go to its project.
+
+What's new in 0.3.7.4
+- Paper Trail works: the missions that needed the closed website open again (tested: the first
+  mission plays and the second one opens). "Paper Trail without internet" (Game & saves) is now on
+  by default; turn it off there if you do not want it.
+- Report a bug (Help and Advanced pages): saves a zip with your last log and settings on the
+  desktop (your Windows user name taken out) and opens a GitHub issue filled in with a summary of
+  the log. You read it, say what happened, drag the zip in and send it.
+- Going back to an older version: "Voltar para a versao anterior.bat" in the port's folder puts the
+  previous version back, even when the launcher does not open (an update now keeps the version it
+  replaces in previous-version; without it the script downloads the previous release). What's new
+  also offers "Go back to this version" on older releases. Saves and settings are never touched.
+- Loading screen: on a graphics card unlike the one the shader seed was made on (e.g. NVIDIA) it
+  says "Preparing the shaders for your graphics card" with the progress, instead of sitting at 15%.
+  The first start there still takes several minutes. Not seen on NVIDIA yet.
+- Test switch SHADPS4_PROBE_WALK_NAN_EXIT=1 (axylpup/shadPS4 PR #76): hidden debris and particles
+  leave the light-probe walk at once. Off by default: no FPS change measured on an RX 9060 XT.
 
 What's new in 0.3.7.3
 - The classic launcher opens again: in 0.3.7.2 it closed at once with "name 'ttk' is not defined"

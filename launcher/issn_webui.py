@@ -603,7 +603,7 @@ class Api:
                        L.addcont_summary(ini.get('addcont_dir') or '', L.meta_folder(s.get('game_dir'), s.get('update_dir')) or ''),
                        store='ini')]},
             {'title': _('Paper Trail'), 'rows': [
-                check('paper_trail', 'ini', _('Paper Trail without internet'),
+                check('paper_trail_offline', 'ini', _('Paper Trail without internet'),
                       _("Paper Trail's missions were unlocked by a website that closed in 2018. With this on, "
                         "the port answers for it: every step counts as done and the missions open once the "
                         'story reaches them (about a third of the way in).'), True)]}]

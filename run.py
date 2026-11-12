@@ -261,7 +261,9 @@ def main():
     ini = graphics_options.read_ini(env['ISSN_CONFIG'])
     # issn 11-05: Paper Trail without its website (launcher: Game > Paper Trail).
     if 'ISSN_PAPER_TRAIL' not in env:
-        env['ISSN_PAPER_TRAIL'] = '1' if ini.get('paper_trail') == '1' else '0'
+        # issn 11-12: on by default since it works (João: the 1st mission ran, the 2nd opened). A new
+        # key, because the launchers saved paper_trail=0 (the old default) into every issn.ini.
+        env['ISSN_PAPER_TRAIL'] = '0' if ini.get('paper_trail_offline') == '0' else '1'
     if ini.get('restart_unconfirmed') == '1' and not reverted:
         menu_env, menu_off = graphics_options.menu_environment(ini, WINDOWS)
         for key in menu_off:

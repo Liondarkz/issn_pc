@@ -1,0 +1,119 @@
+{
+ "version": "0.3.7.4",
+ "en": {
+  "sub": "PC PORT  /  TEST BUILD 0.3.7.4",
+  "hero": "PAPER TRAIL IS BACK",
+  "hero_sub": "The missions that needed a website closed in 2018 open again, with no internet.",
+  "hero_pts": [
+   "Tested: mission 1 plays, mission 2 opens",
+   "On by default (Game & saves)"
+  ],
+  "shot": "NEW",
+  "new": "NEW IN 0.3.7.4",
+  "cards": [
+   [
+    "gold",
+    "Paper Trail works",
+    "No website, no PSN needed."
+   ],
+   [
+    "pink",
+    "Report a bug",
+    "Zip + a filled-in GitHub issue."
+   ],
+   [
+    "green",
+    "Go back a version",
+    "A .bat that works without the launcher."
+   ],
+   [
+    "neon",
+    "Shader screen on NVIDIA",
+    "Shows the progress, not stuck at 15%."
+   ],
+   [
+    "red",
+    "Classic launcher fixed",
+    "0.3.7.3: no more 'ttk' error."
+   ],
+   [
+    "neon",
+    "Same saves and settings",
+    "Extract over your folder."
+   ]
+  ],
+  "also": "ALSO",
+  "also_pts": [
+   "Your Windows user name is taken out of bug reports",
+   "Test switch for hidden debris in fights (off: no FPS change measured)"
+  ],
+  "next": "COMING NEXT",
+  "next_tag": "planned for the next updates",
+  "next_pts": [
+   "inFAMOUS First Light (in testing)",
+   "Sharp upscalers and FOV in First Light",
+   "Fix for the NVIDIA crash in the opening village",
+   "More of the game in the shader seed"
+  ],
+  "disc": "JOIN THE DISCORD",
+  "disc_sub": "News, help and test builds"
+ },
+ "pt": {
+  "sub": "PORT PARA PC  /  BUILD DE TESTE 0.3.7.4",
+  "hero": "O PAPER TRAIL VOLTOU",
+  "hero_sub": "As missões que dependiam de um site fechado em 2018 abrem de novo, sem internet.",
+  "hero_pts": [
+   "Testado: a missão 1 roda, a missão 2 abre",
+   "Ligado por padrão (Jogo e saves)"
+  ],
+  "shot": "NOVO",
+  "new": "NOVO NA 0.3.7.4",
+  "cards": [
+   [
+    "gold",
+    "Paper Trail funciona",
+    "Sem site e sem PSN."
+   ],
+   [
+    "pink",
+    "Reportar bug",
+    "Zip + issue no GitHub já preenchida."
+   ],
+   [
+    "green",
+    "Voltar versão",
+    "Um .bat que funciona sem o launcher."
+   ],
+   [
+    "neon",
+    "Tela dos shaders em NVIDIA",
+    "Mostra o progresso, não para em 15%."
+   ],
+   [
+    "red",
+    "Launcher antigo corrigido",
+    "0.3.7.3: sem o erro 'ttk'."
+   ],
+   [
+    "neon",
+    "Mesmos saves e configurações",
+    "Extraia por cima da sua pasta."
+   ]
+  ],
+  "also": "E MAIS",
+  "also_pts": [
+   "Seu nome de usuário do Windows sai dos relatórios de bug",
+   "Chave de teste para destroços nas lutas (desligada: sem ganho medido)"
+  ],
+  "next": "PRÓXIMA ATUALIZAÇÃO",
+  "next_tag": "planejado para as próximas versões",
+  "next_pts": [
+   "inFAMOUS First Light (em testes)",
+   "Upscalers nítidos e FOV no First Light",
+   "Correção do crash da NVIDIA na vila do começo",
+   "Mais do jogo no seed de shaders"
+  ],
+  "disc": "ENTRE NO DISCORD",
+  "disc_sub": "Novidades, ajuda e builds de teste"
+ }
+}
