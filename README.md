@@ -11,6 +11,8 @@ vez).
 
 💬 **Discord:** https://discord.gg/y82HQ5uTQg (novidades, ajuda e builds de teste / news, help and test builds)
 
+<a href="https://recomplauncher.com/game/issn-pc"><picture><source media="(prefers-color-scheme: dark)" srcset="https://recomplauncher.com/assets/press/launcher/badge-light.svg"><img alt="Get it on RecompLauncher" src="https://recomplauncher.com/assets/press/launcher/badge-dark.svg" height="48"></picture></a>
+
 [English below](#english)
 
 ## Download
