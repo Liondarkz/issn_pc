@@ -1,5 +1,5 @@
-inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.7
-======================================================
+inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.7.2
+========================================================
 
 A test build: the game plays from the start, at about 90-105 FPS standing in the open city on a
 Ryzen 7 3700X + RX 9060 XT. The first start prepares the shaders once (a few minutes, with a
@@ -48,6 +48,32 @@ FSR 3.1, XeSS, DLSS (NVIDIA RTX) or FSR 2.2 (the one tested with the port).
   bin\optiscaler.json) and the port runs as before. Close the game first.
 - last_run.log starts with a line when OptiScaler is installed. Problems with OptiScaler itself
   go to its project.
+
+What's new in 0.3.7.2
+- DLC from your own dumps: Game & saves > DLC folder. The port reads the param.sfo and license of
+  each DLC dump (in Sc0 or sce_sys) and tells the game it is installed: Cole's Legacy (free on the
+  PlayStation Store), Cole's Legendary Vest, Cole's Jacket and the JOS, Penny Arcade, EXIST and
+  iam8bit vests. The game's data for them is already in the base game; without a folder nothing
+  changes. Nothing is unlocked without your own dump.
+- Motion blur switch (launcher Graphics > Effects and Insert > Image): turns the game's blur off.
+- Upscalers below the window size (FSR 4, XeSS, DLSS): textures get the matching mip bias, so the
+  picture is sharper.
+- Achievements: one file per game (user\trophies-<title ID>.txt; the old trophies.txt moves with
+  its dates), a test button for the popup in Insert > Overlay and the popup noted in the log.
+- Black screen right after the shader screen on dumps without sce_sys\playgo-chunk.dat (the game
+  waited forever for its install chunks): every chunk now counts as installed.
+- A GPU submit lock that could stay stuck after the game's start is now set and healed safely.
+- Game patches: the PS4 Pro mode patches are left out and only one resolution and one field of
+  view patch are applied at a time (mixing them broke the picture).
+- Paper Trail without internet (Game & saves): the missions of the closed website open with the
+  story (test).
+- Sharpening 0-100 % (Graphics > Effects and the menu), off by default.
+- Controls: controller sensitivity above 1 turns the camera faster than the game's top speed;
+  mouse middle and side buttons can be mapped.
+- Launcher: the new window with themes (Smoke, Neon, Video, Concrete), every page of the classic
+  one, a Steam Deck / weak PC goal (40-45 FPS limits), a brighter Play page art and the loading
+  screen's bar moves while the shaders are rebuilt for a new graphics card. Clear shader cache
+  keeps the package's shader seed.
 
 What's new in 0.3.7
 - Black city fix: in some saves the game asks for a time of day (the grey "dismal" sky) whose part

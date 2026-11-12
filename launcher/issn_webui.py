@@ -118,7 +118,7 @@ class Api:
                 except (TypeError, ValueError):
                     return {'toast': L._('Not a number.')}
             self._write_ini({key: value})
-            return {}
+            return {'reload': True} if key == 'addcont_dir' else {}  # the DLC found, under the field
         if key in ('expert_view', 'skip_intro', 'close_on_play', 'check_updates', 'hdr', 'frame_gen',
                    'save_backups', 'mods_enabled', 'frame_stats', 'seed_any_profile', 'vk_validation'):
             value = bool(value)
@@ -130,7 +130,7 @@ class Api:
             return {'reload': True}
         if key == 'optiscaler_output':
             return self._optiscaler_output(value)
-        if key in ('anti_aliasing', 'game_dir', 'update_dir', 'user_dir', 'patches_dir', 'mods_dir'):
+        if key in ('anti_aliasing', 'game_dir', 'update_dir', 'user_dir', 'patches_dir', 'mods_dir', 'addcont_dir'):
             return {'reload': True}
         return {}
 
@@ -286,7 +286,7 @@ class Api:
                 note_text = _('About {} FPS expected in the open city at this resolution.').format(fps)
         game = L.current_game(s)
         return {'art': self._art(L.game_art(s.get('game_dir'), s.get('update_dir'))), 'chip': chip, 'sub': self._last_save(s), 'checks': checks,
-                'game': game, 'games': [{'id': gid, 'label': name} for gid, name in L.GAMES],
+                'game': game, 'games': [{'id': gid, 'label': name} for gid, name in L.GAMES] if L.game_picker_shown(s) else [],
                 'title': 'INFAMOUS FIRST LIGHT' if game == 'first_light' else 'INFAMOUS SECOND SON',
                 'goals': [{'id': 'recommended', 'label': _('Recommended'), 'sub': _('best on most PCs')},
                           {'id': 'handheld', 'label': _('Steam Deck / weak PC'), 'sub': '40-45 FPS'},
@@ -352,8 +352,9 @@ class Api:
             return {'type': 'check', 'key': key, 'store': store, 'label': label, 'hint': hint, 'restart': restart,
                     'value': value}
 
-        def folder(key, label, hint=''):
-            return {'type': 'folder', 'key': key, 'store': 'app', 'label': label, 'hint': hint, 'value': s.get(key) or ''}
+        def folder(key, label, hint='', store='app'):
+            value = (ini.get(key) if store == 'ini' else s.get(key)) or ''
+            return {'type': 'folder', 'key': key, 'store': store, 'label': label, 'hint': hint, 'value': value}
 
         def number(key, label, low, high, hint=''):
             value = ini.get(key, L.INI_DEFAULTS.get(key, '1.0'))
@@ -594,6 +595,13 @@ class Api:
                 check('skip_intro', 'app', _('Skip the intro logos'),
                       _('The game opens straight on its title screen, without the PlayStation and Sucker Punch '
                         'logos.'), True)]},
+            {'title': _('DLC'), 'rows': [
+                folder('addcont_dir', _('DLC folder (optional)'),
+                       _("The folder with the dumps of your own DLC (Cole's Legacy, Cole's jacket, the vests): each "
+                         'one with its param.sfo and license in Sc0 or sce_sys. Read when the game starts; '
+                         "Cole's Legacy is free on the PlayStation Store.") + '\n' +
+                       L.addcont_summary(ini.get('addcont_dir') or '', L.meta_folder(s.get('game_dir'), s.get('update_dir')) or ''),
+                       store='ini')]},
             {'title': _('Paper Trail'), 'rows': [
                 check('paper_trail', 'ini', _('Paper Trail without internet'),
                       _("Paper Trail's missions were unlocked by a website that closed in 2018. With this on, "

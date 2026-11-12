@@ -148,6 +148,7 @@ function renderHome() {
   const pick = $('hero-game');
   pick.replaceChildren(...(home.games || []).map((g) => el('option', { value: g.id, text: g.label })));
   pick.value = home.game || 'second_son';
+  pick.hidden = !(home.games || []).length;  // First Light only where it was already chosen
   pick.disabled = !!state.running;
   pick.onchange = async () => handle(await api.action('choose_game', [pick.value]));
   $('hero-sub').textContent = home.sub || '';

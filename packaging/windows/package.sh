@@ -29,7 +29,8 @@ out/pyenv/Scripts/python.exe -m pip install -q --disable-pip-version-check pyins
 # The scripts run inside inFAMOUS Second Son.exe (--script): the standard modules they import come along.
 hidden=()
 for module in argparse base64 collections hashlib json mmap re shutil struct tempfile xml.etree.ElementTree \
-              urllib.request ctypes.wintypes iced_x86 PIL.Image PIL.ImageDraw PIL.ImageFilter PIL.ImageFont; do
+              urllib.request ctypes.wintypes iced_x86 PIL.Image PIL.ImageDraw PIL.ImageFilter PIL.ImageFont \
+              PIL.ImageOps PIL.ImageChops PIL.ImageStat; do
     hidden+=(--hidden-import "$module")
 done
 out/pyenv/Scripts/python.exe -m PyInstaller --noconfirm --clean --log-level WARN --windowed --copy-metadata pillow \

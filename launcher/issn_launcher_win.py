@@ -58,7 +58,7 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 NEW_GROUP = {} if WINDOWS else {'start_new_session': True}
 UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 # This build; GitHub release tags are windows-v<VERSION>.
-VERSION = '0.3.7'
+VERSION = '0.3.7.2'
 # This port's own test builds (never the God of War III port's: they must not be installed over
 # it). The source repository is private; the builds are published in a public repository that
 # holds only releases (tag windows-v<VERSION>, the zip from packaging/windows/package.sh).
@@ -362,7 +362,7 @@ def heading_text(text, every_language=False):
 INI_FLAGS = {'cheat_double_jumps', 'cheat_very_hard', 'object_motion', 'show_fps', 'vsync', 'async_shaders', 'deferred_readback',
              'stale_readback', 'motion_blur', 'chromatic_aberration', 'trophy_note', 'paper_trail'}
 # The graphics keys are also in the in-game menu (Insert / R3+L2); run.py reads the startup ones.
-INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'trophy_note': '1', 'paper_trail': '0',
+INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'trophy_note': '1', 'paper_trail': '0', 'addcont_dir': '',
                 'object_motion': '1', 'show_fps': '1', 'output_res': '1920x1080',
                 'live_resolution': 'auto', 'display_mode': 'windowed', 'vsync': '1', 'fps_limit': '0',
                 'async_shaders': '1', 'deferred_readback': '1', 'stale_readback': '1',
@@ -1043,6 +1043,31 @@ def open_game_art(path):
     except (OSError, ValueError):
         pass
     return image
+
+
+def game_picker_shown(settings):
+    """issn 11-11: First Light is still raw, so the 0.3.7.2 release hides the picker; it shows only
+    where First Light was already chosen (settings.json current_game / games, João's tests) or
+    with ISSN_FIRST_LIGHT=1."""
+    games = settings.get('games') or {}
+    return os.environ.get('ISSN_FIRST_LIGHT') == '1' or settings.get('current_game') == 'first_light' \
+        or 'first_light' in games
+
+
+def addcont_summary(folder, game_folder=''):
+    """One line for the Game page: the DLC the port finds in `folder` (content_profile.scan_addons)."""
+    if not folder:
+        return _('No DLC folder: the game runs without DLC.')
+    try:
+        import content_profile
+        title = game_sfo(Path(game_folder or '.')).get('TITLE_ID') or 'CUSA00223'
+        found, skipped = content_profile.scan_addons(folder, title)
+    except (ImportError, OSError, ValueError) as error:
+        return _('Could not read the DLC folder: {}').format(error)
+    if not found:
+        reason = skipped[0][1] if skipped else _('no DLC param.sfo there')
+        return _('No DLC found ({}).').format(reason)
+    return _('DLC found: {}').format(', '.join(a['name'] for a in found))
 
 
 def switch_game(settings, game):
@@ -1912,9 +1937,9 @@ class Launcher:
         cell.grid(row=r, column=0, columnspan=2, sticky='w', pady=(top, 0))
         self.tk.Frame(parent, bg=LINE, height=1).grid(row=r + 1, column=0, columnspan=2, sticky='we', pady=(2, 2))
 
-    def folder(self, parent, key, title, prompt, hint=None, on_change=None):
+    def folder(self, parent, key, title, prompt, hint=None, on_change=None, store='app'):
         ttk = self.ttk
-        var = self.var(key, 'app')
+        var = self.var(key, store)
         holder = ttk.Frame(parent)
         ttk.Entry(holder, textvariable=var, width=46).pack(side='left')
 
@@ -2330,7 +2355,8 @@ class Launcher:
         title_face = heading_font(min(96, max(54, h // 4)), UI_FONT, every_language=True)
         game = current_game(self.app)
         self.game_pick.current([gid for gid, _name in GAMES].index(game))
-        c.create_window(w - self.px(24), self.px(24), window=self.game_pick, anchor='ne')
+        if game_picker_shown(self.app):
+            c.create_window(w - self.px(24), self.px(24), window=self.game_pick, anchor='ne')
         c.create_text(x, base, text='FIRST LIGHT' if game == 'first_light' else 'SECOND SON', anchor='sw', fill=ACCENT_HI,
                       font=heading_font(min(46, max(28, h // 8)), UI_FONT, every_language=True))
         c.create_text(x - 2, base - self.px(min(44, max(28, h // 8)) * 0.95), text='INFAMOUS', anchor='sw',
@@ -3023,6 +3049,16 @@ class Launcher:
         self.check(f, 'skip_intro', 'app', _('Skip the intro logos'),
                    _('The game opens straight on its title screen, without the PlayStation and Sucker Punch '
                      'logos.'), restart=True)
+        # issn 11-06: DLC from the player's own add-on dumps (scripts/content_profile.py).
+        self.section(f, _('DLC'))
+        self.folder(f, 'addcont_dir', _('DLC folder (optional)'), _('Choose the folder with your DLC dumps'),
+                    _("The folder with the dumps of your own DLC (Cole's Legacy, Cole's jacket, the vests): each "
+                      'one with its param.sfo and license in Sc0 or sce_sys. Read when the game starts; '
+                      "Cole's Legacy is free on the PlayStation Store."), store='ini',
+                    on_change=lambda: self.addcont_note.configure(text=addcont_summary(self.var('addcont_dir', 'ini').get(), self.meta_dir())))
+        self.addcont_note = ttk.Label(f, text=addcont_summary(self.var('addcont_dir', 'ini').get(), self.meta_dir()),
+                                      style='Muted.TLabel', wraplength=self.px(620), justify='left')
+        self.addcont_note.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(2, 0))
         # issn 11-05: Paper Trail's missions without infamouspapertrail.com (src/paper_trail_hook.h).
         self.section(f, _('Paper Trail'))
         self.check(f, 'paper_trail', 'ini', _('Paper Trail without internet'),

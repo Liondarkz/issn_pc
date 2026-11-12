@@ -43,7 +43,11 @@ class WebUiTest(unittest.TestCase):
         launcher.atomic_write(launcher.CONFIG_FILE, json.dumps({'game_dir': str(self.tmp / 'ss')})) \
             if launcher.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True) is None else None
         home = self.api.state()['home']
-        self.assertEqual((home['game'], [g['id'] for g in home['games']]), ('second_son', ['second_son', 'first_light']))
+        self.assertEqual((home['game'], home['games']), ('second_son', []))  # hidden for players
+        os.environ['ISSN_FIRST_LIGHT'] = '1'
+        self.addCleanup(os.environ.pop, 'ISSN_FIRST_LIGHT', None)
+        home = self.api.state()['home']
+        self.assertEqual([g['id'] for g in home['games']], ['second_son', 'first_light'])
         self.assertEqual(self.api.action('choose_game', ['first_light']), {'page': 'game'})
         saved = json.loads(launcher.CONFIG_FILE.read_text())
         self.assertEqual((saved['current_game'], saved['game_dir'], saved['games']['second_son']['game_dir']),

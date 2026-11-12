@@ -104,6 +104,7 @@ a { color: var(--accent2); }
 .hero-chip { position: absolute; left: 36px; top: 24px; font-size: 12px; font-weight: 700; letter-spacing: .5px;
              background: var(--accent); color: var(--on-accent); padding: 4px 10px; border-radius: 6px; }
 .hero-chip:empty { display: none; }
+.hero-game[hidden] { display: none; }
 .hero-game { position: absolute; right: 36px; top: 20px; left: auto; width: auto; min-width: 210px; z-index: 2; font: inherit;
   font-size: 13px; font-weight: 700; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: rgba(10, 12, 18, .78); color: #f2f3f7; }
 .hero-body { position: absolute; left: 36px; right: 36px; bottom: 30px; display: flex; align-items: flex-end;
