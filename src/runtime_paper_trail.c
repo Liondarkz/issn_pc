@@ -47,14 +47,14 @@ static void paper_trail_note(int kind, const void *caller, long answer) {
     fflush(stdout);
 }
 
-/* ISSN_PAPER_TRAIL_STATUS=0..5 (test): the status answered instead of 5. The game's own values:
- * 0 no PSN, 1 idle or failed, 2 connecting, 3 request on its way, 4 an answer it could not use,
- * 5 an answer read. */
+/* ISSN_PAPER_TRAIL_STATUS=0..5 (test): always answer that status. The game's own values:
+ * 0 no PSN, 1 connected and idle, 2 connecting, 3 request on its way, 4 an answer it could not
+ * use, 5 an answer read. -1: answer as the game would (see issn_paper_trail_status). */
 static int paper_trail_status_value(void) {
     static int value = -2;
     if (value == -2) {
         const char *text = getenv("ISSN_PAPER_TRAIL_STATUS");
-        value = text && text[0] >= '0' && text[0] <= '5' && !text[1] ? text[0] - '0' : 5;
+        value = text && text[0] >= '0' && text[0] <= '5' && !text[1] ? text[0] - '0' : -1;
     }
     return value;
 }
@@ -74,15 +74,24 @@ static void paper_trail_answer(unsigned char *object) {
     }
 }
 
+/* "update" (the script asks the website): the answer arrives at once, as the parser would leave it. */
 ABI int issn_paper_trail_update(unsigned char *object) {
     paper_trail_answer(object);
     paper_trail_note(0, __builtin_return_address(0), -1000);
     return 1;
 }
 
-ABI int issn_paper_trail_status(unsigned char *object) {
-    paper_trail_answer(object);
+/* "status", as the game's own code answers with the network up (0x15ecc0): 5 while an answer is
+ * kept (+0x95c), else 1 "connected, idle". issn 11-12: the script resets a kept answer when it
+ * sees one before asking (João's log: status 5, 5, 5, reset, 5 ...) and only calls "update" once
+ * the status is 1, so a constant 5 left the prompt at "Checking status..." for ever. */
+int issn_paper_trail_status_of(const unsigned char *object) {
     int value = paper_trail_status_value();
+    return value >= 0 ? value : object[ISSN_PAPER_TRAIL_ANSWERED] ? 5 : 1;
+}
+
+ABI int issn_paper_trail_status(unsigned char *object) {
+    int value = issn_paper_trail_status_of(object);
     paper_trail_note(1, __builtin_return_address(0), value);
     return value;
 }
