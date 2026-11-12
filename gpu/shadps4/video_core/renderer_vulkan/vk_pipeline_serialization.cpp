@@ -1236,6 +1236,16 @@ void PipelineCache::WarmUp() {
         }
         return false;
     };
+    // issn 12-11: stages really rebuilt for this GPU in this boot (a GPU unlike the seed's), not
+    // just a fresh folder.
+    const auto rebuilding_stages = [&] {
+        for (size_t s = 0; s < 8; ++s) {
+            if (rebuild_stats.rebuilt[s] + rebuild_stats.prebuilt[s] != 0) {
+                return true;
+            }
+        }
+        return false;
+    };
     // Boot progress for SHADPS4_BOOT_SCREEN: the phases weighted by rc22's cold first launch
     // (s1348: prefetch 16.6 s, read + rebuild 61.0 s, compile drain 33.8 s) as 0-15 / 15-70 /
     // 70-100 %; inside a phase the real counts.
@@ -1361,6 +1371,14 @@ void PipelineCache::WarmUp() {
     defer_marked_compute = &deferred_marked;
     const size_t total_keys =
         show_boot ? Storage::DataBase::Instance().CountBlobs(Storage::BlobType::PipelineKey) : 0;
+    // issn 12-11: on a GPU unlike the seed's the stages are rebuilt HERE, one by one (the threaded
+    // pre-pass above only runs with SHADPS4_CACHE_REBUILD_THREADS, off by default). The bar
+    // counts pipelines, but the compute ones cost seconds each and the graphics ones nothing,
+    // so it crept from 15 % for minutes (RTX 3060 Ti, RTX 4060 Laptop: "stuck at 15 %"). The
+    // loading screen now says the shaders are prepared for this GPU with the count, and the log
+    // shows the progress every 30 s (stuck or slow can be told apart).
+    auto read_log_at = WarmClock::now();
+    const auto read_started = read_log_at;
     Storage::DataBase::Instance().ForEachBlob(
         Storage::BlobType::PipelineKey, [&](std::vector<u8>&& data) {
             ++num_total_pipelines;
@@ -1369,8 +1387,24 @@ void PipelineCache::WarmUp() {
                     total_keys ? std::min(1.0f, static_cast<float>(num_total_pipelines) /
                                                     static_cast<float>(total_keys))
                                : 0.0f;
+                if (rebuilding_stages()) {
+                    IssnOverlay::SetLoadingStage(num_total_pipelines,
+                                                 static_cast<u32>(total_keys));
+                }
                 ShowBootProgress("pipelines read", num_total_pipelines, total_keys, preparing(),
                                  read_from + (0.70f - read_from) * read);
+            }
+            if (NsSince(read_log_at) >= 30'000'000'000ull) {
+                read_log_at = WarmClock::now();
+                u64 rebuilt = 0;
+                for (size_t s = 0; s < 8; ++s) {
+                    rebuilt += rebuild_stats.rebuilt[s];
+                }
+                LOG_WARNING(Render,
+                            "WarmUp: pipelines read {} / {} after {} s, {} loaded, {} stages "
+                            "rebuilt for this GPU",
+                            num_total_pipelines, total_keys, NsSince(read_started) / 1000000000,
+                            num_pipelines, rebuilt);
             }
 
             Serialization::Archive ar{std::move(data)};
@@ -1408,6 +1442,7 @@ void PipelineCache::WarmUp() {
         std::fflush(stdout);
     }
     defer_marked_compute = nullptr;
+    IssnOverlay::SetLoadingStage(0, 0);
     // Fix A: guessed permutations after every live one (counted as loaded above).
     u32 deferred_failed = 0;
     // 1.1 (PERF-PLAN 11): below 24 GB of RAM the guessed permutations are not preloaded. Each
@@ -1428,12 +1463,30 @@ void PipelineCache::WarmUp() {
         num_pipelines -= static_cast<u32>(deferred_marked.size());
         deferred_marked.clear();
     }
+    // issn 12-11: the guessed compute pipelines are built here, after the read; on a GPU unlike
+    // the seed's their stages are rebuilt too, so this loop also shows its count (bar at 70 %).
+    u32 deferred_done = 0;
     for (auto& load : deferred_marked) {
         if (!BuildComputePipeline(load.key, load.sdata, std::move(load.meta))) {
             --num_pipelines;
             ++deferred_failed;
         }
+        ++deferred_done;
+        if (show_boot) {
+            if (rebuilding_stages()) {
+                IssnOverlay::SetLoadingStage(deferred_done,
+                                             static_cast<u32>(deferred_marked.size()));
+            }
+            ShowBootProgress("compute pipelines prepared", deferred_done, deferred_marked.size(),
+                             preparing(), 0.70f);
+        }
+        if (NsSince(read_log_at) >= 30'000'000'000ull) {
+            read_log_at = WarmClock::now();
+            LOG_WARNING(Render, "WarmUp: guessed compute pipelines {} / {} after {} s",
+                        deferred_done, deferred_marked.size(), NsSince(read_started) / 1000000000);
+        }
     }
+    IssnOverlay::SetLoadingStage(0, 0);
     if (!deferred_marked.empty() || !precompile_retired.empty()) {
         LOG_INFO(Render, "WarmUp: precompiled compute pipelines loaded last {} (not loaded {}), "
                          "retired programs {} (their guessed metas skipped {})",
