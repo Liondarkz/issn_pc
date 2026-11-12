@@ -748,14 +748,35 @@ class GpuChoiceTest(unittest.TestCase):
         self.assertEqual(launcher.APP_DEFAULTS['gpu_id'], '')
 
 
+class ClassicWindowNamesTest(unittest.TestCase):
+    def test_tk_modules_are_reached_through_self(self):
+        # issn 11-12: 0.3.7.2's classic launcher closed at once ("name 'ttk' is not defined"):
+        # tkinter is imported inside main() and handed to Launcher, so a method that names
+        # tk / ttk / filedialog / messagebox without a local of that name fails when it runs.
+        import ast
+        tree = ast.parse((ROOT / 'launcher' / 'issn_launcher_win.py').read_text(encoding='utf-8'))
+        cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'Launcher')
+        names = {'tk', 'ttk', 'filedialog', 'messagebox', 'font'}
+        bad = []
+        for method in (n for n in cls.body if isinstance(n, ast.FunctionDef)):
+            bound = {a.arg for a in method.args.args + method.args.kwonlyargs}
+            bound |= {n.id for n in ast.walk(method) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)}
+            bound |= {a.arg for f in ast.walk(method) if isinstance(f, (ast.FunctionDef, ast.Lambda))
+                      for a in f.args.args}
+            bad += [f'{method.name}:{n.lineno} {n.id}' for n in ast.walk(method)
+                    if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load) and n.id in names
+                    and n.id not in bound]
+        self.assertEqual(bad, [])
+
+
 class ReleaseVersionTest(unittest.TestCase):
     def test_updates_come_from_this_ports_releases(self):
         # issn: own version line and own releases; the God of War III port's are never offered.
-        self.assertEqual(launcher.VERSION, '0.3.7.2')
+        self.assertEqual(launcher.VERSION, '0.3.7.3')
         self.assertIn('/Liondarkz/issn_pc/releases', launcher.RELEASES_API)
         self.assertNotIn('gow3_pc', launcher.RELEASES_API + launcher.RELEASES_PAGE)
         self.assertGreater(launcher.version_tuple('windows-v0.3.8'), launcher.version_tuple(launcher.VERSION))
-        self.assertEqual(launcher.version_tuple('windows-v0.3.7.2'), launcher.version_tuple(launcher.VERSION))
+        self.assertEqual(launcher.version_tuple('windows-v0.3.7.3'), launcher.version_tuple(launcher.VERSION))
         self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.3.7'))
         self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.3.6.3'))
         self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.3.6'))

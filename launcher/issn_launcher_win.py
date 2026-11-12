@@ -58,7 +58,7 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 NEW_GROUP = {} if WINDOWS else {'start_new_session': True}
 UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 # This build; GitHub release tags are windows-v<VERSION>.
-VERSION = '0.3.7.2'
+VERSION = '0.3.7.3'
 # This port's own test builds (never the God of War III port's: they must not be installed over
 # it). The source repository is private; the builds are published in a public repository that
 # holds only releases (tag windows-v<VERSION>, the zip from packaging/windows/package.sh).
@@ -3056,7 +3056,7 @@ class Launcher:
                       'one with its param.sfo and license in Sc0 or sce_sys. Read when the game starts; '
                       "Cole's Legacy is free on the PlayStation Store."), store='ini',
                     on_change=lambda: self.addcont_note.configure(text=addcont_summary(self.var('addcont_dir', 'ini').get(), self.meta_dir())))
-        self.addcont_note = ttk.Label(f, text=addcont_summary(self.var('addcont_dir', 'ini').get(), self.meta_dir()),
+        self.addcont_note = self.ttk.Label(f, text=addcont_summary(self.var('addcont_dir', 'ini').get(), self.meta_dir()),
                                       style='Muted.TLabel', wraplength=self.px(620), justify='left')
         self.addcont_note.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(2, 0))
         # issn 11-05: Paper Trail's missions without infamouspapertrail.com (src/paper_trail_hook.h).

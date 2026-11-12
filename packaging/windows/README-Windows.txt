@@ -1,4 +1,4 @@
-inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.7.2
+inFAMOUS Second Son for PC (issn_pc) - TEST BUILD 0.3.7.3
 ========================================================
 
 A test build: the game plays from the start, at about 90-105 FPS standing in the open city on a
@@ -48,6 +48,12 @@ FSR 3.1, XeSS, DLSS (NVIDIA RTX) or FSR 2.2 (the one tested with the port).
   bin\optiscaler.json) and the port runs as before. Close the game first.
 - last_run.log starts with a line when OptiScaler is installed. Problems with OptiScaler itself
   go to its project.
+
+What's new in 0.3.7.3
+- The classic launcher opens again: in 0.3.7.2 it closed at once with "name 'ttk' is not defined"
+  (the new DLC section on the Game page). The new launcher was not affected.
+- The shader seed keeps the 0.3.7.2 folder name, so a player who already went through the first
+  start of 0.3.7.2 does not prepare the shaders again.
 
 What's new in 0.3.7.2
 - DLC from your own dumps: Game & saves > DLC folder. The port reads the param.sfo and license of
