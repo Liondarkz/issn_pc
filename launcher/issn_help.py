@@ -12,6 +12,8 @@ from pathlib import Path
 
 # The 01.07 eboot.bin (CUSA00223 and CUSA00004 share it) as the update unpacks it.
 EBOOT_107_SHA256 = '2d1ca79630d7bbe6fa29575f59aa7996d43071d74ac8e4f7d40137967d9039ab'
+# issn 11-11: inFAMOUS First Light's 01.04 eboot.bin, the other game the port starts.
+EBOOT_FIRST_LIGHT_104_SHA256 = '693dc18504f30ae106bcd33cbb0c1d29a3dbbdb330754ee9dc2194ca6b56e240'
 
 # key: (title, what it means, [steps]).
 TOPICS = {
@@ -144,7 +146,7 @@ def game_problems(game_dir, update_dir=''):
         digest = hashlib.sha256(eboot.read_bytes()).hexdigest()
     except OSError:
         digest = ''
-    if digest and digest != EBOOT_107_SHA256:
+    if digest and digest not in (EBOOT_107_SHA256, EBOOT_FIRST_LIGHT_104_SHA256):
         problems.append('version')
     return problems
 

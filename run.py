@@ -496,6 +496,22 @@ def main():
         except OSError:
             listed = ''
         cache_name = env.get('SHADPS4_CACHE_NAME', 'CUSA00223')
+        # issn 11-11: First Light's skin and hair came out black on every launch that reused its
+        # saved shader cache (2nd session; "stale pipelines" in the log) and right on every launch
+        # from an empty one (tested by João). Until the cause is found each launch starts empty;
+        # the previous folder stays as <name>-previous for the investigation.
+        # ISSN_FIRST_LIGHT_KEEP_CACHE=1 keeps the cache.
+        if own_cache and own_cache.endswith('-first-light') and env.get('ISSN_FIRST_LIGHT_KEEP_CACHE') != '1':
+            folder = user_dir / 'cache' / cache_name
+            previous = user_dir / 'cache' / f'{cache_name}-previous'
+            if folder.is_dir():
+                shutil.rmtree(previous, ignore_errors=True)
+                try:
+                    folder.rename(previous)
+                    print(f'Shader cache: {cache_name} starts empty (First Light, black skin with a reused '
+                          f'cache); the last one is in {previous.name}', flush=True)
+                except OSError as error:
+                    print(f'Shader cache: could not set {cache_name} aside ({error}); reusing it', flush=True)
         others = sorted(p.name for p in (user_dir / 'cache').glob('*') if p.is_dir() and p.name != cache_name)
         print(f'Shader cache: {cache_name}' + ('' if seed_name else
               f" (shader-seed.txt {'names ' + listed + ', which is missing' if listed else 'is missing'})")

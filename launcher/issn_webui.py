@@ -241,9 +241,7 @@ class Api:
         url = ''
         if path.is_file():
             try:
-                from PIL import Image
-                with Image.open(path) as source:
-                    image = source.convert('RGB')
+                image = self._L.open_game_art(path)
                 image.thumbnail((1600, 1600))
                 buffer = io.BytesIO()
                 image.save(buffer, 'JPEG', quality=84)

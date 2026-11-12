@@ -1009,6 +1009,42 @@ def game_art(game_dir, update_dir=''):
     return None
 
 
+def open_game_art(path):
+    """The Play page art as an RGB Pillow image, None without one. issn 11-11: Second Son's pic1.png
+    is grey crows on near-black, which read as a dark empty page beside First Light's colour art;
+    a dark picture is lifted into the smoke reds and the game's logo (the bright lettering of the
+    icon0.png beside it, from the player's own dump) goes on the right."""
+    if not path:
+        return None
+    try:
+        from PIL import Image, ImageChops, ImageFilter, ImageOps, ImageStat
+        with Image.open(path) as source:
+            image = source.convert('RGB')
+    except (ImportError, OSError):
+        return None
+    try:
+        if ImageStat.Stat(image.convert('L')).mean[0] >= 30:
+            return image
+        width, height = image.size
+        grey = ImageOps.autocontrast(image.convert('L'), cutoff=1).point(lambda v: min(255, int(v * 1.15)))
+        duo = ImageOps.colorize(grey, black='#07070b', mid='#5a1420', white='#ff4a5c', midpoint=150)
+        glow = duo.filter(ImageFilter.GaussianBlur(max(1, width // 48)))
+        image = ImageChops.screen(duo, ImageChops.multiply(glow, Image.new('RGB', image.size, (140, 140, 140))))
+        icon = Path(path).parent / 'icon0.png'
+        if icon.is_file():
+            size = int(height * 0.5)
+            with Image.open(icon) as source:
+                logo = source.convert('RGB').resize((size, size), Image.LANCZOS)
+            mask = logo.convert('L').point(lambda v: 0 if v < 120 else min(255, (v - 120) * 4))
+            mask = mask.filter(ImageFilter.GaussianBlur(1))
+            x, y = width - size - int(width * 0.05), int(height * 0.42 - size * 0.5)
+            image.paste((10, 4, 6), (x + 6, y + 8), mask.filter(ImageFilter.GaussianBlur(10)))
+            image.paste(logo, (x, y), mask)
+    except (OSError, ValueError):
+        pass
+    return image
+
+
 def switch_game(settings, game):
     """The settings with `game` chosen: the folders of the game left are kept under 'games', the
     chosen game's come back (empty the first time)."""
@@ -1443,14 +1479,7 @@ def hero_image(art, width, height):
         return None
     width, height = max(width, 1), max(height, 1)
     hex_rgb = lambda c: tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))
-    if art is not None:
-        try:
-            with Image.open(art) as source:
-                image = source.convert('RGB')
-        except OSError:
-            image = None
-    else:
-        image = None
+    image = open_game_art(art) if art is not None else None
     has_art = image is not None
     if image is not None:
         scale = max(width / image.width, height / image.height)
