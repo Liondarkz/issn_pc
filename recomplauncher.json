@@ -1,0 +1,95 @@
+{
+  "$schema": "https://recomplauncher.com/schema/recomplauncher.json",
+  "format": 1,
+  "repo": "Liondarkz/issn_pc",
+  "name": "inFAMOUS Second Son (PC)",
+  "game": {
+    "kind": "folder",
+    "label": "Your dump of inFAMOUS Second Son (PS4): the folder with eboot.bin, from the USA (CUSA00223) or Europe (CUSA00004) release.",
+    "check": { "file": "eboot.bin" }
+  },
+  "inputs": [
+    {
+      "id": "dlss",
+      "label": "NVIDIA DLSS",
+      "role": "runtime",
+      "shared": "nvidia.dlss",
+      "optional": true,
+      "destination": "bin/dlss/nvngx_dlss.dll"
+    }
+  ],
+  "start": {
+    "program": ["inFAMOUS Second Son.exe", "issn-x86_64.AppImage"],
+    "args": ["--play", "--game", "{game}"]
+  },
+  "config": [
+    {
+      "id": "main",
+      "format": "ini",
+      "file": [
+        { "path": "{local}/issn/issn.ini", "if": "{local}/issn/issn.ini" },
+        { "path": "{install}/issn.ini" }
+      ]
+    }
+  ],
+  "saves": ["{install}/user/savedata", "{local}/issn/user/savedata"],
+  "folders": {
+    "saves": [
+      { "path": "{local}/issn/user/savedata", "if": "{local}/issn/user/savedata" },
+      { "path": "{install}/user/savedata" }
+    ],
+    "logs": [
+      { "path": "{local}/issn/user", "if": "{local}/issn/user" },
+      { "path": "{install}/user" }
+    ]
+  },
+  "settings": [
+    {
+      "id": "display_mode",
+      "label": "Display mode",
+      "help": "Borderless covers the screen without changing the display mode.",
+      "choices": [
+        { "label": "Windowed", "set": { "display_mode": "windowed" } },
+        { "label": "Borderless", "set": { "display_mode": "borderless" } },
+        { "label": "Fullscreen", "set": { "display_mode": "fullscreen" } }
+      ],
+      "defaults": { "display_mode": "windowed" }
+    },
+    {
+      "id": "vsync",
+      "label": "VSync",
+      "help": "Off allows tearing for the lowest latency.",
+      "choices": [
+        { "label": "On", "set": { "vsync": "1" } },
+        { "label": "Off", "set": { "vsync": "0" } }
+      ],
+      "defaults": { "vsync": "1" }
+    },
+    {
+      "id": "fps_limit",
+      "label": "Frame rate limit",
+      "help": "The highest frame rate. The game keeps its speed at any frame rate; Unlimited runs as fast as the PC allows.",
+      "choices": [
+        { "label": "30", "set": { "fps_limit": "30" } },
+        { "label": "60", "set": { "fps_limit": "60" } },
+        { "label": "120", "set": { "fps_limit": "120" } },
+        { "label": "240", "set": { "fps_limit": "240" } },
+        { "label": "Unlimited", "set": { "fps_limit": "0" } }
+      ],
+      "defaults": { "fps_limit": "0" }
+    },
+    {
+      "id": "show_fps",
+      "label": "Performance overlay",
+      "help": "The frame rate and timings on screen while you play.",
+      "choices": [
+        { "label": "Show", "set": { "show_fps": "1" } },
+        { "label": "Hide", "set": { "show_fps": "0" } }
+      ],
+      "defaults": { "show_fps": "1" }
+    }
+  ],
+  "actions": [
+    { "id": "saves", "label": "Saves", "help": "Your saves. The port also keeps backups next to them.", "open": "saves" }
+  ]
+}
