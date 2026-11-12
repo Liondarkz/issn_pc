@@ -33,6 +33,7 @@
 #include "video_core/renderer_vulkan/vk_pipeline_serialization.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
 #include "video_core/shader_scan.h"
+#include "issn_overlay.h"
 
 namespace Serialization {
 /* You should increment versions below once corresponding serialization scheme is changed. */
@@ -1030,7 +1031,7 @@ void PipelineCache::WriteSeedStamp() const {
              BuildId(), dynamic_vertex_input);
 }
 
-void PipelineCache::PrebuildMissingStages(u32 num_threads) {
+void PipelineCache::PrebuildMissingStages(u32 num_threads, float bar_from, float bar_to) {
     const auto folder = Storage::DataBase::Instance().SidecarPath("");
     if (folder.empty()) {
         return;
@@ -1060,6 +1061,7 @@ void PipelineCache::PrebuildMissingStages(u32 num_threads) {
     std::deque<Ready> ready;
     std::atomic<size_t> next{0};
     std::atomic<u32> finished{0}, failed{0};
+    std::atomic<u32> rebuilding{0}; // stages really translated (none on a later start)
     u32 made = 0, refused_layout = 0;
     auto drain = [&] {
         std::deque<Ready> batch;
@@ -1140,6 +1142,7 @@ void PipelineCache::PrebuildMissingStages(u32 num_threads) {
                     const auto it_fmt = vs_formats.find(VsFormatKey(hash, perm_idx));
                     bool same_layout = false;
                     bool identity_mismatch = false;
+                    rebuilding.fetch_add(1);
                     auto spv = RebuildStageSpv(
                         program->info, fetch, spec, &same_layout,
                         it_fmt != vs_formats.end() ? &it_fmt->second : nullptr, &it_stamp->second,
@@ -1166,9 +1169,21 @@ void PipelineCache::PrebuildMissingStages(u32 num_threads) {
                                   [&] { return !ready.empty(); });
             }
             drain();
-            ShowBootProgress("shaders prepared", finished.load(), metas.size());
+            // issn 11-11: the bar moves through this pass too (it stood still at ~14 %, the
+            // end of the cache read, while the title alone counted) and the loading screen
+            // says the shaders are being prepared for this GPU, done / total.
+            const u64 done = finished.load();
+            // Only while stages are really rebuilt: a later start skips them all in a moment.
+            if (rebuilding.load() != 0) {
+                IssnOverlay::SetLoadingStage(static_cast<u32>(done),
+                                             static_cast<u32>(metas.size()));
+            }
+            ShowBootProgress("shaders prepared for this GPU", done, metas.size(), true,
+                             bar_from + (bar_to - bar_from) * static_cast<float>(done) /
+                                            static_cast<float>(metas.size()));
         }
     } // joins
+    IssnOverlay::SetLoadingStage(0, 0);
     drain(); // results pushed after the last check
     const auto t_compact = WarmClock::now();
     const size_t largest_free = VideoCore::CompactProcessHeap();
@@ -1330,11 +1345,15 @@ void PipelineCache::WarmUp() {
         std::error_code ec;
         std::filesystem::remove(Storage::DataBase::Instance().SidecarPath("rebuild-differ.txt"), ec);
     }
+    // Boot bar: cache files 0-15 %, then (issn 11-11) the pre-pass 15-45 % when it runs, then the
+    // pipelines read up to 70 %.
+    float read_from = 0.15f;
     if (CacheRebuildMode() & 1) {
         ReadSeedStamp();
         if (RebuildThreads() > 0 && (seed_stamp.compute || seed_stamp.graphics)) {
             const auto t_pre = WarmClock::now();
-            PrebuildMissingStages(RebuildThreads());
+            PrebuildMissingStages(RebuildThreads(), read_from, 0.45f);
+            read_from = 0.45f;
             warmup_times.prepass += NsSince(t_pre);
         }
     }
@@ -1351,7 +1370,7 @@ void PipelineCache::WarmUp() {
                                                     static_cast<float>(total_keys))
                                : 0.0f;
                 ShowBootProgress("pipelines read", num_total_pipelines, total_keys, preparing(),
-                                 0.15f + 0.55f * read);
+                                 read_from + (0.70f - read_from) * read);
             }
 
             Serialization::Archive ar{std::move(data)};

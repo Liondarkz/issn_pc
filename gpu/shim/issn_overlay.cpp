@@ -95,6 +95,7 @@ bool mouse_camera_wanted = [] {
 }();
 std::atomic<bool> loading{false};
 std::atomic<u32> loading_done{0}, loading_total{0};
+std::atomic<u32> stage_done{0}, stage_total{0}; // SetLoadingStage: this GPU's shaders, X / Y
 std::atomic<u32> background_done{0}, background_total{0};
 bool dirty = false; // settings changed while open: saved on close
 int requested_tab = -1; // switch on the next frame (L1/R1, Q/E, menu opened)
@@ -1397,13 +1398,25 @@ void LoadingScreen() {
 
     // Texts above the bar: tag, headline, note; the percentage on the right.
     float y = bar_y - 22.0f * s;
-    const char* note = LoadText("The first start after an update takes longer.",
-                                "O primeiro início depois de uma atualização demora mais.",
-                                "El primer inicio después de una actualización tarda más.");
+    // issn 11-11: while the shaders are rebuilt for this GPU (minutes on a GPU unlike the seed's;
+    // a player closed the game at 14 % thinking it froze), the headline and the note say so.
+    const u32 s_done = stage_done, s_total = stage_total;
+    char stage_note[128];
+    std::snprintf(stage_note, sizeof(stage_note),
+                  LoadText("%u / %u (only the first time)", "%u / %u (só na primeira vez)",
+                           "%u / %u (solo la primera vez)"),
+                  s_done, s_total);
+    const char* note = s_total ? stage_note
+                               : LoadText("The first start after an update takes longer.",
+                                          "O primeiro início depois de uma atualização demora mais.",
+                                          "El primer inicio después de una actualización tarda más.");
     const float note_fs = 18.0f * s;
     y -= note_fs;
     draw->AddText(font, note_fs, ImVec2(left, y), dim, note);
-    const char* headline = total ? LoadText("Loading shaders", "Carregando shaders", "Cargando shaders")
+    const char* headline = s_total ? LoadText("Preparing the shaders for your graphics card",
+                                              "Preparando os shaders da sua placa",
+                                              "Preparando los shaders de tu tarjeta")
+                         : total ? LoadText("Loading shaders", "Carregando shaders", "Cargando shaders")
                                  : LoadText("Preparing graphics", "Preparando os gráficos",
                                             "Preparando los gráficos");
     const float head_fs = 40.0f * s;
@@ -2053,6 +2066,11 @@ void ConfirmRestart() {
 void SetBackgroundLoading(u32 done, u32 total) {
     background_done = done;
     background_total = total;
+}
+
+void SetLoadingStage(u32 done, u32 total) {
+    stage_done = done;
+    stage_total = total;
 }
 
 void SetLoading(bool active, u32 done, u32 total) {

@@ -30,6 +30,9 @@ void UpdateTextInput(SDL_Window* window);
 
 /// Start-up loading screen (pipeline cache warm-up): `total` 0 shows no count.
 void SetLoading(bool active, u32 done, u32 total);
+/// issn 11-11: the warm-up's pre-pass that rebuilds the shader stages for this GPU (its profile
+/// differs from the seed's): the loading screen says so, with done / total; `total` 0 ends it.
+void SetLoadingStage(u32 done, u32 total);
 /// Background cache warm-up: a small corner note while the game runs; `total` 0 hides it.
 void SetBackgroundLoading(u32 done, u32 total);
 

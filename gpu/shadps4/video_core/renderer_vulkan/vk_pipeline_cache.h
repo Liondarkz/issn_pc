@@ -238,7 +238,8 @@ public:
     void WriteSeedStamp() const;
     // SHADPS4_CACHE_REBUILD_THREADS: every meta in the folder without a .spv whose rebuild the
     // stamp allows, translated on `num_threads` (own Pools each) into prebuilt_spv.
-    void PrebuildMissingStages(u32 num_threads);
+    // bar_from / bar_to: the part of the boot screen's bar this pass fills (issn 11-11).
+    void PrebuildMissingStages(u32 num_threads, float bar_from, float bar_to);
     // =2: per hash the permutations rebuilt word-equal (the stamp's content; Opus review B1: the
     // stamp lists permutations, so a differing one is refused by the code, not only by packaging).
     std::unordered_map<u64, std::vector<u8>> stamp_perms;
