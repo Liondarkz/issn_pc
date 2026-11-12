@@ -408,6 +408,15 @@ class GameFilesTest(unittest.TestCase):
             (update / 'sce_sys/param.sfo').write_bytes(BASE_SFO)
             self.assertTrue(launcher.ready_to_play(folder, str(update)))
 
+    def test_game_argument_names_the_folder(self):
+        self.assertEqual(launcher.game_argument(['--play', '--game', 'D:/CUSA00004']), 'D:/CUSA00004')
+        self.assertEqual(launcher.game_argument(['--play', '--game=D:/CUSA00004']), 'D:/CUSA00004')
+
+    def test_game_argument_is_none_without_a_folder(self):
+        self.assertIsNone(launcher.game_argument(['--play']))
+        self.assertIsNone(launcher.game_argument(['--play', '--game']))
+        self.assertIsNone(launcher.game_argument(['--game=']))
+
     def test_system_files_beside_a_pkg_extraction(self):
         # PKG extractors keep the system files (param.sfo, icon0.png, pic1.png, trophy/) in Sc0/
         # next to the game files in Image0/; the port reads them from the game's sce_sys/.
