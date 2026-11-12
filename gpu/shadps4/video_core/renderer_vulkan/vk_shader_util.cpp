@@ -369,7 +369,8 @@ vk::ShaderModule CompileSPV(std::span<const u32> code, vk::Device device) {
         if (const u32 changed = PatchProbeWalk(code, probe_walk)) {
             static std::atomic<u32> logged{0}; // compile-pool threads call this too
             if (logged.fetch_add(1) < 8) {
-                LOG_INFO(Render_Vulkan,
+                // issn 11-12: a warning, so it reaches last_run.log (info lines are filtered out).
+                LOG_WARNING(Render_Vulkan,
                          "ProbeWalk: a NaN position leaves the light-probe walk ({} compare(s) "
                          "in a vertex module of {} words)",
                          changed, code.size());

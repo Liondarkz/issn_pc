@@ -91,6 +91,16 @@ int issn_paper_trail_status_of(const unsigned char *object) {
 }
 
 ABI int issn_paper_trail_status(unsigned char *object) {
+    /* issn 11-12: on the PS4 the game asked the website on its own once PSN signed in, so the
+     * answer was already kept when the player reached a Paper Trail spot; the script there reads
+     * status 5, takes the answer (its reset) and goes on. The port never signs in, so the answer
+     * is made on the first status of the session. Logs: a constant 5 made the script take it once
+     * and then wait; a 1 before any answer made it wait without ever asking ("update"). */
+    static int answered_once;
+    if (!answered_once) {
+        answered_once = 1;
+        paper_trail_answer(object);
+    }
     int value = issn_paper_trail_status_of(object);
     paper_trail_note(1, __builtin_return_address(0), value);
     return value;
