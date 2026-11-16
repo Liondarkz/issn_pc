@@ -5,20 +5,61 @@
 
 // SHADPS4_DLSS_UPSCALE (vk_dlss_upscale.cpp): the frame at the output size = the game's HUD layer
 // (its draws blend premultiplied ONE / ONE_MINUS_SRC_ALPHA onto a cleared target, so rgb = HUD
-// colour, a = coverage) over the DLSS output, in the sRGB-encoded space the game blends in; then
-// decoded, because the post pass expects what sampling the sRGB display buffer gives.
+// colour, a = coverage) over the DLSS output, in the space the game blends in; then what the
+// game's own final pass makes of it, because this pass replaces that one:
+//  - SDR: sRGB decoded (the post pass expects what sampling the sRGB display buffer gives);
+//  - HDR output (11-16): the game's fs_0d656790 - its perceptual 10-bit encoding decoded (a degree-8
+//    polynomial: 0.37 = paper white = 1.0, 1.0 = 14x), BT.709 -> BT.2020, times its paper-white
+//    scale (nits / 100), PQ encoded (the game's rational fit, input in 100-nit units). The post
+//    pass hands that to the HDR10 swapchain.
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
-layout(set = 0, binding = 0) uniform texture2D hud_layer; // game resolution, RGBA8 UNORM
-layout(set = 0, binding = 1) uniform texture2D scene;     // output size, RGBA8 UNORM (DLSS)
+layout(set = 0, binding = 0) uniform texture2D hud_layer; // game resolution (RGBA8 / 10:10:10:2)
+layout(set = 0, binding = 1) uniform texture2D scene;     // output size (DLSS)
 layout(set = 0, binding = 2, rgba16f) uniform writeonly image2D frame_out;
 layout(set = 0, binding = 3) uniform sampler linear_sampler;
+
+layout(push_constant) uniform Settings {
+    uint hdr;         // 1 = the game outputs HDR (BT.2020 PQ)
+    float hdr_scale;  // the game's paper white / 100 nits (its final pass's CB dword 9)
+    uint hdr_swap;    // 1 = red / blue the other way round (ISSN_HDR_SWAP, a check)
+    uint pad;
+} pc;
 
 vec3 SrgbToLinear(vec3 c) {
     const vec3 lo = c / 12.92;
     const vec3 hi = pow((c + 0.055) / 1.055, vec3(2.4));
     return mix(lo, hi, greaterThan(c, vec3(0.04045)));
+}
+
+// fs_0d656790's decode of the game's 10-bit HDR encoding (exact coefficients).
+vec3 GameHdrDecode(vec3 x) {
+    vec3 p = vec3(560.855224609375);
+    p = p * x - 1761.6170654296875;
+    p = p * x + 2077.856689453125;
+    p = p * x - 1119.088623046875;
+    p = p * x + 252.199462890625;
+    p = p * x + 3.737172603607177734375;
+    p = p * x + 0.065889783203601837158203125;
+    p = p * x - 1.044747023115633055567741394043e-05;
+    return x * p;
+}
+
+// fs_0d656790's PQ encode (rational fit; y in 100-nit units).
+vec3 GamePq(vec3 y) {
+    vec3 n = vec3(533095.75);
+    n = n * y + 47438308.0;
+    n = n * y + 29063622.0;
+    n = n * y + 575216.75;
+    n = n * y + 383.091033935546875;
+    n = n * y + 0.000487781013362109661102294921875;
+    vec3 d = vec3(66391356.0);
+    d = d * y + 81884528.0;
+    d = d * y + 4182885.0;
+    d = d * y + 10668.404296875;
+    d = d * y + 1.0;
+    return n / d;
 }
 
 void main() {
@@ -31,6 +72,23 @@ void main() {
     const vec4 hud = texture(sampler2D(hud_layer, linear_sampler), uv);
     const vec3 base = texelFetch(sampler2D(scene, linear_sampler), pos, 0).rgb;
     const vec3 encoded = clamp(hud.rgb + (1.0 - hud.a) * base, 0.0, 1.0);
+    if (pc.hdr != 0u) {
+        // The HUD layer and the DLSS output are read raw, red / blue swapped from what the game's
+        // final pass samples (its views swap them back) - as the SDR branch below (test run t3:
+        // the matrix applied the wrong way round tinted oranges pink).
+        const vec3 l = GameHdrDecode(pc.hdr_swap != 0u ? encoded : encoded.bgr);
+        // The game's BT.709 -> BT.2020 rows (x = red).
+        const vec3 r2020 = vec3(0.627403736114501953125 * l.x + 0.329281747341156005859375 * l.y +
+                                0.043313510715961456298828125 * l.z);
+        const float g2020 = 0.06909702718257904052734375 * l.x + 0.9195404052734375 * l.y +
+                            0.01136207766830921173095703125 * l.z;
+        const float b2020 = 0.01639144308865070343017578125 * l.x +
+                            0.088013507425785064697265625 * l.y + 0.895595014095306396484375 * l.z;
+        const vec3 pq = GamePq(max(vec3(r2020.x, g2020, b2020) * pc.hdr_scale, vec3(0.0)));
+        // RGB as the post pass shows it (ISSN_HDR_SWAP=1: the other reading, a check).
+        imageStore(frame_out, pos, vec4(pc.hdr_swap != 0u ? pq.zyx : pq.xyz, 1.0));
+        return;
+    }
     // The game's frame is red / blue swapped in its own images; its final copy (fs_529286b5)
     // swaps them back on the way to the display buffer, which this pass replaces (s1364 picture).
     imageStore(frame_out, pos, vec4(SrgbToLinear(encoded.bgr), 1.0));

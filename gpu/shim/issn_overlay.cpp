@@ -35,6 +35,7 @@ extern "C" const char* runtime_pad_key_name(const char* button);
 #include "imgui_impl_vulkan.h"
 #include "video_core/renderdoc.h"
 #include "video_core/renderer_vulkan/vk_dlss.h"
+#include "video_core/renderer_vulkan/issn_hdr.h"
 #include "video_core/renderer_vulkan/issn_postfx.h"
 #include "video_core/renderer_vulkan/issn_sharpen.h"
 #include "video_core/renderer_vulkan/issn_framegen.h"
@@ -698,6 +699,42 @@ void PictureRows() {
                     InfoRow("Sharpened by", "the port (AMD RCAS, before the HUD)");
                     break;
                 }
+            }
+        }
+        // issn 11-16 (video_core issn_hdr.h): the HDR display mapping, live; HDR frames only.
+        {
+            namespace H = Vulkan::Hdr;
+            const bool map_before = s.hdr_mapping;
+            const int peak_before = s.hdr_peak, white_before = s.hdr_paper_white,
+                      sat_before = s.hdr_saturation;
+            CheckRow("HDR tone mapping", s.hdr_mapping,
+                     "With HDR on: fits the game's HDR to this display - highlights roll off to "
+                     "its peak instead of clipping. Off: the game's HDR as it is.");
+            if (s.hdr_mapping) {
+                static char auto_peak[64];
+                std::snprintf(auto_peak, sizeof(auto_peak), "Auto: %.0f nits (%s)",
+                              H::g_auto_peak_nits.load(), H::g_peak_source.load());
+                SliderRow("HDR peak brightness", s.hdr_peak, 0, 4000,
+                          s.hdr_peak == 0 ? auto_peak : "%d nits",
+                          "Your display's brightest white. Auto asks Windows. Too high: the "
+                          "brightest highlights clip; too low: they look flat.");
+                static char game_white[64];
+                const float game_pw = H::GamePaperWhite();
+                if (game_pw > 0.0f) {
+                    std::snprintf(game_white, sizeof(game_white), "The game's: %.0f nits", game_pw);
+                } else {
+                    std::snprintf(game_white, sizeof(game_white), "The game's");
+                }
+                SliderRow("HDR paper white", s.hdr_paper_white, 0, 500,
+                          s.hdr_paper_white == 0 ? game_white : "%d nits",
+                          "How bright the scene and the HUD are overall (white paper). 0 keeps the "
+                          "game's brightness setting; 150-250 suits most rooms.");
+                SliderRow("HDR saturation", s.hdr_saturation, 50, 150, "%d%%",
+                          "Colour strength in HDR. 100% is the game's.");
+            }
+            if (s.hdr_mapping != map_before || s.hdr_peak != peak_before ||
+                s.hdr_paper_white != white_before || s.hdr_saturation != sat_before) {
+                IssnSettings::ApplyLiveChoices();
             }
         }
         static const char* const fg_labels[] = {"Off", "On (test)"};
@@ -2233,6 +2270,36 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
         ChoiceBox();
     }
     ImGui::Render();
+    // issn 11-16: on an HDR10 swapchain the overlay's sRGB colours would be read as PQ code values
+    // (its white at 10 000 nits, HDRFrame capture): each vertex colour becomes the same colour in
+    // BT.2020 PQ at the paper white (the player's, else the game's, else 200 nits).
+    if (Vulkan::Hdr::g_output_hdr.load(std::memory_order_relaxed)) {
+        float paper = Vulkan::Hdr::g_paper_white_nits.load(std::memory_order_relaxed);
+        if (!(paper > 0.0f)) paper = Vulkan::Hdr::GamePaperWhite();
+        if (!(paper > 0.0f)) paper = 200.0f;
+        const auto to_linear = [](float c) {
+            return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
+        };
+        const auto to_pq = [](float nits) {
+            const float y = std::pow(std::clamp(nits / 10000.0f, 0.0f, 1.0f), 0.1593017578125f);
+            return std::pow((0.8359375f + 18.8515625f * y) / (1.0f + 18.6875f * y), 78.84375f);
+        };
+        ImDrawData* dd = ImGui::GetDrawData();
+        for (int l = 0; dd && l < dd->CmdListsCount; ++l) {
+            for (ImDrawVert& v : dd->CmdLists[l]->VtxBuffer) {
+                const float r = to_linear(float(v.col & 0xff) / 255.0f);
+                const float g = to_linear(float((v.col >> 8) & 0xff) / 255.0f);
+                const float b = to_linear(float((v.col >> 16) & 0xff) / 255.0f);
+                const float r2 = 0.6274f * r + 0.3293f * g + 0.0433f * b;
+                const float g2 = 0.0691f * r + 0.9195f * g + 0.0114f * b;
+                const float b2 = 0.0164f * r + 0.0880f * g + 0.8956f * b;
+                const auto q = [&](float c) {
+                    return ImU32(std::lround(std::clamp(to_pq(c * paper), 0.0f, 1.0f) * 255.0f));
+                };
+                v.col = (v.col & 0xff000000u) | q(r2) | (q(g2) << 8) | (q(b2) << 16);
+            }
+        }
+    }
 
     const vk::RenderingAttachmentInfo attachment{
         .imageView = view,

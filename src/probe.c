@@ -916,6 +916,7 @@ static void install_fov(Segment *segments, uint64_t count, uint64_t size) {
 }
 
 extern IssnMouseMailbox *runtime_mouse_aim_mailbox(void);
+extern void *runtime_camera_pointers(void);
 extern void runtime_mouse_aim_attach(volatile unsigned char *no_follow, const volatile unsigned char *invert_x,
                                      const volatile unsigned char *invert_y);
 
@@ -952,6 +953,83 @@ static void install_mouse_aim(Segment *segments, uint64_t count, uint64_t size) 
     runtime_mouse_aim_attach(image + ISSN_MOUSE_NO_FOLLOW, image + ISSN_MOUSE_OPTIONS + ISSN_MOUSE_INVERT_X,
                              image + ISSN_MOUSE_OPTIONS + ISSN_MOUSE_INVERT_Y);
     printf("Mouse aim: camera hook ready (tilt clamp %s)\n", free_tilt ? "off" : "on");
+}
+
+/* issn 11-16: camera turn tuning (report: the camera stalls after a spin one way and a turn the
+ * other; camera log study). The pan function (0x14a810) limits how fast the turn rate may change -
+ * new = current + clamp(target - current, +-accel x dt), accel at its sensitivity table +0xc, read
+ * at 0x14b038 (pan) and 0x14b07c (tilt) - and ramps the speed up with how long the stick is held
+ * (camera+0x4d4 caps the speed; a turn the other way resets it to ~0.16 of its 0.76 and it climbs
+ * back at a rate x dt computed at 0x14aec2 - camera log spin4). ISSN_CAM_ACCEL=k and
+ * ISSN_CAM_RAMP=k scale those (1 = the game's); each site's original instruction runs in a cave and
+ * the result is multiplied by k. Only when the bytes match. */
+static void install_camera_tuning(Segment *segments, uint64_t count) {
+    struct Site { uint64_t at; unsigned length; unsigned char bytes[8]; const char *env; };
+    static const struct Site sites[] = {
+        {0x14b038u, 7, {0xc4, 0xc1, 0x72, 0x59, 0x4c, 0x24, 0x0c}, "ISSN_CAM_ACCEL"},
+        {0x14b07cu, 7, {0xc4, 0xc1, 0x72, 0x59, 0x4c, 0x24, 0x0c}, "ISSN_CAM_ACCEL"},
+        {0x14aec2u, 8, {0xc5, 0xf2, 0x59, 0x8d, 0x10, 0xfe, 0xff, 0xff}, "ISSN_CAM_RAMP"},
+    };
+    unsigned char *cave = NULL;
+    size_t used = 0;
+    for (size_t i = 0; i < sizeof(sites) / sizeof(sites[0]); ++i) {
+        const struct Site *s = &sites[i];
+        const char *v = getenv(s->env);
+        const float k = v && *v ? (float)atof(v) : 1.0f;
+        if (!(k > 0.0f) || (k > 0.999f && k < 1.001f)) continue;
+        if (!mapped(segments, count, s->at, s->length) || memcmp(image + s->at, s->bytes, s->length)) {
+            printf("Camera tuning: %s unavailable at %#llx (the code differs)\n", s->env,
+                   (unsigned long long)s->at);
+            continue;
+        }
+        if (!cave) cave = allocate_cave(page_size);
+        unsigned char *c = cave + used;
+        size_t n = 0;
+        memcpy(c, s->bytes, s->length); n += s->length;            /* the original instruction */
+        const size_t mul_at = n;
+        const unsigned char mul[4] = {0xc5, 0xf2, 0x59, 0x0d};     /* vmulss k(%rip),%xmm1,%xmm1 */
+        memcpy(c + n, mul, 4); n += 8;
+        const unsigned char jmp[6] = {0xff, 0x25, 0, 0, 0, 0};     /* jmp *0(%rip) */
+        memcpy(c + n, jmp, 6); n += 6;
+        const uint64_t back = (uint64_t)(uintptr_t)(image + s->at + s->length);
+        memcpy(c + n, &back, 8); n += 8;
+        const size_t k_at = n;
+        memcpy(c + n, &k, 4); n += 4;
+        const int32_t disp = (int32_t)(k_at - (mul_at + 8));
+        memcpy(c + mul_at + 4, &disp, 4);
+        used += (n + 15) & ~(size_t)15;
+        if (!install_jump(s->at, s->length, c)) {
+            printf("Camera tuning: %s: cave out of range\n", s->env);
+            continue;
+        }
+        printf("Camera tuning: %s=%.2f at %#llx\n", s->env, k, (unsigned long long)s->at);
+    }
+    /* ISSN_CAM_LOG=1: the pan function's camera (r13), sensitivity table (r12) and tuning data
+     * (rbx) saved at 0x14b009 (its speed-multiplier store) for runtime_pad.c's camera log. */
+    const char *cam_log = getenv("ISSN_CAM_LOG");
+    static const unsigned char log_site[9] = {0xc4, 0xc1, 0x7a, 0x11, 0x9d, 0xd0, 0x04, 0x00, 0x00};
+    if (cam_log && cam_log[0] == '1' && mapped(segments, count, 0x14b009u, 9) &&
+        !memcmp(image + 0x14b009u, log_site, 9)) {
+        if (!cave) cave = allocate_cave(page_size);
+        unsigned char *c = cave + used;
+        size_t n = 0;
+        memcpy(c, log_site, 9); n += 9;
+        c[n++] = 0x50;                                     /* push %rax */
+        c[n++] = 0x48; c[n++] = 0xb8;                      /* movabs $ptrs,%rax */
+        const uint64_t ptrs = (uint64_t)(uintptr_t)runtime_camera_pointers();
+        memcpy(c + n, &ptrs, 8); n += 8;
+        const unsigned char stores[] = {0x4c, 0x89, 0x28,        /* mov %r13,(%rax) */
+                                        0x4c, 0x89, 0x60, 0x08,  /* mov %r12,8(%rax) */
+                                        0x48, 0x89, 0x58, 0x10,  /* mov %rbx,16(%rax) */
+                                        0x58,                    /* pop %rax */
+                                        0xff, 0x25, 0, 0, 0, 0}; /* jmp *0(%rip) */
+        memcpy(c + n, stores, sizeof(stores)); n += sizeof(stores);
+        const uint64_t back = (uint64_t)(uintptr_t)(image + 0x14b009u + 9);
+        memcpy(c + n, &back, 8); n += 8;
+        used += (n + 15) & ~(size_t)15;
+        if (install_jump(0x14b009u, 9, c)) printf("Camera log: camera state hook ready\n");
+    }
+    if (cave) protect(cave, page_size, 5);
 }
 
 /* issn 11-04: the exposure meter's diagnostic hook (src/exposure_hook.h): the menu shows what the
@@ -1486,6 +1564,7 @@ int main(int argc, char **argv) {
     if (gpu_enabled) install_stat_multipliers(segments, ns, size);
     if (gpu_enabled) install_view_tuning(segments, ns, size);
     if (gpu_enabled) install_mouse_aim(segments, ns, size);
+    if (gpu_enabled) install_camera_tuning(segments, ns);
     if (gpu_enabled) install_fov(segments, ns, size);
     if (gpu_enabled) install_exposure_meter(segments, ns);
     if (gpu_enabled) install_hero_cheats(segments, ns, size);

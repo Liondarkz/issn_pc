@@ -8,6 +8,8 @@
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
+#include <string>
 #include <vector>
 #include "common/logging/log.h"
 #include "common/types.h"
@@ -29,6 +31,15 @@
 namespace Vulkan::Dlss {
 
 constexpr u64 ResolvePsHash = 0xa6d23116; ///< T2x temporal resolve (writes 0x26bd70000)
+// HDR output (11-16, HdrProbe captures): with the game's HDR on, its post chain is another set of
+// programs. The tonemap fs_2e624729 writes a 10:10:10:2 UNORM frame (a perceptual encoding: 0.37
+// = paper white, 1.0 = 14x paper white, colour grading applied), its SMAA edges fs_2cdf42ec and
+// T2x resolve fs_ef076052 read it, and the final pass fs_0d656790 decodes it, converts BT.709 to
+// BT.2020, scales by its CB dword 9 (paper white / 100 nits) and encodes PQ. DLSS takes the same
+// slot there: the 10-bit frame is its colour input, the resolve's target the HUD layer.
+constexpr u64 ResolveHdrPsHash = 0xef076052; ///< T2x resolve, HDR output
+constexpr u64 EdgesHdrPsHash = 0x2cdf42ec;   ///< SMAA edges, HDR output (reads the 10-bit frame)
+constexpr u64 FinalHdrPsHash = 0x0d656790;   ///< the HDR final pass (PQ encode)
 // Measured in every capture since 09-24 (study sec. 1.1-1.2): fixed guest addresses.
 constexpr VAddr ColorInAddr = 0x2f9e10000; ///< tonemap output, RGBA8 1920x1080, not anti-aliased
 constexpr VAddr MotionAddr = 0x3059b0000;  ///< RG16F motion vectors (UV, current minus previous)
@@ -109,9 +120,21 @@ inline std::atomic<u64> g_status_evaluates{0};
 
 /// Guest code address of fs_a6d23116 once a pipeline lookup has met it (0 = not yet / off).
 inline std::atomic<u64> g_resolve_ps{0};
+/// The same for the HDR output's resolve fs_ef076052.
+inline std::atomic<u64> g_resolve_hdr_ps{0};
 /// A frame's SMAA edges draw has told where the colour input is ("Any render size" below): until
 /// then the game's own resolve runs (the first frames of a session).
 inline std::atomic<bool> g_inputs_seen{false};
+
+/// ISSN_HDR_DLSS=0: the port's AA steps aside while the game outputs HDR (its own T2x runs), as
+/// before 11-16.
+inline bool HdrAaWanted() {
+    static const bool wanted = [] {
+        const char* v = std::getenv("ISSN_HDR_DLSS");
+        return !(v && v[0] == '0');
+    }();
+    return wanted;
+}
 
 /// PipelineCache::GetProgram: remembers where the resolve shader lives. Also with the game's own
 /// AA (issn 11-05: the sharpening follows its resolve, vk_rasterizer.cpp SharpenGameResolve);
@@ -119,13 +142,17 @@ inline std::atomic<bool> g_inputs_seen{false};
 inline void NoteProgram(bool fragment, u64 hash, VAddr base) {
     if (fragment && hash == ResolvePsHash) [[unlikely]] {
         g_resolve_ps.store(base, std::memory_order_relaxed);
+    } else if (fragment && hash == ResolveHdrPsHash && HdrAaWanted()) [[unlikely]] {
+        g_resolve_hdr_ps.store(base, std::memory_order_relaxed);
     }
 }
 
 /// ClassifyDraw: is this draw's pixel shader the resolve, and is DLSS to replace it now?
 inline bool IsResolve(VAddr ps_address) {
     const u64 a = g_resolve_ps.load(std::memory_order_relaxed);
-    return a != 0 && a == ps_address && g_ready.load(std::memory_order_relaxed) &&
+    const u64 h = g_resolve_hdr_ps.load(std::memory_order_relaxed);
+    return ps_address != 0 && (a == ps_address || h == ps_address) &&
+           g_ready.load(std::memory_order_relaxed) &&
            g_user_on.load(std::memory_order_relaxed) &&
            g_inputs_seen.load(std::memory_order_relaxed);
 }
@@ -209,6 +236,74 @@ struct ShaderTap {
 };
 inline ShaderTap g_edges_tap;
 inline ShaderTap g_resolve_tap;
+inline ShaderTap g_edges_hdr_tap;   ///< fs_2cdf42ec (HDR output)
+inline ShaderTap g_resolve_hdr_tap; ///< fs_ef076052 (HDR output)
+
+// The HDR final pass's paper-white scale (its CB dword 9: nits / 100), read from its draws as the
+// weights CB is (NoteDraw); 0 = not seen yet. The DLSS composite encodes PQ with it as the game
+// does, and the display mapping (pp_pass) uses it as the game's paper white.
+inline std::atomic<u64> g_final_hdr_ps{0};
+inline std::atomic<u32> g_final_hdr_ud{~0u};
+inline std::atomic<Shader::PFN_SrtWalker> g_final_hdr_walker{nullptr};
+inline std::atomic<u32> g_final_hdr_flat_dw{0};
+inline std::atomic<float> g_hdr_scale{0.0f};
+inline void NoteFinalHdrInfo(const Shader::Info& info, VAddr base) {
+    if (info.pgm_hash != FinalHdrPsHash || info.stage != Shader::Stage::Fragment) [[likely]] {
+        return;
+    }
+    if (g_final_hdr_ps.load(std::memory_order_relaxed) == base) {
+        return;
+    }
+    for (const auto& b : info.buffers) {
+        if (b.IsSpecial() || b.inline_cbuf) {
+            continue;
+        }
+        if (b.sharp_idx + 4 <= 16) {
+            g_final_hdr_walker.store(nullptr, std::memory_order_relaxed);
+        } else if (info.srt_info.walker_func != nullptr &&
+                   b.sharp_idx + 4 <= info.srt_info.flattened_bufsize_dw &&
+                   info.srt_info.flattened_bufsize_dw <= 1024) {
+            g_final_hdr_flat_dw.store(info.srt_info.flattened_bufsize_dw, std::memory_order_relaxed);
+            g_final_hdr_walker.store(info.srt_info.walker_func, std::memory_order_relaxed);
+        } else {
+            continue;
+        }
+        g_final_hdr_ud.store(b.sharp_idx, std::memory_order_relaxed);
+        g_final_hdr_ps.store(base, std::memory_order_release);
+        LOG_INFO(Render_Vulkan, "HDR: final pass fs_0d656790 at {:#x}, CB V# at dword {}", base,
+                 b.sharp_idx);
+        return;
+    }
+}
+inline void NoteFinalHdrDraw(const AmdGpu::Regs& regs) {
+    const u32 ud = g_final_hdr_ud.load(std::memory_order_relaxed);
+    AmdGpu::Buffer vsharp;
+    if (ud + 4 <= 16) {
+        std::memcpy(&vsharp, &regs.ps_program.user_data[ud], sizeof(vsharp));
+    } else {
+        const auto walker = g_final_hdr_walker.load(std::memory_order_relaxed);
+        const u32 flat_dw = g_final_hdr_flat_dw.load(std::memory_order_relaxed);
+        if (walker == nullptr || ud + 4 > flat_dw) {
+            return;
+        }
+        thread_local std::vector<u32> flat;
+        flat.assign(flat_dw, 0u);
+        std::memcpy(flat.data(), regs.ps_program.user_data.data(), 16 * sizeof(u32));
+        walker(regs.ps_program.user_data.data(), flat.data());
+        std::memcpy(&vsharp, &flat[ud], sizeof(vsharp));
+    }
+    if (vsharp.base_address == 0 || vsharp.GetSize() < 40) {
+        return;
+    }
+    float scale;
+    std::memcpy(&scale, reinterpret_cast<const void*>(vsharp.base_address + 36), sizeof(scale));
+    if (scale > 0.01f && scale < 100.0f) {
+        const float old = g_hdr_scale.exchange(scale, std::memory_order_relaxed);
+        if (old != scale) {
+            LOG_WARNING(Render_Vulkan, "HDR: the game's paper white is {:.0f} nits", scale * 100.0f);
+        }
+    }
+}
 inline std::atomic<VAddr> g_color_addr{ColorInAddr};
 inline std::atomic<VAddr> g_motion_addr{MotionAddr};
 inline std::atomic<VAddr> g_depth_addr{DepthAddr};
@@ -253,10 +348,66 @@ inline u64 SkipPsHash() {
     return hash;
 }
 
+// ---- HDR probe (ISSN_HDR_PROBE=1, diagnostic) ----
+// Logs each distinct full-screen pass (pixel shader hash, colour target, its textures) once, on
+// every draw path (NoteDraw runs on the front, the lean workers and inline), to find the game's
+// tonemap pass (the one writing the DLSS colour input) and the HDR scene it reads.
+inline bool HdrProbeOn() {
+    static const bool on = [] {
+        const char* v = std::getenv("ISSN_HDR_PROBE");
+        return v && v[0] == '1';
+    }();
+    return on;
+}
+struct ProbeEntry {
+    std::atomic<VAddr> base{0};
+    std::atomic<u64> hash{0};
+    ShaderTap tap;
+};
+inline std::array<ProbeEntry, 4096> g_probe_table{};
+inline ProbeEntry* ProbeFind(VAddr base, bool insert) {
+    if (base == 0) {
+        return nullptr;
+    }
+    const size_t mask = g_probe_table.size() - 1;
+    for (size_t i = (base >> 8) * 0x9E3779B97F4A7C15ull & mask, n = 0; n < 64; ++n, i = (i + 1) & mask) {
+        VAddr cur = g_probe_table[i].base.load(std::memory_order_acquire);
+        if (cur == base) {
+            return &g_probe_table[i];
+        }
+        if (cur == 0) {
+            if (!insert) {
+                return nullptr;
+            }
+            VAddr expected = 0;
+            if (g_probe_table[i].base.compare_exchange_strong(expected, base) || expected == base) {
+                return &g_probe_table[i];
+            }
+        }
+    }
+    return nullptr;
+}
+inline void NoteTapInfoQuiet(ShaderTap& tap, const Shader::Info& info, VAddr base);
+inline void ProbeRegister(const Shader::Info& info, VAddr base) {
+    if (info.stage != Shader::Stage::Fragment) {
+        return;
+    }
+    if (ProbeEntry* e = ProbeFind(base, true); e && e->hash.load(std::memory_order_relaxed) == 0) {
+        NoteTapInfoQuiet(e->tap, info, base);
+        e->hash.store(info.pgm_hash, std::memory_order_release);
+    }
+}
+
 inline void NoteShaderInfo(const Shader::Info& info, VAddr base) {
+    if (HdrProbeOn()) [[unlikely]] {
+        ProbeRegister(info, base);
+    }
     if (info.stage == Shader::Stage::Fragment && SkipPsHash() != 0 &&
         info.pgm_hash == SkipPsHash()) [[unlikely]] {
         g_skip_ps.store(base, std::memory_order_relaxed);
+    }
+    if (info.stage == Shader::Stage::Fragment) {
+        NoteFinalHdrInfo(info, base);
     }
     if (info.stage != Shader::Stage::Fragment || !Enabled()) [[likely]] {
         return;
@@ -265,6 +416,10 @@ inline void NoteShaderInfo(const Shader::Info& info, VAddr base) {
         NoteTapInfo(g_edges_tap, info, base);
     } else if (info.pgm_hash == ResolvePsHash) {
         NoteTapInfo(g_resolve_tap, info, base);
+    } else if (info.pgm_hash == EdgesHdrPsHash && HdrAaWanted()) {
+        NoteTapInfo(g_edges_hdr_tap, info, base);
+    } else if (info.pgm_hash == ResolveHdrPsHash && HdrAaWanted()) {
+        NoteTapInfo(g_resolve_hdr_tap, info, base);
     }
 }
 
@@ -304,10 +459,16 @@ inline void StoreIfChanged(std::atomic<T>& a, T v) {
 /// NoteDraw: the edges draw -> colour input + depth; the resolve -> motion vectors, render size,
 /// HUD layer.
 inline void NoteInputDraw(const AmdGpu::Regs& regs, VAddr ps) {
-    if (ps == g_edges_tap.ps.load(std::memory_order_acquire)) {
+    // The HDR output's programs read a 10:10:10:2 frame where the SDR ones read RGBA8.
+    const bool hdr_edges = ps == g_edges_hdr_tap.ps.load(std::memory_order_acquire);
+    const bool hdr_resolve = !hdr_edges && ps == g_resolve_hdr_tap.ps.load(std::memory_order_acquire);
+    if (hdr_edges || ps == g_edges_tap.ps.load(std::memory_order_acquire)) {
+        const auto colour_fmt = hdr_edges ? AmdGpu::DataFormat::Format2_10_10_10
+                                          : AmdGpu::DataFormat::Format8_8_8_8;
         bool found = false;
-        ForEachTapImage(g_edges_tap, regs, [&](const AmdGpu::Image& image) {
-            if (!found && image.GetDataFmt() == AmdGpu::DataFormat::Format8_8_8_8) {
+        ForEachTapImage(hdr_edges ? g_edges_hdr_tap : g_edges_tap, regs,
+                        [&](const AmdGpu::Image& image) {
+            if (!found && image.GetDataFmt() == colour_fmt) {
                 StoreIfChanged(g_color_addr, image.Address());
                 StoreIfChanged(g_inputs_seen, true);
                 found = true;
@@ -316,9 +477,10 @@ inline void NoteInputDraw(const AmdGpu::Regs& regs, VAddr ps) {
         if (const VAddr z = regs.depth_buffer.DepthAddress(); z != 0) {
             StoreIfChanged(g_depth_addr, z);
         }
-    } else if (ps == g_resolve_tap.ps.load(std::memory_order_acquire)) {
+    } else if (hdr_resolve || ps == g_resolve_tap.ps.load(std::memory_order_acquire)) {
         bool found = false;
-        ForEachTapImage(g_resolve_tap, regs, [&](const AmdGpu::Image& image) {
+        ForEachTapImage(hdr_resolve ? g_resolve_hdr_tap : g_resolve_tap, regs,
+                        [&](const AmdGpu::Image& image) {
             if (!found && image.GetDataFmt() == AmdGpu::DataFormat::Format16_16 &&
                 image.GetNumberFmt() == AmdGpu::NumberFormat::Float) {
                 StoreIfChanged(g_motion_addr, image.Address());
@@ -331,15 +493,86 @@ inline void NoteInputDraw(const AmdGpu::Regs& regs, VAddr ps) {
     }
 }
 
+inline void NoteTapInfoQuiet(ShaderTap& tap, const Shader::Info& info, VAddr base) {
+    const bool flat = info.srt_info.walker_func != nullptr &&
+                      info.srt_info.flattened_bufsize_dw <= 1024;
+    const u32 limit = flat ? info.srt_info.flattened_bufsize_dw : 16u;
+    u32 n = 0;
+    for (const auto& img : info.images) {
+        const u32 size_dw = img.is_r128 ? 4u : 8u;
+        if (img.sharp_idx + size_dw > limit || n >= tap.sharps.size()) {
+            continue;
+        }
+        tap.sharps[n++].store(img.sharp_idx | (img.is_r128 ? 0x80000000u : 0u),
+                              std::memory_order_relaxed);
+    }
+    tap.count.store(n, std::memory_order_relaxed);
+    tap.walker.store(flat ? info.srt_info.walker_func : nullptr, std::memory_order_relaxed);
+    tap.flat_dw.store(flat ? info.srt_info.flattened_bufsize_dw : 16u, std::memory_order_relaxed);
+    tap.ps.store(base, std::memory_order_release);
+}
+
+inline void ProbeDraw(const AmdGpu::Regs& regs, VAddr ps) {
+    const auto& cb = regs.color_buffers[0];
+    const VAddr target = cb.Address();
+    const u32 width = cb.Pitch();
+    const u32 height = cb.Height();
+    if (target == 0 || regs.num_indices > 6 || width * 4 < g_game_width.load(std::memory_order_relaxed)) {
+        return;
+    }
+    const ProbeEntry* e = ProbeFind(ps, false);
+    const u64 hash = e ? e->hash.load(std::memory_order_acquire) : 0;
+    static std::mutex m;
+    static std::vector<std::pair<u64, VAddr>> seen;
+    static u32 order = 0;
+    std::string inputs;
+    {
+        std::scoped_lock lk{m};
+        for (const auto& s : seen) {
+            if (s.first == (hash ? hash : ps) && s.second == target) {
+                return;
+            }
+        }
+        if (seen.size() >= 512) {
+            return;
+        }
+        seen.emplace_back(hash ? hash : ps, target);
+        ++order;
+    }
+    if (e && hash != 0) {
+        ForEachTapImage(e->tap, regs, [&](const AmdGpu::Image& image) {
+            inputs += fmt::format(" {:#x} {}x{} d{} n{}", image.Address(), u32(image.width) + 1,
+                                  u32(image.height) + 1, u32(image.GetDataFmt()),
+                                  u32(image.GetNumberFmt()));
+        });
+    }
+    const VAddr color_in = g_color_addr.load(std::memory_order_relaxed);
+    const char* tag = target == color_in                          ? " [TONEMAP OUT = DLSS colour in]"
+                      : target == g_hud_addr.load(std::memory_order_relaxed) ? " [HUD layer]"
+                      : hash == ResolvePsHash                     ? " [T2x resolve]"
+                      : hash == EdgesPsHash                       ? " [SMAA edges]"
+                                                                  : "";
+    LOG_WARNING(Render_Vulkan, "HdrProbe #{}: fs_{:08x} (ps {:#x}) -> {:#x} {}x{} d{} n{}; in:{}{}",
+                order, hash, ps, target, width, height, u32(cb.GetDataFmt()),
+                u32(cb.GetNumberFmt()), inputs.empty() ? " none/unknown" : inputs, tag);
+}
+
 inline void NoteDraw(const AmdGpu::Regs& regs) {
     const VAddr ps = regs.ps_program.Address<VAddr>();
+    if (HdrProbeOn()) [[unlikely]] {
+        ProbeDraw(regs, ps);
+    }
     const u64 w = g_weights_ps.load(std::memory_order_relaxed);
     if (w == 0 || ps != w) [[likely]] {
         if (ps == g_edges_tap.ps.load(std::memory_order_relaxed) ||
-            ps == g_resolve_tap.ps.load(std::memory_order_relaxed)) [[unlikely]] {
+            ps == g_resolve_tap.ps.load(std::memory_order_relaxed) ||
+            ps == g_edges_hdr_tap.ps.load(std::memory_order_relaxed) ||
+            ps == g_resolve_hdr_tap.ps.load(std::memory_order_relaxed)) [[unlikely]] {
             if (ps != 0) {
                 NoteInputDraw(regs, ps);
             }
+        } else if (ps != 0 && ps == g_final_hdr_ps.load(std::memory_order_relaxed)) [[unlikely]] {
+            NoteFinalHdrDraw(regs);
         }
         return;
     }

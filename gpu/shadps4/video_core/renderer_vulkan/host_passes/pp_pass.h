@@ -17,6 +17,12 @@ public:
     struct Settings {
         float gamma = 1.0f;
         u32 hdr = 0;
+        // issn 11-16: HDR display mapping (issn_hdr.h); set per frame by the presenter.
+        u32 hdr_map = 0;               ///< 1 = map (HDR frames only)
+        float hdr_peak_nits = 1000.0f; ///< the display's peak
+        float hdr_paper_scale = 1.0f;  ///< the player's paper white / the game's
+        float hdr_src_peak_nits = 2800.0f; ///< the game's peak after that scale (14x paper white)
+        float hdr_saturation = 1.0f;
     };
 
     void Create(vk::Device device, vk::Format surface_format);

@@ -139,6 +139,14 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.debug_view = std::clamp(i, 0, DebugViewCount - 1);
     } else if (key == "sharpening") {
         v.sharpening = i < 0 ? 0 : i > 100 ? 100 : i;
+    } else if (key == "hdr_mapping") {
+        v.hdr_mapping = i != 0;
+    } else if (key == "hdr_peak") {
+        v.hdr_peak = std::clamp(i, 0, 10000);
+    } else if (key == "hdr_paper_white") {
+        v.hdr_paper_white = std::clamp(i, 0, 1000);
+    } else if (key == "hdr_saturation") {
+        v.hdr_saturation = std::clamp(i, 0, 200);
     } else if (key == "motion_blur") {
         v.motion_blur = i != 0;
     } else if (key == "chromatic_aberration") {
@@ -474,6 +482,9 @@ void Save() {
                  v.lod_bands[2].load(), v.lod_bands[3].load(), v.lod_bands[4].load(), v.lod_bands[5].load());
     std::fprintf(file, "fov=%.3f\nsave_note=%d\n", v.fov.load(), int(v.save_note.load()));
     std::fprintf(file, "sharpening=%d\n", v.sharpening.load());
+    std::fprintf(file, "hdr_mapping=%d\nhdr_peak=%d\nhdr_paper_white=%d\nhdr_saturation=%d\n",
+                 int(v.hdr_mapping.load()), v.hdr_peak.load(), v.hdr_paper_white.load(),
+                 v.hdr_saturation.load());
     std::fprintf(file, "motion_blur=%d\nchromatic_aberration=%d\n", int(v.motion_blur.load()),
                  int(v.chromatic_aberration.load()));
     std::fprintf(file, "trophy_note=%d\n", int(v.trophy_note.load()));

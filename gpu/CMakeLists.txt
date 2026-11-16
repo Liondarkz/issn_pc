@@ -196,7 +196,7 @@ if (WIN32)
     # <windows.h> out of the way of std::min/max and the Vulkan/SDL headers.
     target_compile_definitions(issngpu PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
     target_compile_options(issngpu PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/shim/issn_win_compat.h)
-    target_link_libraries(issngpu PUBLIC Vulkan::Vulkan ws2_32 bcrypt ntdll synchronization winmm pdh)
+    target_link_libraries(issngpu PUBLIC Vulkan::Vulkan ws2_32 bcrypt ntdll synchronization winmm pdh dxgi)
 elseif (APPLE)
     target_link_libraries(issngpu PUBLIC Vulkan::Vulkan)
 else()
