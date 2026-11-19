@@ -20,6 +20,8 @@ set(SHADER_FILES
     fault_buffer_process.comp
     fs_tri.vert
     fsr.comp
+    issn_overlay_hdr.frag
+    issn_overlay_hdr.vert
     issn_sharpen.comp
     infamous_particle_sort.comp
     neo_id_derive.comp
