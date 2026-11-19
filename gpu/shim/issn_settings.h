@@ -159,6 +159,11 @@ struct Values {
     /// issn 11-05 (video_core issn_sharpen.h): sharpening strength in percent, 0 = off (default),
     /// live; FSR 4 / OptiScaler sharpen themselves, otherwise the port's RCAS pass.
     std::atomic<int> sharpening{0};
+    /// issn 11-16 (video_core issn_hdr.h): the HDR display mapping, live (issn.ini hdr_mapping,
+    /// hdr_peak in nits with 0 = Auto, hdr_paper_white in nits with 0 = the game's, hdr_saturation
+    /// in percent).
+    std::atomic<bool> hdr_mapping{true};
+    std::atomic<int> hdr_peak{0}, hdr_paper_white{0}, hdr_saturation{100};
     /// Field of view factor (src/fov_hook.h, issn_view.cpp), live; fov_supported once hooked.
     std::atomic<float> fov{1.0f};
     std::atomic<bool> fov_supported{false};

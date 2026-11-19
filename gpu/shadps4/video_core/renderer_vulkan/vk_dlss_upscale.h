@@ -67,7 +67,13 @@ struct CompositeJob {
     vk::Image out_image;
     vk::ImageView out_view;
     vk::Extent2D size;
+    bool hdr{};          ///< the game outputs HDR: the composite encodes PQ as its final pass does
+    float hdr_scale{2.0f}; ///< that pass's paper white / 100 nits
 };
+
+/// ISSN_HDR_UPSCALE=0: the upscaler's window-size output stays off while the game outputs HDR (the
+/// AA still runs at the render size), as before 11-16.
+bool HdrUpscaleWanted();
 /// Records the composite (barriers + dispatch) into `cmdbuf`; any thread.
 void RecordComposite(vk::CommandBuffer cmdbuf, const CompositeJob& job);
 
@@ -77,7 +83,8 @@ public:
     ~Upscaler();
 
     /// Presenter, each flip (GPU thread): the output size; turns the HUD-layer mode on / off.
-    /// `hdr`: the game outputs HDR (BT.2020 PQ): the HUD-layer mode stays off.
+    /// `hdr`: the game outputs HDR (BT.2020 PQ): the scene is kept in RGBA16F and the composite
+    /// encodes PQ (11-16; ISSN_HDR_UPSCALE=0 keeps the HUD-layer mode off as before).
     void SetOutputSize(u32 width, u32 height, bool hdr = false);
     vk::Extent2D OutputSize() const {
         return output_size;
@@ -109,11 +116,16 @@ private:
     vk::UniqueDescriptorSetLayout set_layout;
     vk::UniquePipelineLayout pipeline_layout;
     vk::UniquePipeline pipeline;
-    std::unique_ptr<Target> scene; ///< DLSS output, RGBA8 UNORM (storage)
-    std::unique_ptr<Target> out;   ///< composite, RGBA16F linear
+    std::unique_ptr<Target> scene; ///< DLSS output, RGBA8 UNORM (RGBA16F with HDR) (storage)
+    std::unique_ptr<Target> out;   ///< composite, RGBA16F linear (PQ values with HDR)
     vk::ImageLayout scene_layout{vk::ImageLayout::eUndefined};
     vk::Extent2D output_size{};
     vk::Extent2D image_size{};
+    bool hdr_mode{};  ///< the presenter's last frame was HDR
+    bool image_hdr{}; ///< the scene image was made for HDR (RGBA16F)
+    vk::Format SceneFormat() const {
+        return image_hdr ? vk::Format::eR16G16B16A16Sfloat : vk::Format::eR8G8B8A8Unorm;
+    }
     bool ready{};
     u64 flips{};
     std::deque<std::pair<u64, std::unique_ptr<Target>>> retired; ///< freed some flips later

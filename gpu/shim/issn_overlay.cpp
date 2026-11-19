@@ -35,11 +35,15 @@ extern "C" const char* runtime_pad_key_name(const char* button);
 #include "imgui_impl_vulkan.h"
 #include "video_core/renderdoc.h"
 #include "video_core/renderer_vulkan/vk_dlss.h"
+#include "video_core/renderer_vulkan/issn_hdr.h"
 #include "video_core/renderer_vulkan/issn_postfx.h"
 #include "video_core/renderer_vulkan/issn_sharpen.h"
 #include "video_core/renderer_vulkan/issn_framegen.h"
+#include "video_core/host_shaders/issn_overlay_hdr_frag.h"
+#include "video_core/host_shaders/issn_overlay_hdr_vert.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
+#include "video_core/renderer_vulkan/vk_shader_util.h"
 #include "video_core/renderer_vulkan/vk_swapchain.h"
 
 // DejaVu Sans (Cyrillic), embedded (third_party/fonts, Bitstream Vera license).
@@ -698,6 +702,42 @@ void PictureRows() {
                     InfoRow("Sharpened by", "the port (AMD RCAS, before the HUD)");
                     break;
                 }
+            }
+        }
+        // issn 11-16 (video_core issn_hdr.h): the HDR display mapping, live; HDR frames only.
+        {
+            namespace H = Vulkan::Hdr;
+            const bool map_before = s.hdr_mapping;
+            const int peak_before = s.hdr_peak, white_before = s.hdr_paper_white,
+                      sat_before = s.hdr_saturation;
+            CheckRow("HDR tone mapping", s.hdr_mapping,
+                     "With HDR on: fits the game's HDR to this display - highlights roll off to "
+                     "its peak instead of clipping. Off: the game's HDR as it is.");
+            if (s.hdr_mapping) {
+                static char auto_peak[64];
+                std::snprintf(auto_peak, sizeof(auto_peak), "Auto: %.0f nits (%s)",
+                              H::g_auto_peak_nits.load(), H::g_peak_source.load());
+                SliderRow("HDR peak brightness", s.hdr_peak, 0, 4000,
+                          s.hdr_peak == 0 ? auto_peak : "%d nits",
+                          "Your display's brightest white. Auto asks Windows. Too high: the "
+                          "brightest highlights clip; too low: they look flat.");
+                static char game_white[64];
+                const float game_pw = H::GamePaperWhite();
+                if (game_pw > 0.0f) {
+                    std::snprintf(game_white, sizeof(game_white), "The game's: %.0f nits", game_pw);
+                } else {
+                    std::snprintf(game_white, sizeof(game_white), "The game's");
+                }
+                SliderRow("HDR paper white", s.hdr_paper_white, 0, 500,
+                          s.hdr_paper_white == 0 ? game_white : "%d nits",
+                          "How bright the scene and the HUD are overall (white paper). 0 keeps the "
+                          "game's brightness setting; 150-250 suits most rooms.");
+                SliderRow("HDR saturation", s.hdr_saturation, 50, 150, "%d%%",
+                          "Colour strength in HDR. 100% is the game's.");
+            }
+            if (s.hdr_mapping != map_before || s.hdr_peak != peak_before ||
+                s.hdr_paper_white != white_before || s.hdr_saturation != sat_before) {
+                IssnSettings::ApplyLiveChoices();
             }
         }
         static const char* const fg_labels[] = {"Off", "On (test)"};
@@ -2158,6 +2198,132 @@ void NoteGameFrame() {
     game_frames.fetch_add(1, std::memory_order_relaxed);
 }
 
+// issn 11-19: the HDR overlay pipeline. The CPU pass in Render turns vertex colours into PQ, but
+// textured images (the loading-screen art, the trophy icon, save pictures) are sRGB and the
+// backend's shader multiplies them by that PQ tint as code values. This pipeline's fragment shader
+// (issn_overlay_hdr.frag) does the multiply in nits and encodes PQ itself. It uses the backend's
+// own pipeline layout (same inputs, push constants and sets), so the backend's descriptor binds and
+// push constants stay valid; a draw callback at the front of the frame binds it in place of the
+// backend's pipeline. Made on the first HDR frame and kept for the session. It also targets the HDR
+// swapchain's format, which the backend's pipeline (made for the SDR format at Init) does not.
+vk::Pipeline hdr_pipeline{};
+bool hdr_pipeline_failed = false;
+
+vk::Pipeline HdrPipeline(vk::PipelineLayout layout) {
+    if (hdr_pipeline || hdr_pipeline_failed || !overlay_instance) {
+        return hdr_pipeline;
+    }
+    const vk::Device device = overlay_instance->GetDevice();
+    const vk::ShaderModule vs = Vulkan::Compile(HostShaders::ISSN_OVERLAY_HDR_VERT,
+                                                vk::ShaderStageFlagBits::eVertex, device);
+    const vk::ShaderModule fs = Vulkan::Compile(HostShaders::ISSN_OVERLAY_HDR_FRAG,
+                                                vk::ShaderStageFlagBits::eFragment, device);
+    if (vs && fs) {
+        const std::array stages{
+            vk::PipelineShaderStageCreateInfo{
+                .stage = vk::ShaderStageFlagBits::eVertex, .module = vs, .pName = "main"},
+            vk::PipelineShaderStageCreateInfo{
+                .stage = vk::ShaderStageFlagBits::eFragment, .module = fs, .pName = "main"},
+        };
+        const vk::VertexInputBindingDescription binding{
+            .binding = 0, .stride = sizeof(ImDrawVert), .inputRate = vk::VertexInputRate::eVertex};
+        const std::array attributes{
+            vk::VertexInputAttributeDescription{.location = 0, .binding = 0,
+                                                .format = vk::Format::eR32G32Sfloat,
+                                                .offset = offsetof(ImDrawVert, pos)},
+            vk::VertexInputAttributeDescription{.location = 1, .binding = 0,
+                                                .format = vk::Format::eR32G32Sfloat,
+                                                .offset = offsetof(ImDrawVert, uv)},
+            vk::VertexInputAttributeDescription{.location = 2, .binding = 0,
+                                                .format = vk::Format::eR8G8B8A8Unorm,
+                                                .offset = offsetof(ImDrawVert, col)},
+        };
+        const vk::PipelineVertexInputStateCreateInfo vertex_input{
+            .vertexBindingDescriptionCount = 1,
+            .pVertexBindingDescriptions = &binding,
+            .vertexAttributeDescriptionCount = u32(attributes.size()),
+            .pVertexAttributeDescriptions = attributes.data(),
+        };
+        const vk::PipelineInputAssemblyStateCreateInfo input_assembly{
+            .topology = vk::PrimitiveTopology::eTriangleList};
+        const vk::PipelineViewportStateCreateInfo viewport{.viewportCount = 1, .scissorCount = 1};
+        const vk::PipelineRasterizationStateCreateInfo raster{
+            .polygonMode = vk::PolygonMode::eFill,
+            .cullMode = vk::CullModeFlagBits::eNone,
+            .frontFace = vk::FrontFace::eCounterClockwise,
+            .lineWidth = 1.0f,
+        };
+        const vk::PipelineMultisampleStateCreateInfo multisample{
+            .rasterizationSamples = vk::SampleCountFlagBits::e1};
+        const vk::PipelineColorBlendAttachmentState blend_attachment{
+            .blendEnable = VK_TRUE,
+            .srcColorBlendFactor = vk::BlendFactor::eSrcAlpha,
+            .dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
+            .colorBlendOp = vk::BlendOp::eAdd,
+            .srcAlphaBlendFactor = vk::BlendFactor::eOne,
+            .dstAlphaBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
+            .alphaBlendOp = vk::BlendOp::eAdd,
+            .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                              vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+        };
+        const vk::PipelineDepthStencilStateCreateInfo depth{};
+        const vk::PipelineColorBlendStateCreateInfo blend{.attachmentCount = 1,
+                                                          .pAttachments = &blend_attachment};
+        const std::array dynamic_states{vk::DynamicState::eViewport, vk::DynamicState::eScissor};
+        const vk::PipelineDynamicStateCreateInfo dynamic{
+            .dynamicStateCount = u32(dynamic_states.size()),
+            .pDynamicStates = dynamic_states.data(),
+        };
+        // The HDR10 swapchain format (vk_swapchain.cpp SURFACE_FORMAT_HDR).
+        const vk::Format color_format = vk::Format::eA2B10G10R10UnormPack32;
+        const vk::PipelineRenderingCreateInfo rendering{.colorAttachmentCount = 1,
+                                                        .pColorAttachmentFormats = &color_format};
+        const auto [result, pipeline] = device.createGraphicsPipeline(
+            {}, vk::GraphicsPipelineCreateInfo{
+                    .pNext = &rendering,
+                    .stageCount = u32(stages.size()),
+                    .pStages = stages.data(),
+                    .pVertexInputState = &vertex_input,
+                    .pInputAssemblyState = &input_assembly,
+                    .pViewportState = &viewport,
+                    .pRasterizationState = &raster,
+                    .pMultisampleState = &multisample,
+                    .pDepthStencilState = &depth,
+                    .pColorBlendState = &blend,
+                    .pDynamicState = &dynamic,
+                    .layout = layout,
+                });
+        if (result == vk::Result::eSuccess) {
+            hdr_pipeline = pipeline;
+        }
+    }
+    if (vs) {
+        device.destroyShaderModule(vs);
+    }
+    if (fs) {
+        device.destroyShaderModule(fs);
+    }
+    if (!hdr_pipeline) {
+        hdr_pipeline_failed = true;
+        std::printf("Overlay: HDR pipeline not created - images keep the SDR shader\n");
+    }
+    return hdr_pipeline;
+}
+
+/// The draw callback at the front of an HDR frame's first draw list: binds the HDR pipeline (the
+/// backend has just bound its own, with the same layout, and pushed its constants).
+void BindHdrPipeline(const ImDrawList*, const ImDrawCmd*) {
+    const auto* state =
+        static_cast<ImGui_ImplVulkan_RenderState*>(ImGui::GetPlatformIO().Renderer_RenderState);
+    if (!state) {
+        return;
+    }
+    if (const vk::Pipeline pipeline = HdrPipeline(state->PipelineLayout)) {
+        vk::CommandBuffer(state->CommandBuffer)
+            .bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+    }
+}
+
 void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
     IssnExposure::Tick();
     // Game frame interval for the FPS readout (measured also while nothing is drawn). A present
@@ -2233,6 +2399,42 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
         ChoiceBox();
     }
     ImGui::Render();
+    // issn 11-16: on an HDR10 swapchain the overlay's sRGB colours would be read as PQ code values
+    // (its white at 10 000 nits, HDRFrame capture): each vertex colour becomes the same colour in
+    // BT.2020 PQ at the paper white (the player's, else the game's, else 200 nits).
+    if (Vulkan::Hdr::g_output_hdr.load(std::memory_order_relaxed)) {
+        float paper = Vulkan::Hdr::g_paper_white_nits.load(std::memory_order_relaxed);
+        if (!(paper > 0.0f)) paper = Vulkan::Hdr::GamePaperWhite();
+        if (!(paper > 0.0f)) paper = 200.0f;
+        const auto to_linear = [](float c) {
+            return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
+        };
+        const auto to_pq = [](float nits) {
+            const float y = std::pow(std::clamp(nits / 10000.0f, 0.0f, 1.0f), 0.1593017578125f);
+            return std::pow((0.8359375f + 18.8515625f * y) / (1.0f + 18.6875f * y), 78.84375f);
+        };
+        ImDrawData* dd = ImGui::GetDrawData();
+        for (int l = 0; dd && l < dd->CmdListsCount; ++l) {
+            for (ImDrawVert& v : dd->CmdLists[l]->VtxBuffer) {
+                const float r = to_linear(float(v.col & 0xff) / 255.0f);
+                const float g = to_linear(float((v.col >> 8) & 0xff) / 255.0f);
+                const float b = to_linear(float((v.col >> 16) & 0xff) / 255.0f);
+                const float r2 = 0.6274f * r + 0.3293f * g + 0.0433f * b;
+                const float g2 = 0.0691f * r + 0.9195f * g + 0.0114f * b;
+                const float b2 = 0.0164f * r + 0.0880f * g + 0.8956f * b;
+                const auto q = [&](float c) {
+                    return ImU32(std::lround(std::clamp(to_pq(c * paper), 0.0f, 1.0f) * 255.0f));
+                };
+                v.col = (v.col & 0xff000000u) | q(r2) | (q(g2) << 8) | (q(b2) << 16);
+            }
+        }
+        // Textured images: the HDR pipeline (above) applies that tint to sRGB texels in nits.
+        if (dd && dd->CmdListsCount > 0 && !hdr_pipeline_failed) {
+            ImDrawCmd bind{};
+            bind.UserCallback = BindHdrPipeline;
+            dd->CmdLists[0]->CmdBuffer.push_front(bind);
+        }
+    }
 
     const vk::RenderingAttachmentInfo attachment{
         .imageView = view,

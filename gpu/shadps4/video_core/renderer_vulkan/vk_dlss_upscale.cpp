@@ -42,6 +42,30 @@ bool UpscaleWanted() {
     return wanted;
 }
 
+bool HdrUpscaleWanted() {
+    static const bool wanted = [] {
+        const char* v = std::getenv("ISSN_HDR_UPSCALE");
+        return !(v && v[0] == '0') && HdrAaWanted();
+    }();
+    return wanted;
+}
+
+namespace {
+struct CompositePush {
+    u32 hdr;
+    float hdr_scale;
+    u32 hdr_swap;
+    u32 pad;
+};
+bool HdrSwap() {
+    static const bool swap = [] {
+        const char* v = std::getenv("ISSN_HDR_SWAP");
+        return v && v[0] == '1';
+    }();
+    return swap;
+}
+} // namespace
+
 u32 UpscaleTestBits() {
     static const u32 bits = [] {
         const char* v = std::getenv("SHADPS4_DLSS_UPSCALE_TEST");
@@ -96,9 +120,16 @@ Upscaler::Upscaler(const Instance& instance_) : instance{instance_}, device{inst
         .bindingCount = static_cast<u32>(bindings.size()),
         .pBindings = bindings.data(),
     }));
+    const vk::PushConstantRange push_range{
+        .stageFlags = vk::ShaderStageFlagBits::eCompute,
+        .offset = 0,
+        .size = sizeof(CompositePush),
+    };
     pipeline_layout = Check<"create dlss composite layout">(device.createPipelineLayoutUnique({
         .setLayoutCount = 1,
         .pSetLayouts = &set_layout.get(),
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &push_range,
     }));
     const auto module =
         Compile(HostShaders::DLSS_COMPOSITE_COMP, vk::ShaderStageFlagBits::eCompute, device);
@@ -156,11 +187,16 @@ void Upscaler::SetOutputSize(u32 width, u32 height, bool hdr) {
     // out far too dark with HDR on and the upscaler at a render size below the window (Reddit
     // reports, 10-30). Off, the upscaler works in place at the render size and the game's own
     // HDR pass runs; the post pass scales the frame to the window.
-    const bool wanted_size = force || FrameGen::Active() || (width > game_w && height > game_h);
-    const bool on = !hdr && wanted_size && g_ready.load() &&
+    // 11-16: with HDR the composite now does what that last pass does (dlss_composite.comp: the
+    // game's decode, BT.2020, its paper white, PQ), so the HUD-layer mode runs there too unless
+    // ISSN_HDR_UPSCALE=0. Frame generation stays off with HDR (presenter), so it does not count.
+    hdr_mode = hdr;
+    const bool wanted_size =
+        force || (!hdr && FrameGen::Active()) || (width > game_w && height > game_h);
+    const bool on = (!hdr || HdrUpscaleWanted()) && wanted_size && g_ready.load() &&
                     instance.IsDynamicColorWriteMaskSupported();
     static bool told_hdr = false;
-    if (hdr && wanted_size && !told_hdr) {
+    if (hdr && wanted_size && !told_hdr && !HdrUpscaleWanted()) {
         told_hdr = true;
         LOG_WARNING(Render_Vulkan, "{} upscale: off while the game outputs HDR (its own HDR pass "
                                    "runs; the upscaler works at the render size)",
@@ -218,15 +254,19 @@ void Upscaler::Resize(vk::Extent2D size) {
     };
     // Transfer usage too: NGX clears its output with vkCmdClearColorImage (validation run s1359,
     // VUID-vkCmdClearColorImage-image-00002 on the storage + sampled image).
-    scene = make(vk::Format::eR8G8B8A8Unorm, SceneUsage, "DLSS output");
+    // 11-16: RGBA16F with HDR - the game's 10-bit HDR encoding spans 14x paper white, which 8 bits
+    // would band.
+    image_hdr = hdr_mode;
+    scene = make(SceneFormat(), SceneUsage, "DLSS output");
     out = make(vk::Format::eR16G16B16A16Sfloat, SceneUsage, "DLSS composite");
     scene_layout = vk::ImageLayout::eUndefined;
     image_size = size;
-    LOG_INFO(Render_Vulkan, "DLSS upscale: output images {}x{}", size.width, size.height);
+    LOG_INFO(Render_Vulkan, "DLSS upscale: output images {}x{}{}", size.width, size.height,
+             image_hdr ? " (HDR, RGBA16F)" : "");
 }
 
 EvalImage Upscaler::SceneTarget(vk::CommandBuffer cmdbuf) {
-    if (!scene || image_size != output_size) {
+    if (!scene || image_size != output_size || image_hdr != hdr_mode) {
         Resize(output_size);
     }
     const vk::ImageMemoryBarrier2 barrier{
@@ -248,7 +288,7 @@ EvalImage Upscaler::SceneTarget(vk::CommandBuffer cmdbuf) {
     return EvalImage{
         .image = scene->image,
         .view = scene->view.get(),
-        .format = vk::Format::eR8G8B8A8Unorm,
+        .format = SceneFormat(),
         .layout = vk::ImageLayout::eGeneral,
         .usage = SceneUsage,
         .width = image_size.width,
@@ -287,6 +327,11 @@ CompositeJob Upscaler::TakeJob(vk::ImageView hud_view) {
         .out_image = out->image,
         .out_view = out->view.get(),
         .size = image_size,
+        .hdr = image_hdr,
+        .hdr_scale = [] {
+            const float s = g_hdr_scale.load(std::memory_order_relaxed);
+            return s > 0.0f ? s : 2.0f; // 200 nits until the game's final pass has run
+        }(),
     };
 }
 
@@ -327,6 +372,13 @@ void RecordComposite(vk::CommandBuffer cmdbuf, const CompositeJob& job) {
     }};
     cmdbuf.bindPipeline(vk::PipelineBindPoint::eCompute, job.pipeline);
     cmdbuf.pushDescriptorSetKHR(vk::PipelineBindPoint::eCompute, job.layout, 0, writes);
+    const CompositePush push{
+        .hdr = job.hdr ? 1u : 0u,
+        .hdr_scale = job.hdr_scale,
+        .hdr_swap = HdrSwap() ? 1u : 0u,
+        .pad = 0,
+    };
+    cmdbuf.pushConstants(job.layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(push), &push);
     cmdbuf.dispatch((job.size.width + 7) / 8, (job.size.height + 7) / 8, 1);
     const vk::ImageMemoryBarrier2 to_read{
         .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,

@@ -24,6 +24,7 @@
 #include "sdl_window.h"
 #include "video_core/buffer_cache/buffer.h"
 #include "video_core/renderdoc.h"
+#include "video_core/renderer_vulkan/issn_hdr.h"
 #include "video_core/renderer_vulkan/vk_dlss5.h"
 #include "video_core/renderer_vulkan/vk_dlss_upscale.h"
 #include "video_core/renderer_vulkan/vk_memory_budget.h"
@@ -588,6 +589,7 @@ void Presenter::DrawBootScreen(std::string_view headline, std::string_view detai
     cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
                            vk::PipelineStageFlagBits::eColorAttachmentOutput,
                            vk::DependencyFlagBits::eByRegion, {}, {}, to_attachment);
+    Hdr::g_output_hdr.store(swapchain.GetHDR(), std::memory_order_relaxed);
     IssnOverlay::Render(cmdbuf, swapchain.ImageView(), swapchain.GetExtent());
     const vk::ImageMemoryBarrier to_present{
         .srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite,
@@ -667,6 +669,7 @@ Presenter::Presenter(Frontend::WindowSDL& window_, AmdGpu::Liverpool* liverpool_
 
     fsr_pass.Create(device, instance.GetAllocator(), num_images);
     pp_pass.Create(device, swapchain.GetSurfaceFormat().format);
+    Hdr::Init(); // issn 11-16: the HDR display mapping's settings and the display's peak
 
     IssnOverlay::Init(instance, swapchain.GetSurfaceFormat().format, num_images);
     IssnOverlay::SetLoading(false, 0, 0); // the warm-up's boot screen (if any) is over
@@ -919,6 +922,17 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
             }
         }
         upscaler->SetOutputSize(frame->width, frame->height, frame->is_hdr);
+    }
+    {
+        // issn 11-16: the HDR display mapping for this frame (issn_hdr.h; live from the menu).
+        const float game_pw = Hdr::GamePaperWhite();
+        const float user_pw = Hdr::g_paper_white_nits.load(std::memory_order_relaxed);
+        const float scale = (user_pw > 0.0f && game_pw > 0.0f) ? user_pw / game_pw : 1.0f;
+        pp_settings.hdr_map = Hdr::g_mapping.load(std::memory_order_relaxed) ? 1u : 0u;
+        pp_settings.hdr_peak_nits = Hdr::g_peak_nits.load(std::memory_order_relaxed);
+        pp_settings.hdr_paper_scale = scale;
+        pp_settings.hdr_src_peak_nits = 14.0f * (game_pw > 0.0f ? game_pw : 200.0f) * scale;
+        pp_settings.hdr_saturation = Hdr::g_saturation.load(std::memory_order_relaxed);
     }
 
     // DLSS 5 on video cutscenes (vk_dlss5.h): a frame the game did not render through the T2x
@@ -1403,6 +1417,7 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool hold_frame) {
         cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
                                vk::PipelineStageFlagBits::eAllCommands,
                                vk::DependencyFlagBits::eByRegion, {}, {}, post_blit);
+        Hdr::g_output_hdr.store(swapchain.GetHDR(), std::memory_order_relaxed);
         IssnOverlay::Render(cmdbuf, swapchain_image_view, extent);
 
         if (capture_with_overlays_count > 0) {

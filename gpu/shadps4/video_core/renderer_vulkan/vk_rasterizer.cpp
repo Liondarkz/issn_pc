@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <optional>
 #include <array>
 #include <immintrin.h>
 #include <set>
@@ -1706,7 +1707,13 @@ void Rasterizer::DlssResolve() {
     };
     VAddr colour_addr = color_addr;
     VAddr motion_at = motion_addr;
-    if (!colour_at(colour_addr)) {
+    // issn 11-16: the HDR output's resolve (fs_ef076052) - its inputs come from the HDR edges
+    // draw (vk_dlss.h); the SDR builds' fixed-offset search below does not apply to it.
+    const bool hdr_resolve_draw =
+        regs.ps_program.Address<VAddr>() == Dlss::g_resolve_hdr_ps.load(std::memory_order_relaxed);
+    /// Set when the HDR colour input is read through a view of another format (below).
+    std::optional<vk::Format> hdr_colour_view;
+    if (!hdr_resolve_draw && !colour_at(colour_addr)) {
         if (!colour_at(Dlss::ColorInAddr + dlss_addr_delta) && dlss_delta_searches++ % 30 == 0) {
             std::vector<s64> deltas{0, 0x2c0000};
             for (const VAddr candidate : texture_cache.FindAddressesOf(
@@ -1736,16 +1743,47 @@ void Rasterizer::DlssResolve() {
     // log had only the 8 "no matching input" lines - every resolve was skipped, so the target
     // kept what another pass had left in that memory.
     VideoCore::Image* in = nullptr;
+    // issn 11-16: the HDR output's resolve (fs_ef076052): its colour input is the 10:10:10:2
+    // tonemap output, whose memory the game also uses for RGBA8 targets later in the frame, and
+    // the 10-bit image may be kept in either channel order - look for those formats by name.
     if (const VideoCore::ImageId id = texture_cache.FindImageAtSize(
             colour_addr, out.info.size.width, out.info.size.height, out.info.pixel_format)) {
         in = &texture_cache.GetImage(id);
+    } else if (hdr_resolve_draw) {
+        for (const vk::Format f : {vk::Format::eA2B10G10R10UnormPack32,
+                                   vk::Format::eA2R10G10B10UnormPack32,
+                                   vk::Format::eR16G16B16A16Sfloat}) {
+            if (const VideoCore::ImageId id = texture_cache.FindImageAtSize(
+                    colour_addr, out.info.size.width, out.info.size.height, f)) {
+                in = &texture_cache.GetImage(id);
+                break;
+            }
+        }
+        // The cache usually keeps one 32-bit image there (RGBA8, made first) and the tonemap
+        // writes through a 10:10:10:2 view of it (test run t2): read it the same way.
+        if (!in) {
+            if (VideoCore::Image* any = find(colour_addr);
+                any && !(any->aspect_mask & vk::ImageAspectFlagBits::eDepth) &&
+                (any->info.pixel_format == vk::Format::eR8G8B8A8Unorm ||
+                 any->info.pixel_format == vk::Format::eB8G8R8A8Unorm)) {
+                in = any;
+                hdr_colour_view = out.info.pixel_format;
+            }
+        }
+        static u32 hdr_misses = 0;
+        if (!in && hdr_misses++ < 4) {
+            LOG_WARNING(Render_Vulkan, "DLSS (HDR): no 10-bit colour at {:#x} for target {} {}x{}; "
+                                       "there: {}",
+                        colour_addr, vk::to_string(out.info.pixel_format), out.info.size.width,
+                        out.info.size.height, texture_cache.DescribeImagesAt(colour_addr));
+        }
     } else if (fsr4_mode) {
         in = find(colour_addr);
         if (in && (in->aspect_mask & vk::ImageAspectFlagBits::eDepth)) {
             in = nullptr;
         }
     }
-    fsr4_blit_in = in && in->info.pixel_format != out.info.pixel_format;
+    fsr4_blit_in = in && !hdr_colour_view && in->info.pixel_format != out.info.pixel_format;
     const auto fsr4_missed = [&](std::string_view why) {
         ++fsr4_misses;
         ++fsr4_fail_streak;
@@ -1986,16 +2024,17 @@ void Rasterizer::DlssResolve() {
                            vk::AccessFlagBits2::eShaderRead, {});
             out.Transit(vk::ImageLayout::eGeneral, vk::AccessFlagBits2::eShaderWrite, {});
             const auto eval_image = [](VideoCore::Image& image, vk::ImageLayout layout,
-                                       bool storage, bool is_depth) {
+                                       bool storage, bool is_depth,
+                                       std::optional<vk::Format> as = std::nullopt) {
                 VideoCore::ImageViewInfo view_info{};
                 view_info.type = AmdGpu::ImageType::Color2D;
-                view_info.format = image.info.pixel_format;
+                view_info.format = as.value_or(image.info.pixel_format);
                 view_info.is_storage = storage;
                 const auto& view = image.FindView(view_info);
                 return Dlss::EvalImage{
                     .image = image.GetImage(),
                     .view = *view.image_view,
-                    .format = image.info.pixel_format,
+                    .format = as.value_or(image.info.pixel_format),
                     .layout = Vulkan::GuestLayout(layout),
                     .usage = image.usage_flags,
                     .width = image.info.size.width,
@@ -2047,12 +2086,15 @@ void Rasterizer::DlssResolve() {
             const Dlss::EvalImage depth_eval =
                 eval_image(*depth, vk::ImageLayout::eDepthStencilReadOnlyOptimal, false, true);
             Dlss::EvalImage color_eval =
-                eval_image(*in, vk::ImageLayout::eShaderReadOnlyOptimal, false, false);
+                eval_image(*in, vk::ImageLayout::eShaderReadOnlyOptimal, false, false, hdr_colour_view);
             // DLSS 5 (vk_dlss5.h): the model edits the 1080p frame first (no HUD in it yet) and
             // DLSS 4.5 takes its answer; off / missing / failed = the game's frame as before.
-            if (const auto nr = Dlss5::Apply(instance, cmdbuf, color_eval, motion_eval,
-                                             depth_eval, dlss_reset_pending)) {
-                color_eval = *nr;
+            // 11-16: not on the HDR output's 10-bit frame (the model expects the SDR RGBA8 one).
+            if (!hdr_resolve_draw) {
+                if (const auto nr = Dlss5::Apply(instance, cmdbuf, color_eval, motion_eval,
+                                                 depth_eval, dlss_reset_pending)) {
+                    color_eval = *nr;
+                }
             }
             evaluated = Dlss::Evaluate(cmdbuf, dlss_calls, color_eval, motion_eval, depth_eval,
                                        target, jx, jy, dlss_reset_pending);
@@ -2234,7 +2276,7 @@ bool Rasterizer::PostFxDraw(const GraphicsPipeline* pipeline) {
             vs = stage->pgm_hash;
         }
     }
-    if (ps == Dlss::ResolvePsHash) {
+    if (ps == Dlss::ResolvePsHash || ps == Dlss::ResolveHdrPsHash) {
         PostFxPublish(); // the game's own T2x resolve: the end of the scene's post chain
         return false;
     }

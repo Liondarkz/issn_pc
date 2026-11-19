@@ -680,6 +680,67 @@ static void pad_aim_boost(const PadData *d) {
     aim_add(x*k,y*k);
 }
 
+/* issn 11-16 (diagnostic, ISSN_CAM_LOG=1): one CSV row per gameplay camera update (the mouse
+ * hook's mailbox counts them) - the right stick as the game gets it and how far the camera turned
+ * - to study the turn speed (report: the camera slows after a spin one way and a turn the other).
+ * Written to user/camera_log.csv. */
+/* The pan function's camera / sensitivity table / tuning data, saved by probe.c's hook. */
+static volatile uint64_t cam_ptrs[3];
+void *runtime_camera_pointers(void) { return (void *)cam_ptrs; }
+static float cam_f(int which, unsigned off) {
+    const uint64_t p=cam_ptrs[which];
+    if (!p) return 0.0f;
+    float v; memcpy(&v,(const void *)(uintptr_t)(p+off),4); return v;
+}
+static int cam_i(int which, unsigned off) {
+    const uint64_t p=cam_ptrs[which];
+    if (!p) return -1;
+    int v; memcpy(&v,(const void *)(uintptr_t)(p+off),4); return v;
+}
+static void camera_log(const PadData *d) {
+    static int on=-1;
+    static FILE *f;
+    static uint32_t last_frames;
+    static float last_pan, last_tilt;
+    static uint64_t t0;
+    if (on<0) {
+        const char *e=getenv("ISSN_CAM_LOG");
+        on=e && e[0]=='1';
+        if (on) {
+            f=fopen("user/camera_log.csv","w");
+            if (!f) on=0;
+            else { fprintf(f,"ms,frames,stick_x,stick_y,l2,pan,tilt,dpan,dtilt,buttons,"
+                             "c4d0,c4d4,c4d8,c340,c344,c498,c470,c4a8,c4b8,s4,s8,sc,t300,t304,t310,t314\n"); printf("Camera log: user/camera_log.csv\n"); fflush(stdout); }
+        }
+    }
+    if (!on || !aim_attached) return;
+    const uint32_t frames=__atomic_load_n(&aim_box.frames,__ATOMIC_ACQUIRE);
+    if (frames==last_frames) return;
+    const float pan=aim_box.pan, tilt=aim_box.tilt;
+    if (!t0) t0=d->timestamp;
+    float dpan=pan-last_pan;
+    const float two_pi=6.28318531f;
+    while (dpan>3.14159265f) dpan-=two_pi;
+    while (dpan<-3.14159265f) dpan+=two_pi;
+    fprintf(f,"%.1f,%u,%.3f,%.3f,%u,%.5f,%.5f,%.5f,%.5f,%#x,",(double)(d->timestamp-t0)/1000.0,frames,
+            ((float)d->right_x-127.5f)/127.5f,((float)d->right_y-127.5f)/127.5f,(unsigned)d->l2,
+            pan,tilt,last_frames ? dpan : 0.0f,last_frames ? tilt-last_tilt : 0.0f,d->buttons);
+    fprintf(f,"%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n",
+            cam_f(0,0x4d0),cam_f(0,0x4d4),cam_f(0,0x4d8),cam_f(0,0x340),cam_f(0,0x344),cam_f(0,0x498),
+            cam_i(0,0x470),cam_i(0,0x4a8),cam_i(0,0x4b8),cam_f(1,4),cam_f(1,8),cam_f(1,0xc),
+            cam_f(2,0x300),cam_f(2,0x304),cam_f(2,0x310),cam_f(2,0x314));
+    /* The player's marker: a touchpad click (the moment the camera felt slow). */
+    static int touch_was;
+    const int touch=(d->buttons&BTN_TOUCHPAD)!=0;
+    if (touch && !touch_was) {
+        printf("Camera log: marker at %.1f s\n",(double)(d->timestamp-t0)/1e6);
+        fflush(stdout); fflush(f);
+    }
+    touch_was=touch;
+    if ((frames&63u)==0) fflush(f);
+    last_frames=frames; last_pan=pan; last_tilt=tilt;
+}
+
 /* issn: the mouse, as in axylpup's build: while it holds the camera (relative mode: a click in
  * the window or Y), its motion turns the camera through the hook above (the right stick when the
  * hook is not there, ISSN_MOUSE_SPEED px/s = full tilt) and its buttons are R2 (left, shoot) and
@@ -1099,6 +1160,7 @@ static void sample(PadData *d) {
     play_click(d);
     pad_aim_boost(d);
     apply_pad_sensitivity(d);
+    camera_log(d);
     if (hold_after_capture) {
         if (d->buttons) d->buttons=0;
         else hold_after_capture=0;
