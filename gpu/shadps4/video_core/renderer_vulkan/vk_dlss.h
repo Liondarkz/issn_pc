@@ -127,11 +127,12 @@ inline std::atomic<u64> g_resolve_hdr_ps{0};
 inline std::atomic<bool> g_inputs_seen{false};
 
 /// ISSN_HDR_DLSS=0: the port's AA steps aside while the game outputs HDR (its own T2x runs), as
-/// before 11-16.
+/// before 11-16. Only DLSS (modes 0 / 1) takes the HDR resolve: FSR 4, XeSS and AA "Off" also set
+/// g_ready, but their paths are untested on the 10-bit frame, so they step aside in HDR as before.
 inline bool HdrAaWanted() {
     static const bool wanted = [] {
         const char* v = std::getenv("ISSN_HDR_DLSS");
-        return !(v && v[0] == '0');
+        return Mode() <= 1 && !(v && v[0] == '0');
     }();
     return wanted;
 }
